@@ -54,6 +54,10 @@ Evidence that is direct observation:
 
 - §3.4, *Profile `observation`* (new), and §4: support kind `empirical_obs`, pointing to evidence of profile `observation`, for claims that rest on what an instrument or an observer recorded and the paper shows: an image (a micrograph, a blot, a telescope image), a spectrum, a determined structure, a described specimen, a recording. The evidence lists its `records`, each `{kind, artefact, description}`, and what was seen is its results. *Choosing the profile* separates it from `quant` and `qual`. New rule 89, warning 37; warnings 8, 17 and 25 apply to it as to `quant`.
 
+Reading one claim:
+
+- §2.3, *Claim bundles* (new): one claim with everything it rests on, as JSON and as a reading view (`claimset render --claim C4`), for the platform's claim pages.
+
 ## Changes in v0.38 (since v0.37)
 
 The format becomes a core with extensions. The core holds what every field shares and what claims are compared by across fields: claims and their atoms, support, definitions, observations, assumptions, limitations, provenance and contributors. An extension adds the detail one kind of work needs (the glosses of linguistic examples, the structures of compounds, the endpoints of a trial), in blocks of its own on the objects it concerns. Extensions have their own versions, so one can be added or revised without a new version of the core, and a paper uses as many as it needs.
@@ -449,6 +453,8 @@ A claimset is stored and exchanged as JSON: the canonical file, which tools vali
 - **Order:** claims are grouped by role: principal claims, then supporting claims, then secondary claims, each group in file order. Claims that are not principal and whose support is only `argument` or `unstated` follow, under CLAIMS WITHOUT EVIDENCE, so a reader sees at once what the paper asserts or argues without evidence. Principal claims stay with the principal claims whatever their support.
 
 The reading view is made mechanically from a valid file (`claimset render`); it adds nothing and is never edited. The reading view the platform serves may append, under REVIEW STATUS, each claim's unresolved review comments with their category, severity and state; that is derived data, and `claimset render` of the file alone does not add it. Its layout is the reference rendering in Appendix D. A reader that needs a field left out (a source span to check a claim against its source, an artefact's location) reads the canonical file.
+
+**Claim bundles.** A reader that wants one claim is given its **claim bundle**: the claim, the claims it rests on (through `depends_on` and `assumptions`, its own or those of a definition or evidence it rests on), and the definitions, evidence, warrants, limitations, artefacts and references these cite, found by following their IDs. A relation to another claim of the paper names that claim without bringing it in. The bundle is JSON (`{bundle_of, schema_version, paper, claims, definitions, …}`, with the paper's ID, version, title, licence, status and date) and has a reading view made as above, headed `CLAIM C4 of <ID> <title>`. Both are made mechanically from a valid file (`claimset render --claim C4`, with `--bundle` for the JSON); a bundle is not a claimset and is not validated as one. (New in v0.39.)
 
 ### 2.4 Files in a repository
 
