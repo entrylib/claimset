@@ -3,7 +3,8 @@
 A bundle holds the claim, the claims it depends on, and the definitions, evidence, limitations, warrants, artefacts and
 references they cite, found by following the IDs the claim cites and, in turn, those objects cite. Another claim is
 pulled in only through `depends_on` and `assumptions` (of the claim, or of a definition or evidence it rests on); a
-relation to another claim of the paper keeps its target's ID without pulling the claim in. The reading view of a bundle is the reading view (render) of it.
+relation to another claim of the paper keeps its target's ID without pulling the claim in. The reading view of a
+bundle is the reading view (render) of it.
 """
 
 import re
