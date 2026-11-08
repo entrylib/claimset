@@ -129,7 +129,16 @@ def _cmd_render(args):
         print(f"ERROR: {args.file} does not validate ({len(rep.errors)} errors); the reading view is made only "
               f"from a valid file. Run `claimset validate {args.file}`.", file=sys.stderr)
         return 1
-    text = _render.render(doc)
+    if args.claim:
+        from . import claim as _claim
+        try:
+            text = (json.dumps(_claim.claim_bundle(doc, args.claim), indent=1, ensure_ascii=False) + "\n"
+                    if args.bundle else _claim.render_claim(doc, args.claim))
+        except KeyError:
+            print(f"ERROR: {args.file} has no claim {args.claim}", file=sys.stderr)
+            return 1
+    else:
+        text = _render.render(doc)
     if args.output:
         with open(args.output, "w", encoding="utf-8") as fh:
             fh.write(text)
@@ -224,6 +233,8 @@ def build_parser():
     rv.add_argument("file", help="path to the claimset JSON file")
     rv.add_argument("-o", "--output", help="write the reading view to this file")
     rv.add_argument("--published", action="store_true", help="the file is a published claimset")
+    rv.add_argument("--claim", help="only this claim and what it rests on (a claim bundle): C4")
+    rv.add_argument("--bundle", action="store_true", help="with --claim: the claim bundle as JSON, not its reading view")
     rv.set_defaults(func=_cmd_render)
 
     rn = sub.add_parser("renumber", help="before the first submission: renumber claims and other objects in "
