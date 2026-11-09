@@ -100,9 +100,43 @@ def _ext(x):
     return out
 
 
+def _ordinal(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _statistic(st):
+    """A statistic in words: mean, geometric mean, trimmed mean (10% each tail), quantile 0.9, 3rd central moment,
+    excess kurtosis, or the label of other; a label on a listed name follows it."""
+    if isinstance(st, str):
+        return "" if st == "other" else st
+    if not isinstance(st, dict) or not isinstance(st.get("name"), str):
+        return ""
+    name, label = st["name"], st.get("label") if isinstance(st.get("label"), str) else ""
+    if name == "other":
+        return label
+    text = name
+    if name == "mean" and isinstance(st.get("kind"), str) and st["kind"] != "arithmetic":
+        text = f"{st['kind']} mean"
+        if isinstance(st.get("trim"), (int, float)) and not isinstance(st.get("trim"), bool):
+            text += f" ({_num(round(st['trim'] * 100, 6))}% each tail)"
+    elif name in ("quantile", "expectile") and st.get("probability") is not None:
+        text = f"{name} {_num(st['probability'])}"
+    elif name == "moment" and isinstance(st.get("order"), int):
+        text = f"{_ordinal(st['order'])} {'central' if st.get('central') is True else 'raw'} moment"
+    elif name == "kurtosis" and st.get("excess") is True:
+        text = "excess kurtosis"
+    return _join([text, label], ", ")
+
+
+def _stat_note(obj):
+    """' (mean)', ' (median, approximate)' or '' for a column or a row."""
+    note = _join([_statistic(obj.get("statistic")), "approximate" if obj.get("approximate") is True else ""], ", ")
+    return f" ({note})" if note else ""
+
+
 def _column(c):
     if isinstance(c, dict):
-        return _join([_s(c.get("variable")), _conditions(c.get("conditions"))], " ")
+        return _join([_s(c.get("variable")), _conditions(c.get("conditions"))], " ") + _stat_note(c)
     return _s(c)
 
 
@@ -239,7 +273,8 @@ def _table(eid, t):
     lines.append("  | " + " | ".join(["row"] + list(t.get("row_labels") or []) + cols) + " |")
     for r in t.get("rows") or []:
         if isinstance(r, dict):
-            cells = [r.get("id", "")] + [_s(x) for x in r.get("label") or []] + [_val(v) for v in r.get("values") or []]
+            cells = ([f"{r.get('id', '')}{_stat_note(r)}"] + [_s(x) for x in r.get("label") or []]
+                     + [_val(v) for v in r.get("values") or []])
             lines.append("  | " + " | ".join(cells) + " |")
     return lines
 
@@ -279,7 +314,7 @@ def _evidence(e):
             extra = _join([_uncertainty(r.get("uncertainty")), r.get("unit"), _interval(r.get("interval")),
                            f"n {_num(r['n'])}" if r.get("n") is not None else "", _conditions(r.get("conditions")),
                            f"read from {rf.get('artefact')}, precision {_s(rf.get('precision'))}" if rf else ""], " ")
-            stat = f" ({r['statistic']})" if isinstance(r.get("statistic"), str) else ""
+            stat = f" ({_statistic(r.get('statistic'))})" if _statistic(r.get("statistic")) else ""
             approx = "about " if r.get("approximate") is True else ""
             lines.append(f"  {e.get('id')}.{r.get('id')} {_s(r.get('variable'))}{stat} = {approx}{_val(r.get('value'))}"
                          + (f" {extra}" if extra else "") + _ext(r))

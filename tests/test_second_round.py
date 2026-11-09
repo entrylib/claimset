@@ -59,6 +59,88 @@ class TestRule87(unittest.TestCase):
         self.assertIn("nnt", ENUM["statistic"])
 
 
+def warnings(report):
+    return sorted({w["rule"] for w in report.warnings})
+
+
+def with_table(columns, rows):
+    d = doc()
+    d["evidence"][0]["tables"] = [{"id": "T1", "description": "Errors of two methods", "row_labels": ["method"],
+                                   "columns": columns, "rows": rows}]
+    return d
+
+
+class TestRule87Families(unittest.TestCase):
+    """Rule 87 as amended on 2026-11-09: statistics as families with parameters, other, and statistics on rows."""
+
+    GOOD = ["sd", "mad", {"name": "mean"}, {"name": "mean", "kind": "geometric"},
+            {"name": "mean", "kind": "trimmed", "trim": 0.1}, {"name": "quantile", "probability": 0.9},
+            {"name": "expectile", "probability": 0.95}, {"name": "moment", "order": 3, "central": True},
+            {"name": "kurtosis", "excess": True}, {"name": "skewness"}, {"name": "ratio", "label": "fold change"},
+            {"name": "other", "label": "Theil's U2"}]
+    BAD = ["geometric_mean", "other", {"kind": "geometric"}, {"name": "mean", "kind": "log"},
+           {"name": "mean", "trim": 0.1}, {"name": "mean", "kind": "trimmed", "trim": 0.5},
+           {"name": "quantile"}, {"name": "quantile", "probability": 1}, {"name": "expectile", "probability": "0.9"},
+           {"name": "median", "probability": 0.5}, {"name": "moment"}, {"name": "moment", "order": 0},
+           {"name": "moment", "order": 2, "central": "yes"}, {"name": "kurtosis", "excess": 1},
+           {"name": "other"}, {"name": "other", "label": " "}, {"name": "sd", "kind": "geometric"}]
+
+    def test_valid_statistics(self):
+        for st in self.GOOD:
+            self.assertEqual(validate(with_result(statistic=st)).errors, [], st)
+
+    def test_broken_statistics(self):
+        for st in self.BAD:
+            self.assertEqual(rules(validate(with_result(statistic=st))), ["87"], st)
+
+    def test_the_new_names(self):
+        for name in ("sum", "mode", "expectile", "min", "max", "sd", "variance", "iqr", "mad",
+                     "coefficient_of_variation", "skewness", "kurtosis", "moment", "other"):
+            self.assertIn(name, ENUM["statistic"])
+
+    def test_other_warns(self):
+        r = validate(with_result(statistic={"name": "other", "label": "Theil's U2"}))
+        self.assertEqual(r.errors, [])
+        self.assertIn("W38", warnings(r))
+        self.assertNotIn("W38", warnings(validate(with_result(statistic={"name": "mean", "kind": "geometric"}))))
+        cols = [{"variable": "MASE", "statistic": {"name": "other", "label": "winsorised median"}}]
+        self.assertIn("W38", warnings(validate(with_table(cols, [{"id": "r1", "label": ["A"], "values": [1.0]}]))))
+
+    def test_statistics_on_rows(self):
+        rows = [{"id": "r1", "label": ["A"], "values": [0.9, 1.1], "statistic": "mean"},
+                {"id": "r2", "label": ["A"], "values": [0.8, 1.0], "statistic": "median"},
+                {"id": "r3", "label": ["A"], "values": [0.7, 0.9],
+                 "statistic": {"name": "quantile", "probability": 0.9}, "approximate": True}]
+        d = with_table(["MASE", "RMSSE"], rows)
+        self.assertEqual(validate(d).errors, [])
+        view = render(d)
+        self.assertIn("| r1 (mean) | A | 0.9 | 1.1 |", view)
+        self.assertIn("| r3 (quantile 0.9, approximate) | A |", view)
+        rows[1]["statistic"] = "geometric mean"
+        self.assertEqual(rules(validate(with_table(["MASE", "RMSSE"], rows))), ["87"])
+
+    def test_not_on_both_row_and_column(self):
+        cols = [{"variable": "MASE", "statistic": "mean"}, "RMSSE"]
+        rows = [{"id": "r1", "label": ["A"], "values": [0.9, 1.1], "statistic": "median"}]
+        self.assertEqual(rules(validate(with_table(cols, rows))), ["87"])
+        rows[0].pop("statistic")
+        self.assertEqual(validate(with_table(cols, rows)).errors, [])
+
+    def test_columns_differing_only_by_statistic_are_distinct(self):
+        cols = [{"variable": "MASE", "statistic": {"name": "mean", "kind": "geometric"}},
+                {"variable": "MASE", "statistic": "median"}]
+        d = with_table(cols, [{"id": "r1", "label": ["A"], "values": [0.9, 0.8]}])
+        self.assertEqual(validate(d).errors, [])
+        self.assertIn("| row | method | MASE (geometric mean) | MASE (median) |", render(d))
+
+    def test_reading_view_of_parameters(self):
+        for st, text in ((({"name": "mean", "kind": "trimmed", "trim": 0.1}), "D1 (trimmed mean (10% each tail))"),
+                         ({"name": "moment", "order": 3, "central": True}, "D1 (3rd central moment)"),
+                         ({"name": "kurtosis", "excess": True}, "D1 (excess kurtosis)"),
+                         ({"name": "other", "label": "Theil's U2"}, "D1 (Theil's U2)")):
+            self.assertIn(f"E1.R1 {text} = 1.5", render(with_result(statistic=st)))
+
+
 class TestRule88(unittest.TestCase):
     def test_unit(self):
         d = doc()

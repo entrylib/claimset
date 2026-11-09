@@ -75,9 +75,12 @@ ENUM = {
     "framework": {"frequentist", "equivalence", "bayesian", "deterministic", "formal", "qualitative"},
     "interval_kind": {"confidence", "credible", "prediction"},
     "uncertainty_kind": {"sd", "se", "stat", "sys", "total", "unspecified"},
-    "statistic": {"count", "proportion", "mean", "median", "quantile", "difference", "ratio", "odds_ratio",
-                  "risk_ratio", "hazard_ratio", "standardised_mean_difference", "correlation", "coefficient",
-                  "r_squared", "nnt", "test_statistic", "p_value", "bayes_factor", "posterior_probability"},
+    "statistic": {"count", "sum", "proportion", "mean", "median", "mode", "quantile", "expectile", "min", "max",
+                  "sd", "variance", "iqr", "mad", "coefficient_of_variation", "skewness", "kurtosis", "moment",
+                  "difference", "ratio", "odds_ratio", "risk_ratio", "hazard_ratio", "standardised_mean_difference",
+                  "nnt", "correlation", "coefficient", "r_squared", "test_statistic", "p_value", "bayes_factor",
+                  "posterior_probability", "other"},
+    "mean_kind": {"arithmetic", "geometric", "harmonic", "trimmed", "winsorised"},
     "verdict": {"computed", "judged"},
     "test_flag": {"code_changed_after_plan", "holdout_used_elsewhere", "reproduces_prompting_result",
                   "sources_captured_after_plan"},
@@ -1737,17 +1740,82 @@ def check_records(r, e, w, by_id):
                         "7.26 ppm, a diameter of 42 µas)")
 
 
+# Rule 87: the parameters each statistic takes, besides `name` and `label` (§3.4).
+STATISTIC_PARAMS = {"mean": {"kind", "trim"}, "quantile": {"probability"}, "expectile": {"probability"},
+                    "moment": {"order", "central"}, "kurtosis": {"excess"}}
+
+
+def statistic_name(st):
+    """The name of a statistic given as a name or as {name, ...}; None when it is neither."""
+    if isinstance(st, str):
+        return st
+    if isinstance(st, dict) and isinstance(st.get("name"), str):
+        return st["name"]
+    return None
+
+
+def _statistic_problem(st):
+    """Why a statistic is malformed (rule 87), or None."""
+    name = statistic_name(st)
+    if name not in ENUM["statistic"]:
+        return (f"a name from the list ({', '.join(sorted(ENUM['statistic']))}) or {{name, ...}} with its "
+                f"parameters; a geometric mean is {{\"name\": \"mean\", \"kind\": \"geometric\"}}, and the variable "
+                f"and conditions say more (\"Cohen's d\", \"MMRM\")")
+    if isinstance(st, str):
+        return "a label naming the statistic: {\"name\": \"other\", \"label\": ...}" if name == "other" else None
+    allowed = STATISTIC_PARAMS.get(name, set()) | {"name", "label"}
+    extra = sorted(set(st) - allowed)
+    if extra:
+        takes = ", ".join(sorted(allowed - {"name"}))
+        return f"{name} takes only {takes}, not {', '.join(extra)}"
+    if "label" in st and not (isinstance(st["label"], str) and st["label"].strip()):
+        return "label: the statistic's name in words"
+    if name == "other" and "label" not in st:
+        return "other needs a label naming the statistic"
+    if name == "mean":
+        kind = st.get("kind", "arithmetic")
+        if _h(kind) not in ENUM["mean_kind"]:
+            return f"kind: one of {', '.join(sorted(ENUM['mean_kind']))}"
+        if "trim" in st:
+            if kind not in ("trimmed", "winsorised"):
+                return "trim only with kind trimmed or winsorised"
+            if not (_is_number(st["trim"]) and 0 < st["trim"] < 0.5):
+                return "trim: the fraction cut or winsorised in each tail, above 0 and below 0.5"
+    if name in ("quantile", "expectile"):
+        p = st.get("probability")
+        if not (_is_number(p) and 0 < p < 1):
+            return f"{name} needs probability, a number above 0 and below 1"
+    if name == "moment":
+        o = st.get("order")
+        if not (isinstance(o, int) and not isinstance(o, bool) and o >= 1):
+            return "moment needs order, a whole number of at least 1"
+        if "central" in st and not isinstance(st["central"], bool):
+            return "central: true or false"
+    if name == "kurtosis" and "excess" in st and not isinstance(st["excess"], bool):
+        return "excess: true or false"
+    return None
+
+
 def statistic_problems(obj):
-    """Rule 87: what kind of statistic an observation (or a table column) is, and whether the source gives it only
-    approximately, as (field, message)."""
+    """Rule 87: what kind of statistic an observation (or a table column or row) is, and whether the source gives
+    it only approximately, as (field, message)."""
     out = []
-    if "statistic" in obj and _h(obj["statistic"]) not in ENUM["statistic"]:
-        out.append(("statistic", f"one of {', '.join(sorted(ENUM['statistic']))}; the variable and conditions say "
-                                 f"more (\"Cohen's d\", \"MMRM\")"))
+    if "statistic" in obj:
+        problem = _statistic_problem(obj["statistic"])
+        if problem:
+            out.append(("statistic", problem))
     if "approximate" in obj and obj["approximate"] is not True:
         out.append(("approximate", "true when the source gives the value only approximately ('about', 'roughly', "
                                    "'~'); leave it out otherwise"))
     return out
+
+
+def warn_other_statistic(r, where, obj):
+    """Warning 38: a statistic named other."""
+    if statistic_name(obj.get("statistic")) == "other":
+        r.warn("W38", f"{where}.statistic", "a statistic named other: check whether a name in the list fits with "
+                                            "its parameters (a geometric mean is a mean of kind geometric, a "
+                                            "percentile a quantile)")
 
 
 def _coord_ok(k, v):
@@ -1794,6 +1862,7 @@ def check_result(r, rw, rs, ref):
         r.err("66", f"{rw}.n", "a non-negative integer")
     for fld, msg in statistic_problems(rs):
         r.err("87", f"{rw}.{fld}", msg)
+    warn_other_statistic(r, rw, rs)
     if "interval" in rs and not isinstance(rs["interval"], dict):
         r.err("66", f"{rw}.interval", "{level, lower, upper}")
     else:
@@ -1858,6 +1927,7 @@ def check_tables(r, w, e, ref):
         for i, c in enumerate(cols or []):
             for fld, msg in statistic_problems(as_dict(c)):
                 r.err("87", f"{tw}.columns[{i}].{fld}", msg)
+            warn_other_statistic(r, f"{tw}.columns[{i}]", as_dict(c))
             u = as_dict(as_dict(c).get("conditions")).get("uncertainty")
             if u is not None and u not in ENUM["uncertainty_kind"]:
                 r.err("82", f"{tw}.columns[{i}].conditions.uncertainty", f"the kind of uncertainty the column holds: "
@@ -1887,6 +1957,12 @@ def check_tables(r, w, e, ref):
             if labels is not None and (not isinstance(lab, list) or len(lab) != len(labels)
                                        or not all(_coord_ok("x", x) for x in lab)):
                 r.err("48", f"{rw}.label", f"must have one entry per row label ({len(labels)})")
+            for fld, msg in statistic_problems(row):
+                r.err("87", f"{rw}.{fld}", msg)
+            warn_other_statistic(r, rw, row)
+            if "statistic" in row and any("statistic" in as_dict(c) for c in cols or []):
+                r.err("87", f"{rw}.statistic", "a cell's statistic is its row's or its column's, not both: give it "
+                                               "on the rows or on the columns")
             vals = row.get("values")
             if cols is not None and (not isinstance(vals, list) or len(vals) != len(cols)):
                 r.err("48", f"{rw}.values", f"must have one value per column ({len(cols)})")
