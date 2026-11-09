@@ -67,28 +67,21 @@ class TestRule79(unittest.TestCase):
         self.assertGreater(schema_version_tuple("1.0"), schema_version_tuple("0.99"))
 
 
-class TestBaselineNotSet(unittest.TestCase):
-    """Until the platform launches no baseline is set: only the current version is accepted, and nothing is frozen."""
+class TestBaseline(unittest.TestCase):
+    """The baseline is v0.39, set at the platform's launch: an earlier version is refused, pointing to migrate."""
 
-    def test_only_the_current_version_until_launch(self):
+    def test_the_baseline_is_v0_39(self):
         from claimset.validate import BASELINE_VERSION
-        from claimset.versions import FROZEN
-        if BASELINE_VERSION is not None:
-            self.skipTest("the baseline is set")
-        self.assertEqual(FROZEN, ())
+        self.assertEqual(BASELINE_VERSION, "0.39")
+        self.assertEqual(baseline_version(), "0.39")
+        self.assertTrue((COMPAT / "0.39").is_dir())
+
+    def test_an_earlier_version_is_refused(self):
         doc = example()
-        major, minor = schema_version_tuple(SCHEMA_VERSION)
-        doc["schema_version"] = f"{major}.{minor - 1}"
+        doc["schema_version"] = "0.38"
         report = validate(doc)
         self.assertEqual(rules(report), {"79"})
-        self.assertIn(f"must be {SCHEMA_VERSION}", str(report.errors))
         self.assertIn("claimset migrate", str(report.errors))
-
-    def test_the_freeze_tool_refuses(self):
-        out = subprocess.run([sys.executable, str(ROOT / "tools" / "freeze_validator.py")], capture_output=True,
-                             text=True)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn("baseline is not set", out.stderr)
 
 
 class TestFreezing(unittest.TestCase):
