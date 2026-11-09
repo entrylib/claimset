@@ -130,6 +130,6 @@ Priority **1**: wanted for the field trials and the first months after launch. *
 ## 4. Order of work
 
 1. Done (2026-11-06/07): field trials, one real paper each for `synthesis`, `wet-lab`, `trial`, `behavioural-experiment`, `ecology-field`, `particle-physics` and `archival`, converted under the core alone in two rounds (claimset-eval, `claimset/trials/`).
-2. Done: the needs of §1 the trials confirmed are in the core of v0.39, the version proposed as the launch baseline, except a support kind for direct observation (spectra, blots, described specimens), still open.
+2. Done: the needs of §1 the trials confirmed are in the core of v0.39, the launch baseline, except a support kind for direct observation (spectra, blots, described specimens), still open.
 3. After launch, tracked in claimset issue [#64](https://github.com/entrylib/claimset/issues/64): the priority-1 extensions, from what the trials needed beyond the core, each with its test files: `preregistration`, `trial`, `wet-lab`, `synthesis`, `ecology-field`, `behavioural-experiment`, `particle-physics`, `archival`.
 4. Further extensions as papers that need them arrive; a paper needing an unregistered extension records what the core can hold, and is corrected when the extension exists.

@@ -10,8 +10,8 @@ and adds the version to FROZEN in src/claimset/versions/__init__.py. Files decla
 validated by the frozen copy, by every later validator; tests/compat/<version>/ keeps checking that they are.
 Then raise SCHEMA_VERSION, change the rules, and add files of the new version to tests/compat/<new version>/.
 
-Until the baseline is set (BASELINE_VERSION in validate.py, set when the platform launches) no version is kept:
-the tool refuses, and SCHEMA_VERSION is raised directly.
+The baseline is BASELINE_VERSION in validate.py (v0.39, set at the platform's launch): every version from it is
+kept this way. The tool refuses while no baseline is set.
 """
 
 import re

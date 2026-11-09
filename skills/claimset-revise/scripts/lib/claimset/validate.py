@@ -27,7 +27,8 @@ SCHEMA_VERSION = "0.39"
 #: The first specification version accepted (spec §2.6), set when the platform launches. Files of every version from
 #: it to SCHEMA_VERSION are then valid for good, each checked by its own version's rules (a frozen validator in
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
-BASELINE_VERSION = None
+#: The first version the platform accepts (spec §2.6): set at launch, 2026-11-09. Never lowered or raised.
+BASELINE_VERSION = "0.39"
 
 
 def baseline_version():
