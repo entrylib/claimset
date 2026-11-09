@@ -325,7 +325,12 @@ Give the human a short summary:
 2. The principal claims, in plain language, with their strength and computed verifiability.
 3. Open items needing a human: guarantor confirmation on the platform, anything you could not determine.
 
-If a Claimset submission endpoint or tool is available in your environment, submit through it once the human approves; the platform then asks the guarantor to confirm and, after confirmation, publishes the paper with its identifier. Otherwise stop at the validated file.
+Submit only once the human approves, by whichever route your environment has:
+- **A terminal with the `claimset` package:** `claimset submit <paper>.zip` (a package from `claimset package`), or `claimset submit <paper>.claimset.json` for a claimset with no packaged files (its artefacts linked by https URLs, such as Zenodo or a commit on GitHub). For a package deposited elsewhere, `claimset submit https://…/paper.zip`. It validates the file first and sends nothing if it has errors.
+- **The EntryLib MCP server** (`https://entrylib.org/mcp`): the `validate` tool, then `submit` with the claimset (a JSON object or its text) or with `package_url`, an https URL of a deposited package (for anything over 10 MB).
+- **Neither:** stop at the validated file and tell the human they can upload it at https://entrylib.org/submit.
+
+The answer gives a **consent link** for the guarantor, shown only once: give it to the human at once, with what it asks of them (open it, sign in with ORCID, check the claimset as reading models will see it, and confirm within 48 hours, or it is deleted). Then follow the submission with `claimset status <id>` (or the MCP tool `submission_status`) until it is `published`, and give the human the identifier it was published as (`entrylib:<year>.<number>@v1`). Refused means it failed the platform's checks: fix what the reasons say and submit again. A new claimset with the same title and guarantor as one already published is refused as a duplicate: if it is a new version, set `paper.id` (*Corrections*, below); only a genuinely different paper is submitted again with `--new-paper` (MCP: `new_paper`).
 
 ## Revisions: answering a review
 

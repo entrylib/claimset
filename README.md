@@ -67,6 +67,16 @@ claimset validate paper.zip                    # validate a package: files, chec
 
 The report lists errors (the file is rejected), warnings (accepted, recorded) and the verifiability the platform will compute for each claim.
 
+Submit to EntryLib and follow the submission:
+
+```
+claimset submit paper.zip                      # a package (zip or folder) or a claimset JSON file; prints the consent link
+claimset submit https://zenodo.org/…/paper.zip # a package deposited elsewhere: the platform fetches it
+claimset status sub_…                          # pending, confirmed, publishing, published, refused or expired
+```
+
+A local file is validated first and not sent if it has errors. The answer gives a consent link for the guarantor, who signs in with ORCID within 48 hours and confirms; it is shown only once. A new version of a published claimset sets `paper.id` to its identifier. `--portal` (or `$CLAIMSET_PORTAL`) names another platform.
+
 Keep a lab record while doing research:
 
 ```
