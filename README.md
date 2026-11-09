@@ -144,6 +144,18 @@ claimset lab protect          # append-only attribute on the log files (Linux, n
 
 `skills/claimset-review/` is the platform's reviewer, published so that every author can see how a claimset is reviewed and review their own before submitting: what to check, how to write a comment whose resolution test either side could run, how to judge an author's answers, and how every score below 100 rests on comments. Each review names the version of the skill it followed.
 
+## Roadmap
+
+Planned work on the format, the package and the lab record, each item an issue labelled `roadmap`. The platform's own roadmap is in the portal's design (`entrylib/portal`, `docs/design-v1.md` §1).
+
+- [#63](https://github.com/entrylib/claimset/issues/63) `claimset submit` and `claimset status`, needed before the platform launches.
+- [#64](https://github.com/entrylib/claimset/issues/64) Format extensions, after launch, in the order the field trials set.
+- [#65](https://github.com/entrylib/claimset/issues/65) Lab record: data-collection sessions (interviews, focus groups, observations).
+- [#66](https://github.com/entrylib/claimset/issues/66) Lab record: independent timestamps (RFC 3161).
+- [#67](https://github.com/entrylib/claimset/issues/67) The `claimset` package on PyPI.
+- [#68](https://github.com/entrylib/claimset/issues/68) Lab record: the smaller open questions of its §11.
+- [#69](https://github.com/entrylib/claimset/issues/69) Collaboration, with blind second coding as the first case; parked until the platform is live.
+
 ## Contributing
 
 - The specifications in `spec/` are the source of truth; the validator implements them and the tests check both.
