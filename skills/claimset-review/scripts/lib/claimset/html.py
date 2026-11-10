@@ -2,6 +2,7 @@
 
     render_parts(doc) -> dict of HTML fragments: header, nav, body (and the title, the origin label, the brief)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
+    origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
 
 The view is derived mechanically from a valid claimset file, like the reading view (render.py), and adds nothing that
 is not in the file except what is computed from it: the support lights (from verifiability, §5), the selection of
@@ -475,6 +476,11 @@ def _origin(P):
                        for a in P.artefacts)
         return "lab · record withheld" if withheld else "lab"
     return "native"
+
+
+def origin(doc):
+    """Where a claimset comes from, as its label reads: `lab`, `lab · record withheld`, `converted` or `native`."""
+    return _origin(_Paper(doc))
 
 
 def _person(c, verified=False):

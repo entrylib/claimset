@@ -219,6 +219,7 @@ class TestOriginAndHeader(unittest.TestCase):
         conv["paper"]["converted_from"] = {"source_id": "10.1/x", "source_authors": [{"name": "A. B", "orcid": None}]}
         parts = H.render_parts(conv)
         self.assertEqual(parts["origin"], "converted")
+        self.assertEqual(H.origin(conv), "converted")
         self.assertIn('href="https://doi.org/10.1/x"', parts["header"])
 
     def test_guarantor_orcid_is_the_verified_one(self):
