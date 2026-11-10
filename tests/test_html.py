@@ -266,16 +266,30 @@ class TestDigits(unittest.TestCase):
             self.assertEqual(_rounded(v, 4), want)
 
 
-    def test_decimal_places(self):
-        body = H.render_parts(self.doc(), decimals=4)["body"]
+    def test_the_site_writes_numbers(self):
+        def four_places(v):
+            return None if isinstance(v, int) or v.is_integer() else f"{v:.4f}".rstrip("0").rstrip(".")
+        body = H.render_parts(self.doc(), number=four_places)["body"]
         self.assertIn("= 0.1235", body)
         self.assertIn('<td class="num" title="0.000680612">0.0007</td>', body)
         self.assertIn('<td class="num">300</td>', body)
         self.assertIn('<td class="num">0.5</td>', body)
-        from claimset.render import _decimals
-        for v, d, want in [(1.00193, 4, "1.0019"), (0.00001, 4, "0.0000"), (-0.00001, 4, "0.0000"), (29.6, 0, "30"),
-                           (12345.678, 2, "12345.68"), (0.10004, 4, "0.1")]:
-            self.assertEqual(_decimals(v, d), want)
+
+    def test_a_failing_formatter_falls_back(self):
+        def broken(v):
+            raise ValueError
+        body = H.render_parts(self.doc(), number=broken)["body"]
+        self.assertIn('<td class="num">0.000680612</td>', body)
+        body = H.render_parts(self.doc(), number=lambda v: 7)["body"]       # not text: the default
+        self.assertIn('<td class="num">300</td>', body)
+
+    def test_sections(self):
+        parts = H.render_parts(self.doc())
+        ids = [sid for sid, _, _ in parts["sections"]]
+        self.assertEqual(ids[:1], ["brief"])
+        self.assertIn(("evidence", "Evidence", len(self.doc()["evidence"])), parts["sections"])
+        for sid in ids:
+            self.assertIn(f'href="#{sid}"', parts["nav"])
 
 
 class TestOriginAndHeader(unittest.TestCase):

@@ -276,8 +276,9 @@ def build_parser():
     rv.add_argument("--claim", help="only this claim and what it rests on (a claim bundle): C4")
     rv.add_argument("--bundle", action="store_true", help="with --claim: the claim bundle as JSON, not its reading view")
     rv.add_argument("--html", action="store_true",
-                    help="the page view for people (HTML), as EntryLib shows it; images are shown from the files "
-                         "beside the claimset, so write it into the claimset's folder")
+                    help="the page view for people (HTML), a local preview (a site such as EntryLib shows the same "
+                         "content in its own style); images are shown from the files beside the claimset, so write "
+                         "it into the claimset's folder")
     rv.set_defaults(func=_cmd_render)
 
     rn = sub.add_parser("renumber", help="before the first submission: renumber claims and other objects in "
