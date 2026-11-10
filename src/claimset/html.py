@@ -250,8 +250,12 @@ class _Paper:
         out, last = [], 0
         for m in MATH.finditer(s):
             out.append(self._terms(s[last:m.start()]))
-            out.append(math(m.group(1) or m.group(2) or m.group(3), display=m.group(1) is not None))
-            last = m.end()
+            tex, end = m.group(1) or m.group(2) or m.group(3), m.end()
+            display = m.group(1) is not None or is_long(tex)
+            if display and end < len(s) and s[end] in ",.;:":   # a formula on its own line keeps its punctuation
+                tex, end = tex + s[end], end + 1
+            out.append(math(tex, display=display))
+            last = end
         out.append(self._terms(s[last:]))
         return "".join(out)
 
