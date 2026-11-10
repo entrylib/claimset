@@ -175,12 +175,41 @@ def cmd_skill(args):
         return 1
 
 
+def guide(name=None):
+    """What `claimset guide` prints: where to start and the rules, or one skill's instructions."""
+    from .agents import rules
+    if name is None:
+        text = (DATA / "agents" / "GUIDE.md").read_text(encoding="utf-8")
+        return text.replace("{version}", __version__).replace("{spec}", SPEC_VERSION).replace("{rules}", rules())
+    if name not in SKILLS:
+        raise ValueError(f"unknown skill '{name}': the skills are {', '.join(SKILLS)}")
+    note = (f"<!-- The {name} skill of claimset {__version__}. It names files kept beside it (references/, scripts/, "
+            f"examples/): `claimset init`, or `claimset skill install {name} --dir DIR`, writes them. Without them, "
+            f"`claimset spec` (--lab, --revision) prints the specifications and `claimset validate` checks a file. -->\n\n")
+    return note + (DATA / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+
+
+def cmd_guide(args):
+    try:
+        text = guide(args.skill)
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    sys.stdout.write(text if text.endswith("\n") else text + "\n")
+    return 0
+
+
 def argparse_copy(args, **changes):
     import argparse
     return argparse.Namespace(**dict(vars(args), **changes))
 
 
 def add_parsers(sub):
+    g = sub.add_parser("guide", help="start here: what to do, by situation, and the rules; or one skill's "
+                                     "instructions (claimset guide claimset-submit)")
+    g.add_argument("skill", nargs="?", help=f"print this skill's instructions: {', '.join(SKILLS)}")
+    g.set_defaults(func=cmd_guide)
+
     s = sub.add_parser("spec", help="print the specification this package validates against")
     s.add_argument("--lab", action="store_true", help="the lab record specification instead")
     s.add_argument("--revision", action="store_true",

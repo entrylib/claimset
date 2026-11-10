@@ -155,10 +155,16 @@ def skill_dirs(harnesses):
     return chosen
 
 
+def rules():
+    """The rules every agent follows (agents/RULES.md), as Markdown bullets: one text for the guide, the AGENTS.md
+    block and the README."""
+    return (DATA / "RULES.md").read_text(encoding="utf-8").strip()
+
+
 def instructions_block(skills_dir):
     """The claimset block of AGENTS.md: one template for every agent."""
     text = (DATA / "AGENTS.md").read_text(encoding="utf-8").replace("{skills}", skills_dir or SHARED_SKILLS)
-    return f"{BEGIN}\n{text.strip()}\n{END}\n"
+    return f"{BEGIN}\n{text.replace('{rules}', rules()).strip()}\n{END}\n"
 
 
 def import_block(line):

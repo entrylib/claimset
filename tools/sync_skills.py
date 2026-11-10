@@ -79,6 +79,8 @@ COPIES = {
         ("skills/claimset-lab/scripts/claimset", "src/claimset/data/skills/claimset-lab/claimset"),
         ("agents/AGENTS.md", "src/claimset/data/agents/AGENTS.md"),
         ("agents/opencode-guard.js", "src/claimset/data/agents/opencode-guard.js"),
+        ("agents/GUIDE.md", "src/claimset/data/agents/GUIDE.md"),
+        ("agents/RULES.md", "src/claimset/data/agents/RULES.md"),
     ],
 }
 

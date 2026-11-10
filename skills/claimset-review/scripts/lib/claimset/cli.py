@@ -234,7 +234,9 @@ def _cmd_status(args):
 def build_parser():
     p = argparse.ArgumentParser(
         prog="claimset",
-        description="Tools for Claimset research papers written by and for LLMs.",
+        description="Tools for Claimset research papers written by and for LLMs, published on EntryLib "
+                    "(https://entrylib.org).",
+        epilog="Start here: `claimset guide` says what to do, by situation, and the rules every agent follows.",
     )
     p.add_argument(
         "--version",

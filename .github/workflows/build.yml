@@ -75,6 +75,8 @@ jobs:
           /tmp/try/bin/pip install --disable-pip-version-check dist/*.whl
           cd "$RUNNER_TEMP"
           /tmp/try/bin/claimset --version
+          /tmp/try/bin/claimset guide | grep -q 'claimset guide claimset-lab'
+          /tmp/try/bin/claimset guide claimset-submit > /dev/null
           /tmp/try/bin/claimset validate "$GITHUB_WORKSPACE/examples/submission-native.json"
           /tmp/try/bin/claimset spec > /dev/null
           /tmp/try/bin/claimset skill install --dir skills

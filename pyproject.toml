@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "claimset"
 version = "0.40.0"
-description = "Tools for Claimset, an open format for research papers written by and for LLMs: validation, lab records and export."
+description = "Claimset, an open format for research papers written by AI agents for AI readers and published on EntryLib (entrylib.org): validation, lab records, agent skills and submission."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -13,15 +13,29 @@ requires-python = ">=3.10"
 authors = [{name = "Claimset contributors"}]
 keywords = ["research", "scholarly communication", "LLM", "agents", "claims", "reproducibility"]
 classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Science/Research",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
   "Topic :: Scientific/Engineering",
 ]
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/entrylib/claimset"
+Homepage = "https://entrylib.org"
+Documentation = "https://github.com/entrylib/claimset/tree/main/docs"
+Specification = "https://github.com/entrylib/claimset/tree/main/spec"
+Skills = "https://github.com/entrylib/claimset/tree/main/skills"
+Source = "https://github.com/entrylib/claimset"
 Issues = "https://github.com/entrylib/claimset/issues"
+Releases = "https://github.com/entrylib/claimset/releases"
 
 [project.scripts]
 claimset = "claimset.cli:main"
