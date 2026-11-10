@@ -15,6 +15,7 @@ from .. import LAB_SPEC_VERSION, SPEC_VERSION, __version__
 from .. import validate as _claimset
 from .anchor import covers, read_anchors
 from . import decision as _decision
+from . import tables as _tables
 from . import record as _record
 from .core import (FLAGS, RENAMED_KINDS, SETUP_ROLES, TERM_ID_RE, TERM_MARK_RE, LabError, State, agent_base, file_hash, final_statuses,
                    is_withheld, plan_flags, verify)
@@ -83,9 +84,15 @@ def select_paper(lab, name=None):
     return None
 
 
+#: Stands for the artefact of the results CSV until the artefacts are numbered
+RESULTS_CSV = "__results_csv__"
+
+
 class _Exporter:
-    def __init__(self, lab, paper=None):
+    def __init__(self, lab, paper=None, results_path=None):
         self.lab = lab
+        self.results_path = results_path or "files/results.csv"
+        self.files = {}
         rep = verify(lab)
         if not rep["ok"]:
             first = rep["errors"][0]
@@ -256,25 +263,24 @@ class _Exporter:
                                                  f"they supervised the work and whether they are the guarantor")
             self.contributors.append(c)
 
-    def make_evidence(self, run_ids):
-        """One evidence object for the given runs. Returns (evidence ID, {result event ID: "E<n>.R<m>"})."""
+    def make_evidence(self, run_ids, keep=None, quantities=None):
+        """One evidence object for the given runs. Its results are grouped into tables (§9; claimset §3.4, *Tables
+        are the standard form*). `keep`: the result events a status names, with those the test's `quantities` bind;
+        None for every result of the runs. Returns (evidence ID, {result event ID: "E<n>.T<m>.r<k>" or "E<n>.R<m>"},
+        the references of the whole evidence: its tables and its result entries)."""
         st = self.st
         runs = sorted((st.get(r) for r in set(run_ids)), key=lambda e: e["seq"])
         eid = f"E{len(self.evidence) + 1}"
         self.mapping[eid] = [r["id"] for r in runs]
-        results, refs = [], {}
+        events = []
         for r in runs:
             self.evidence_of_run.setdefault(r["id"], eid)
             for res in self.results_of.get(r["id"], []):
-                rid = f"R{len(results) + 1}"
-                refs[res["id"]] = f"{eid}.{rid}"
-                entry = {"id": rid}
-                entry.update({("variable" if k == "quantity" else k): res["body"][k]
-                              for k in ("variable", "quantity") + _claimset.OBSERVATION_MEASURES
-                              if res["body"].get(k) is not None})
-                if isinstance(res["body"].get("ext"), dict):
-                    entry["ext"] = dict(res["body"]["ext"])      # an observation's extension blocks (§9)
-                results.append(entry)
+                if keep is None or res["id"] in keep or any(
+                        _tables.binds(q, res["body"]) for q in (quantities or {}).values()):
+                    events.append(res)
+        tables, results, refs = _tables.tabulate(events, eid, RESULTS_CSV if events else None)
+        whole = [f"{eid}.{t['id']}" for t in tables] + [f"{eid}.{x['id']}" for x in results]
         visible = [r for r in runs if not is_withheld(r)]
         plans = []
         for r in visible:
@@ -290,6 +296,15 @@ class _Exporter:
               "availability": {"level": "public"}, "lab_runs": [r["id"] for r in runs]}
         if results:
             ev["results"] = results
+        if tables:
+            ev["tables"] = tables
+            self.todo(f"evidence.{eid}.tables", f"check the tables of {eid}: a self-contained description of each, "
+                                                f"rows the compared units and columns the variables (name each "
+                                                f"column by a variable term where the study defines one), and the "
+                                                f"conditions that set columns apart (claimset §3.4, Tables are the "
+                                                f"standard form)")
+        if events:
+            ev["artefacts"] = [RESULTS_CSV]
         setup = {}
         for p in plans:
             for role, ids in (p["body"].get("setup") or {}).items():
@@ -324,7 +339,7 @@ class _Exporter:
             self.todo(f"evidence.{eid}", f"choose the profile and design of {eid} (exported as quant, design other) "
                                          f"and make its description self-contained")
         self.evidence.append(ev)
-        return eid, refs
+        return eid, refs, whole
 
     def coded_sources(self, runs):
         """The sources whose codings the runs read (from their codings.json), or None if none read codings."""
@@ -354,7 +369,7 @@ class _Exporter:
                 found = e
         return found
 
-    def claim_from(self, version, status, outcome, extra_runs=()):
+    def claim_from(self, version, status, outcome, extra_runs=(), quantities=None):
         """A claim for a hypothesis version, with the evidence its status cites. Returns (claim, cited runs)."""
         st = self.st
         cid = f"C{len(self.claims) + 1}"
@@ -388,12 +403,19 @@ class _Exporter:
             self.todo(f"claims.{cid}.support", f"status {status['id']} also cites {', '.join(other)}, which are not "
                                                f"exported as evidence")
         if cited_runs:
-            eid, refs = self.make_evidence(cited_runs)
+            # A status that names results is the record of what the claim rests on: the other results of its runs
+            # are left to the CSV of every result (§9), with those the test reads
+            eid, refs, whole = self.make_evidence(cited_runs, keep=set(cited_results) if cited_results else None,
+                                                  quantities=quantities)
             profile = next((e.get("profile") for e in self.evidence if e["id"] == eid), "quant")
             support = {"kind": "empirical_qual" if profile == "qual" else "empirical_quant", "evidence": eid}
-            cited = [refs[x] for x in cited_results if x in refs]
-            if cited or refs:
-                support["results"] = cited or list(refs.values())
+            # the rows of the results the status names, and of those the test reads, so a reader can check its rule
+            read = [res["id"] for r in cited_runs for res in self.results_of.get(r, [])
+                    if any(_tables.binds(q, res["body"]) for q in (quantities or {}).values())]
+            cited = list(dict.fromkeys(refs[x] for x in list(cited_results) + (read if cited_results else [])
+                                       if x in refs))
+            if cited or whole:
+                support["results"] = cited or whole
             claim["support"].append(support)
         else:
             self.todo(f"claims.{cid}.support", f"no run lies behind status {status['id']}; give {cid} its support")
@@ -475,7 +497,11 @@ class _Exporter:
                 outcome = verdict["body"]["to"]
                 self.test_counts[outcome] += 1
                 version = self.hypothesis_at(h["id"], st.pos[pv["id"]]) or st.latest(h["id"])
-                claim, _ = self.claim_from(version, verdict, outcome, [r["id"] for r in runs])
+                whole = pv["body"].get("decision") or {}
+                rule = _decision.effective(whole, h["id"], st.same_hypothesis)
+                bound = {k: ({("variable" if a == "quantity" else a): b for a, b in q.items()}
+                             if isinstance(q, dict) else q) for k, q in (rule.get("quantities") or {}).items()}
+                claim, _ = self.claim_from(version, verdict, outcome, [r["id"] for r in runs], quantities=bound)
                 devs = [(r, deviations[(root, r["id"])]) for r in runs if (root, r["id"]) in deviations]
                 claim["planning"] = "confirmatory_with_deviations" if devs else "confirmatory"
                 claim["planned_at"] = pv["at"]
@@ -483,8 +509,6 @@ class _Exporter:
                 usable = sorted((a for a in self.anchors if isinstance(a, dict) and covers(a, pv)
                                  and isinstance(a.get("at"), str) and a["at"] <= started), key=lambda a: a["at"])
                 claim["planned_at_anchor"] = usable[0].get("service", "none") if usable else "none"
-                whole = pv["body"].get("decision") or {}
-                rule = _decision.effective(whole, h["id"], st.same_hypothesis)
                 claim["test"] = {k: rule[k] for k in ("framework", "parameters", "quantities", "supported",
                                                       "not_supported") if rule.get(k) is not None}
                 if _decision.per_hypothesis(whole) and isinstance(claim["test"].get("quantities"), dict):
@@ -660,6 +684,7 @@ class _Exporter:
                 art["ext"] = json.loads(json.dumps(cur["body"]["ext"]))   # an event's blocks are its artefact's (§9)
             self.artefacts.append(art)
         self.export_sources()
+        self.export_results_csv()
         lab_aid = f"A{len(self.artefacts) + 1}"
         init = self.body("INIT")
         rel = _repo_path(self.lab.log_path) or f"{self.lab.root.name}/{self.lab.log_path.name}"
@@ -988,17 +1013,35 @@ class _Exporter:
                                                      f"principal; record it on the hypothesis next time)")
         by_name = {d["term"].strip().lower(): d["id"] for d in definitions
                    if isinstance(d.get("term"), str) and d.get("kind") == "variable"}
+
+        def named(var):
+            """A variable by its term's definition ID, when a term of kind variable has its name."""
+            return by_name.get(var.strip().lower(), var) if isinstance(var, str) else var
+        for c in self.claims:          # a test's quantities bind the observations by the same names (§3.3.3)
+            for q in ((c.get("test") or {}).get("quantities") or {}).values():
+                if isinstance(q, dict) and isinstance(q.get("variable"), str) and not q["variable"].startswith("count:"):
+                    q["variable"] = named(q["variable"])
+                    if isinstance(q.get("conditions"), dict):
+                        q["conditions"] = {swap(k): swap(v) for k, v in q["conditions"].items()}
         for ev in self.evidence:
             if isinstance(ev.get("description"), str):     # term IDs written in a plan's design or analysis
                 ev["description"] = re.sub(r"\b(?:AC\d+\.)?TM\d+\b", lambda m: dmap.get(m.group(0), m.group(0)),
                                            TERM_MARK_RE.sub(lambda m: m.group(0).replace(
                                                m.group(1), dmap.get(m.group(1), m.group(1)), 1), ev["description"]))
             for res in ev.get("results") or []:
-                var = res.get("variable")
-                if isinstance(var, str) and var.strip().lower() in by_name:
-                    res["variable"] = by_name[var.strip().lower()]
+                res["variable"] = named(res.get("variable"))
                 if isinstance(res.get("conditions"), dict):
                     res["conditions"] = {swap(k): swap(v) for k, v in res["conditions"].items()}
+            for tb in ev.get("tables") or []:
+                if isinstance(tb.get("conditions"), dict):
+                    tb["conditions"] = {swap(k): swap(v) for k, v in tb["conditions"].items()}
+                tb["row_labels"] = [swap(k) for k in tb.get("row_labels") or []]
+                tb["columns"] = [named(c) if isinstance(c, str) else dict(
+                    c, variable=named(c.get("variable")),
+                    **({"conditions": {swap(k): swap(v) for k, v in c["conditions"].items()}}
+                       if isinstance(c.get("conditions"), dict) else {})) for c in tb.get("columns") or []]
+                for row in tb.get("rows") or []:
+                    row["label"] = [swap(x) for x in row.get("label") or []]
             if isinstance(ev.get("setup"), dict):
                 ev["setup"] = {role: [swap(i) for i in ids] for role, ids in ev["setup"].items()}
             elif ev.get("profile") != "formal":
@@ -1016,6 +1059,7 @@ class _Exporter:
         for c in self.claims:
             c.pop("_targets", None)
         lab_aid = self.export_artefacts()
+        self.round_values()
         paper = self.export_paper(lab_aid)
         draft = {"schema_version": SPEC_VERSION, "paper": paper, "contributors": self.contributors,
                  "models": self.models, "definitions": definitions, "claims": self.claims, "evidence": self.evidence,
@@ -1025,7 +1069,66 @@ class _Exporter:
         used = self.extensions_used(draft)
         if used:
             draft["extensions"] = used
-        return {"draft": draft, "completion": self.completion, "mapping": self.mapping}
+        return {"draft": draft, "completion": self.completion, "mapping": self.mapping, "files": self.files}
+
+    def export_results_csv(self):
+        """Every result of the record, at full precision, as a CSV beside the claimset (§9), named by the evidence
+        objects and tables that hold results; or nothing, when no evidence holds a result."""
+        import hashlib
+        events = [e for e in self.st.events if e["type"] == "result" and not is_withheld(e)]
+        users = [ev for ev in self.evidence if RESULTS_CSV in (ev.get("artefacts") or [])]
+        aid = None
+        if events and users:
+            text = _tables.csv_text(events)
+            self.files[self.results_path] = text
+            aid = f"A{len(self.artefacts) + 1}"
+            runs = {e["body"].get("run") for e in events}
+            self.artefacts.append({
+                "id": aid, "kind": "data", "uri": self.results_path,
+                "version": "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "availability": {"level": "public"},
+                "description": f"Every result of the lab record ({len(events)} results of {len(runs)} runs) at full "
+                               f"precision: the lab result's ID, its run, the quantity as the run's script named it, "
+                               f"its conditions and its value (both as JSON). The evidence's tables give the values "
+                               f"to four significant digits.",
+                "columns": json.loads(json.dumps(_tables.CSV_COLUMNS))})
+            self.mapping[aid] = self.results_path
+        for ev in self.evidence:
+            if RESULTS_CSV in (ev.get("artefacts") or []):
+                ev["artefacts"] = [x for x in (aid if x == RESULTS_CSV else x for x in ev["artefacts"]) if x]
+                if not ev["artefacts"]:
+                    del ev["artefacts"]
+            for tb in ev.get("tables") or []:
+                if tb.get("artefact") == RESULTS_CSV:
+                    if aid:
+                        tb["artefact"] = aid
+                    else:
+                        del tb["artefact"]
+
+    def round_values(self):
+        """Table values and results to four significant digits, except those a test's quantity binds, which keep the
+        precision the verdict was computed at (claimset §3.4, *Tables are the standard form*)."""
+        evidence = {ev["id"]: ev for ev in self.evidence}
+        exact = set()
+        for c in self.claims:
+            quantities = ((c.get("test") or {}).get("quantities") or {}).values()
+            for s in c.get("support") or []:
+                ev = evidence.get(s.get("evidence"))
+                if not ev or not quantities:
+                    continue
+                for where, var, conds, _value, _unit in _claimset.observations(ev):
+                    if any(isinstance(q, dict) and q.get("variable") == var and all(
+                            k in conds and conds[k] == v for k, v in (q.get("conditions") or {}).items())
+                           for q in quantities):
+                        exact.add((ev["id"], where))
+        for ev in self.evidence:
+            for i, res in enumerate(ev.get("results") or []):
+                if (ev["id"], f"results[{i}]") not in exact:
+                    res["value"] = _tables.rounded(res.get("value"))
+            for i, tb in enumerate(ev.get("tables") or []):
+                for j, row in enumerate(tb.get("rows") or []):
+                    row["values"] = [v if (ev["id"], f"tables[{i}].rows[{j}].values[{k}]") in exact
+                                     else _tables.rounded(v) for k, v in enumerate(row.get("values") or [])]
 
     def extensions_used(self, draft):
         """{name: version} of the extensions whose blocks the draft has, at the versions the record declared."""
@@ -1045,7 +1148,9 @@ class _Exporter:
         return {n: self.st.extensions.get(n) or _ext.latest(n) for n in sorted(names)}
 
 
-def export(lab, paper=None):
-    """Return {"draft", "completion", "mapping"}. Raises LabError if a precondition of §9 fails.
-    `paper`: the body of a paper event (see select_paper): only its questions are exported."""
-    return _Exporter(lab, paper).run()
+def export(lab, paper=None, results_path=None):
+    """Return {"draft", "completion", "mapping", "files"}. Raises LabError if a precondition of §9 fails.
+    `paper`: the body of a paper event (see select_paper): only its questions are exported. `files`: {path relative
+    to the claimset: text} of the files to write beside it (the CSV of every result, at `results_path`, by default
+    files/results.csv)."""
+    return _Exporter(lab, paper, results_path).run()

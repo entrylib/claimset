@@ -121,7 +121,9 @@ class TestCountedTests(CountCase):
         self.assertEqual((claim["support"][0]["kind"], ev["profile"], ev["analytic_approach"], ev["data_sources"],
                           ev["n_participants_or_cases"]), ("empirical_qual", "qual", "content_analysis", ["document"], 6))
         mapping = export(self.lab)["mapping"]
-        self.assertEqual(sorted(mapping[a] for a in ev["artefacts"]), sorted(s["id"] for s in self.src))          # every source the run read
+        self.assertEqual(sorted(mapping[a] for a in ev["artefacts"] if mapping[a] != "files/results.csv"),
+                         sorted(s["id"] for s in self.src))          # every source the run read
+        self.assertIn("files/results.csv", [mapping[a] for a in ev["artefacts"]])   # and the CSV of every result
         from claimset.validate import validate
         rules = {e["rule"] for e in validate(draft).errors}
         self.assertFalse(rules & {"10", "47", "66", "78"}, rules)

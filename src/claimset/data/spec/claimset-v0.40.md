@@ -15,6 +15,11 @@ The guarantor can say which of the paper's findings and terms a reader should ta
 - §8 rule 6: `$$…$$` sets an equation on a line of its own (a model's defining equations, long expressions); `$…$` stays in the sentence. No rule changes.
 - §9: what a reader finds at a retracted or removed claimset's address. A retracted claimset is served with `status: retracted` and its `status_notice`; a removed one, by a notice `{"id", "status": "removed", "notice"}`. No file changes, and no rule.
 
+Amended on 2026-11-10: tables are the standard form of numerical results. A claimset exported from a lab record listed every result of its runs as a result entry, one per number, under the script's names and at full float precision: published, an evidence object read as a list of 15 to 46 lines in no order.
+
+- §3.4, *Tables are the standard form* (new): more than a handful of numbers from one evidence object are a table, rows the compared units and columns the variables; a claim cites the rows it rests on; result entries remain for a single headline number and for what a cell cannot hold; full-precision values go in a data artefact the table names. New warning 40. Files that list results stay valid.
+- Lab record export (lab record §9) writes tables, and every result of the record to a CSV artefact.
+
 ## Changes in v0.39 (since v0.38)
 
 Tests planned outside a Claimset lab record can be reported as planned. A study preregistered on OSF or AsPredicted, a registered report and a trial in a trial registry report their hypotheses, outcomes and confirmatory tests in the same fields as a claimset exported from a lab record.
@@ -985,6 +990,26 @@ A single-estimate study may use `estimand`, `estimate`, `interval`, `uncertainty
 
 Each cell is one observation: its variable is the column's; its conditions are the table's, the row's labels and the column's. Intervals, ranks and test statistics are columns of their own: the bounds of an interval are two columns told apart by a condition (`{"variable": "D8", "conditions": {"bound": "95% interval, lower"}}`), and a column of test statistics has statistic `test_statistic`. A column holding the uncertainty of another column's values has the reserved condition key `uncertainty`, whose value is a kind of uncertainty (above): beside a column `"D8"` of means, `{"variable": "D8", "conditions": {"uncertainty": "sd"}}` holds their standard deviations. A table records what the paper reports; it is not split into result entries, and result entries are not repeated in a table.
 
+**Tables are the standard form of numerical results.** More than a handful of numbers from one evidence object (as a rule, more than eight that share a variable or a condition) are a table, not a list of result entries (warning 40). Rows are the compared units: the values of the conditions that tell them apart (the methods, cases, groups or sample sizes). Columns are the variables, each a definition of kind `variable` where the paper defines one, with the conditions that set a variable apart (a nominal level, a subset, a statistic) as the column's conditions or `statistic`. Conditions every value shares go on the table. A claim cites the rows it rests on (`E12.T1.r1`), or the table. Result entries remain for a single headline number that has no table, and for an observation a cell cannot hold: one with an `interval`, an `uncertainty` or `n`, or an excerpt. Values are given to the precision the paper reports; values from a lab record are rounded to four significant digits, except a value a test's quantity binds (§3.3.3), which keeps the precision its verdict was computed at. The full-precision values are a data artefact (a CSV file), which each table names in `artefact`.
+
+Evidence E12 of entrylib:2026.000001 compares two methods on 4,500 M4 series. Version 1 listed its fifteen numbers as result entries (`{"variable": "m4 cov80", "value": 0.7460771604938237, "conditions": {"method": "adam_select"}}` and fourteen more). Version 2 records them as one table, and its claim C5 cites the two rows:
+
+```json
+"tables": [{"id": "T1", "description": "Calibration of the quantile forecasts of auto.adam error selection and R auto.msarima on the fresh M4 sample: coverage of the 80% interval overall and by level tercile, mean calibration error, median scaled pinball, spread of the 80% coverage over the terciles, and the share of series that chose dlnorm",
+  "conditions": {"data": "D9"}, "row_labels": ["method"],
+  "columns": [{"variable": "D4", "conditions": {"nominal level": 0.8}},
+              {"variable": "D4", "conditions": {"nominal level": 0.8, "D7": "low"}},
+              {"variable": "D4", "conditions": {"nominal level": 0.8, "D7": "mid"}},
+              {"variable": "D4", "conditions": {"nominal level": 0.8, "D7": "high"}},
+              "D13", {"variable": "D14", "statistic": "median"},
+              "spread of 80% coverage over the level terciles", "share of series choosing dlnorm"],
+  "rows": [{"id": "r1", "label": ["D8"], "values": [0.7461, 0.7865, 0.7425, 0.7092, 0.02235705823668769, 0.7514, 0.07729629629629642, 0.6702]},
+           {"id": "r2", "label": ["D10"], "values": [0.6923, 0.8193, 0.7098, 0.5477, 0.035202331961592524, 0.6872, 0.2715277777777778, null]}],
+  "artefact": "A10"}]
+```
+
+D8 and D10 are the two methods, D9 the series, D4 coverage, D7 the level terciles, D13 the mean calibration error and D14 the scaled pinball loss. MCE and the spread keep their full precision because C5's test reads them (`ms <= 0.6*ma and ss <= 0.08`); the other values are rounded. A10 is the CSV of every result of the lab record. C5 cites `E12.T1.r1` and `E12.T1.r2` and states the pattern: auto.adam error selection lowers MCE from 0.0352 to 0.0224 and the spread from 0.272 to 0.077, short of the planned reduction of MCE.
+
 **Contrasts.** A value that compares two positions on one dimension (a difference in means, a ratio, an odds ratio, a standardised effect size, the p-value of a comparison, a rank difference) is an observation of the pair. Its conditions name one position as usual and the other under the reserved key `comparator`; its variable says what the contrast is (a defined variable such as "difference in mean MASE", or text). `{"variable": "D11", "conditions": {"D26": "D1", "comparator": "D2", "D5": "D14"}, "value": -0.013, "interval": {"level": 0.95, "lower": -0.021, "upper": -0.005, "kind": "confidence"}}` is CES against ETS on the M3 monthly series. The comparator lies on the dimension whose value it replaces: a member of the same group, or a value of the same variable. A table of contrasts has `comparator` in its conditions, its row labels or its columns' conditions. The atom of a claim resting on a contrast has the same comparator (§3.3.5).
 
 **Tables and claims.** The table is the record of its values; a claim is the record of what the paper concludes from them. A claim resting on a table states the pattern the paper draws (which method, treatment or group is higher or lower, on which variables, under which conditions, including where the paper's own is worse) and cites the table or the rows that hold the values (`E2.T1`, `E2.T1.r3`); it repeats a value only when the conclusion turns on that value ("selected for 6 of the 11 groups", "coverage 0.947, the closest to 95%"). A claim that only retells a table's values, with no conclusion of the paper's own, is not written: the claim that uses the table cites it directly. A comparison stated this way is still one claim (§8 rule 2). A pattern that no claim, warrant or open question uses and that states no loss, limit or null result of the paper's method is not written either (§3.3, *Secondary claims in converted papers*).
@@ -1605,6 +1630,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 37. A record of observation evidence without `artefact`: name the figure that shows it and, better, the original file (§3.4).
 38. A statistic named `other`: check whether a name in the list fits with its parameters (a geometric mean is a `mean` of kind `geometric`, a percentile a `quantile`); the labels of `other` are gathered for the next version's list (§3.4).
 39. A native submission without `paper.highlights`: ask the guarantor which principal claims and which of the paper's own terms a reader should take first, at most five (§3.1). Leave the field out only if the guarantor prefers none. (New in v0.40.)
+40. An evidence object has more than eight result entries that share a variable, or more than eight that share a condition key: record them as a table, rows the compared units and columns the variables, and cite its rows (§3.4, *Tables are the standard form*). (New in v0.40, amended 2026-11-10.)
 
 ## 11. Platform dependencies
 

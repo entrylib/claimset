@@ -787,20 +787,28 @@ def cmd_export(args):
                     else Path("claimset.draft.json"))
     if out_path.exists() and not args.force:
         raise LabError("export", f"{out_path} exists; choose another --output or add --force")
-    out = _export.export(lab, paper)
+    stem = out_path.name.removesuffix(".json").removesuffix(".claimset").removesuffix(".draft")
+    out = _export.export(lab, paper, results_path=f"files/{stem}.results.csv")
     try:
         out_path.write_text(json.dumps(out["draft"], ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        for rel, text in out["files"].items():      # beside the claimset, where `claimset package` finds them
+            target = out_path.parent / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
     except OSError as exc:
         raise LabError("export", f"could not write {out_path}: {exc.strerror or exc}") from None
     rep = validate(out["draft"])
     if args.json:
-        print(json.dumps({"output": str(out_path), "mapping": out["mapping"], "completion": out["completion"],
+        print(json.dumps({"output": str(out_path), "files": [str(out_path.parent / f) for f in out["files"]],
+                          "mapping": out["mapping"], "completion": out["completion"],
                           "validation": {"errors": rep.errors, "warnings": rep.warnings}},
                          ensure_ascii=False, indent=2))
         return 0
     draft = out["draft"]
     print(f"Wrote {out_path}: {len(draft['claims'])} claims, {len(draft['evidence'])} evidence, "
           f"{len(draft['contributors'])} contributors, {len(draft['artefacts'])} artefacts.")
+    for rel in out["files"]:
+        print(f"Wrote {out_path.parent / rel}: every result of the record, at full precision.")
     for k, v in out["mapping"].items():
         if k.startswith("C"):
             c = next(x for x in draft["claims"] if x["id"] == k)
