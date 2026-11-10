@@ -151,6 +151,12 @@ class TestExport(PlanRunCase):
         self.assertEqual([e for e in rep.errors if e["rule"] in ("38", "48", "67")], [])
         self.assertNotIn("W40", {w["rule"] for w in rep.warnings})
 
+    def test_the_rows_the_test_reads_are_cited(self):
+        draft = self.status([self.rs[7]])["draft"]                          # share_dlnorm of adam_select only
+        self.assertEqual(draft["claims"][0]["support"][0]["results"], ["E1.T1.r1", "E1.T1.r2"])
+        (t,) = draft["evidence"][0]["tables"]
+        self.assertEqual(t["columns"], ["D1", "m4 spread", "m4 share_dlnorm"])
+
     def test_named_results_cite_their_rows_and_the_rest_is_left_out(self):
         named = [self.rs[1], self.rs[9]]                                     # m4 mce of each method
         draft = self.status(named)["draft"]

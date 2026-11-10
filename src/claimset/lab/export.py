@@ -409,7 +409,11 @@ class _Exporter:
                                                   quantities=quantities)
             profile = next((e.get("profile") for e in self.evidence if e["id"] == eid), "quant")
             support = {"kind": "empirical_qual" if profile == "qual" else "empirical_quant", "evidence": eid}
-            cited = list(dict.fromkeys(refs[x] for x in cited_results if x in refs))
+            # the rows of the results the status names, and of those the test reads, so a reader can check its rule
+            read = [res["id"] for r in cited_runs for res in self.results_of.get(r, [])
+                    if any(_tables.binds(q, res["body"]) for q in (quantities or {}).values())]
+            cited = list(dict.fromkeys(refs[x] for x in list(cited_results) + (read if cited_results else [])
+                                       if x in refs))
             if cited or whole:
                 support["results"] = cited or whole
             claim["support"].append(support)
