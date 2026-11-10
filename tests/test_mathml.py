@@ -46,6 +46,8 @@ class TestMathML(unittest.TestCase):
                       body(r"\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}"))
         self.assertIn('<mtable columnalign="left">', body(r"\begin{cases} 0 & x < 0 \\ 1 & \text{otherwise} \end{cases}"))
         self.assertIn("<mtext>otherwise</mtext>", body(r"\text{otherwise}"))
+        out = body(r"\begin{aligned} y_t &= w v_{t-1} \\ v_t &= F v_{t-1} \end{aligned}")
+        self.assertIn('<mtable columnalign="right left" columnspacing="0"><mtr><mtd><msub><mi>y</mi>', out)
 
     def test_what_it_cannot_read(self):
         for tex in (r"\foo{x}", "x^{2", r"\left( x", r"\begin{tikz} x \end{tikz}", "a & b", "", "x" * 3000,
