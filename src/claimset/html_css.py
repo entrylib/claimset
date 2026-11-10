@@ -81,6 +81,7 @@ CSS = """\
 }
 math { font-family: var(--cs-math-font); font-size: 1.05em; }
 math[display="block"] { margin: 10px 0; }
+mtable[columnspacing="0"] mtd { padding-left: 0; padding-right: 0; }      /* aligned equations: = under = */
 .cs-code, .math-tex { font-family: var(--cs-code-font); font-size: 0.9em; background: var(--cs-panel);
   border: 1px solid var(--cs-rule-light); border-radius: 3px; padding: 0 4px; overflow-wrap: anywhere; }
 .cs-table td.txt { text-align: left; }

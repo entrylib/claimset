@@ -61,14 +61,14 @@ MATH = re.compile(r"\$\$(.+?)\$\$|\$([^$\s][^$]*?)\$|\\\((.+?)\\\)", re.S)
 CODE = re.compile(r"(`+)(.+?)\1", re.S)
 
 
-#: Inline formulae that get a line of their own: long ones, and those with fractions, sums, integrals, roots or
-#: matrices, which crowd a line of text.
+#: Formulae written $…$ that still get a line of their own: those with fractions, sums, integrals, roots or matrices,
+#: which crowd a line of text. Otherwise the author decides (spec §8 rule 6): $$…$$ is displayed, $…$ stays in the
+#: sentence.
 TALL = re.compile(r"\\(?:d?frac|sum|prod|int|iint|oint|sqrt|begin|binom|underset|overset)\b")
-LONG = 15
 
 
 def is_long(tex):
-    return len(tex.strip()) >= LONG or TALL.search(tex) is not None
+    return TALL.search(tex) is not None
 
 
 def math(tex, display=False):
