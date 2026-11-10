@@ -192,6 +192,10 @@ class TestImages(unittest.TestCase):
     def test_the_site_gives_the_address(self):
         body = H.render_parts(self.doc("figures/errors.png"), file_url=lambda a: f"/files/{a['id']}.png")["body"]
         self.assertIn('<img src="/files/A9.png"', body)
+        doc = self.doc("https://entrylib.org/files/0a1b")          # published: no extension; the site knows the type
+        body = H.render_parts(doc, file_url=lambda a: "/img/0a1b.png" if a["id"] == "A9" else None)["body"]
+        self.assertIn('<img src="/img/0a1b.png"', body)
+        self.assertEqual(body.count("<img"), 1)
 
     def test_images_elsewhere_are_linked_not_embedded(self):
         for uri in ("https://example.org/fig.png", "../outside.png", "/etc/x.png"):

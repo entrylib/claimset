@@ -335,13 +335,16 @@ class _Paper:
 
     # ---------- images ----------
     def image_src(self, a):
-        """Where an artefact's image is shown from, or None: only a file of the claimset, at the address `file_url`
-        gives for it (by default its relative path, for a local preview)."""
+        """Where an artefact's image is shown from, or None: only a file of the claimset. With `file_url`, the site
+        says (a published file's address need not end in its type, so the site, which holds the file, decides
+        whether it is an image); without it, a relative path ending in an image extension (a local preview)."""
         uri = a.get("uri")
-        if not isinstance(uri, str) or not uri.lower().split("?")[0].endswith(IMAGE_EXTENSIONS):
+        if not isinstance(uri, str):
             return None
         if self.file_url is not None:
             src = self.file_url(a)
+        elif not uri.lower().split("?")[0].endswith(IMAGE_EXTENSIONS):
+            return None
         else:
             src = None if "://" in uri or uri.startswith(("/", "\\")) or ".." in uri.split("/") else uri
         return src if isinstance(src, str) and src and not any(c in src for c in "\"'<> ") else None
@@ -769,8 +772,8 @@ def render_parts(doc, file_url=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
-    light). `file_url(artefact)` gives the address a file of the claimset is served at, or None; without it, files
-    are shown from their relative paths (a local preview beside the package's files)."""
+    light). `file_url(artefact)` gives the address an image of the claimset is served at, or None when the
+    artefact is not an image the site shows; without it, image files are shown from their relative paths (a local preview beside the package's files)."""
     P = _Paper(doc, file_url)
     source_link = ""
     cf = P.paper.get("converted_from")
