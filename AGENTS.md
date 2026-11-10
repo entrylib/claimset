@@ -7,6 +7,7 @@
 - The package uses only the Python standard library and supports Python 3.10+. Do not add dependencies without discussion.
 - `skills/` bundles copies of the validator, specs and examples so each skill is self-contained, and `src/claimset/data/` carries copies of the specs, skill texts and the templates in `agents/`. Never edit those copies; edit the source and run `python3 tools/sync_skills.py`. `tests/test_sync.py` fails if they drift.
 - Nothing in the tools, skills or specifications assumes one coding agent or one model provider. What differs between agents (where they read skills and instructions, their hooks, how they identify themselves, their sandboxes) is data in `src/claimset/agents.py`; `agents/` holds the one template `claimset init` writes for all of them.
+- `README.md` is also the PyPI page, read by agents as much as people: keep it short, with full URLs, and put reference material in `docs/`. Its rules for agents are `agents/RULES.md`, copied verbatim (`tests/test_guide.py` checks it).
 - Every validator rule needs a test: a valid case that passes and a broken case that fails with that rule's number.
 - Run `python3 -m unittest discover -s tests` before committing.
 - Specification text is written for LLM readers as much as for humans: plain, explicit, one meaning per term.
