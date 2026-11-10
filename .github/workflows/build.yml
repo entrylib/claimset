@@ -1,18 +1,24 @@
 # Stage 1 of a release: build the distributions and draft the GitHub release.
 #
-# Pushing a tag v<version> (the version in pyproject.toml) runs the tests, builds the sdist and the wheel, checks
-# them, installs the wheel and tries it, attests where they were built, and creates a *draft* release for the tag
-# with both files attached. Nothing reaches PyPI here: publishing the draft release on GitHub starts stage 2
-# (release.yml), which uploads exactly these files.
+# Run it by hand (Actions > build > Run workflow) on the default branch, after setting the version in
+# pyproject.toml and src/claimset/__init__.py. It runs the tests, builds the sdist and the wheel, checks them,
+# installs the wheel and tries it, attests where they were built, and creates a *draft* release v<version> for the
+# commit it built, with both files attached. Nothing reaches PyPI here: publishing the draft on GitHub creates the
+# tag v<version> on that commit and starts stage 2 (release.yml), which uploads exactly these files.
 #
-# Run by hand (workflow_dispatch) it builds and checks without drafting a release.
+# Run again for the same version while the release is still a draft, it replaces the draft's files and commit.
+# A version already published is never rebuilt: raise the version first. With "draft" unticked, or on another
+# branch, it only builds and checks.
 
 name: build
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      draft:
+        description: "Draft the GitHub release v<version> (default branch only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -28,33 +34,37 @@ jobs:
   dist:
     needs: tests
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
-      - name: The tag names the package's version
-        if: github.ref_type == 'tag'
+      - name: The package's version
+        id: version
         run: |
           version=$(python - <<'PY'
-          import tomllib
-          print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])
+          import re, tomllib
+          v = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          init = open("src/claimset/__init__.py", encoding="utf-8").read()
+          if re.search(r'^__version__ = "([^"]+)"', init, re.M).group(1) != v:
+              raise SystemExit("pyproject.toml and src/claimset/__init__.py give different versions")
+          print(v)
           PY
           )
-          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match version ${version} in pyproject.toml (expected v${version})"
-            exit 1
-          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version $version" >> "$GITHUB_STEP_SUMMARY"
 
       - name: The skills' copies match their sources
         run: python tools/sync_skills.py --check
 
       - name: Build
         run: |
-          python -m pip install --upgrade build twine
+          python -m pip install --disable-pip-version-check --upgrade build twine
           python -m build
           python -m twine check --strict dist/*
           ls -l dist
@@ -62,7 +72,7 @@ jobs:
       - name: Try the wheel in a clean environment
         run: |
           python -m venv /tmp/try
-          /tmp/try/bin/pip install dist/*.whl
+          /tmp/try/bin/pip install --disable-pip-version-check dist/*.whl
           cd "$RUNNER_TEMP"
           /tmp/try/bin/claimset --version
           /tmp/try/bin/claimset validate "$GITHUB_WORKSPACE/examples/submission-native.json"
@@ -71,16 +81,18 @@ jobs:
           /tmp/try/bin/claimset skill check --dir skills
           test -f skills/claimset-submit/references/extensions/README.md
           python skills/claimset-lab/scripts/claimset --version
+          /tmp/try/bin/claimset init --dir project --agent all --guard > /dev/null
+          test -f project/AGENTS.md
           /tmp/try/bin/claimset submit --help > /dev/null
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: dist
           path: dist/
           if-no-files-found: error
 
   draft:
-    if: github.ref_type == 'tag'
+    if: inputs.draft && github.ref_name == github.event.repository.default_branch
     needs: dist
     runs-on: ubuntu-latest
     permissions:
@@ -88,13 +100,29 @@ jobs:
       id-token: write          # sign the attestation
       attestations: write      # store it
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: dist
           path: dist/
 
+      - name: The version is not released yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.dist.outputs.version }}
+        run: |
+          state=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>/dev/null || echo none)
+          if [ "$state" = "false" ]; then
+            echo "::error::release $TAG is already published; raise the version in pyproject.toml and src/claimset/__init__.py"
+            exit 1
+          fi
+          if [ "$state" = "none" ] && gh api "repos/$GH_REPO/git/ref/tags/$TAG" > /dev/null 2>&1; then
+            echo "::error::tag $TAG exists without a draft release; raise the version, or delete the tag if nothing was released from it"
+            exit 1
+          fi
+
       - name: Attest the build
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: dist/*
 
@@ -102,17 +130,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.dist.outputs.version }}
         run: |
-          tag="${GITHUB_REF_NAME}"
-          state=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null || echo none)
-          case "$state" in
-            none)
-              gh release create "$tag" dist/* --draft --verify-tag --generate-notes \
-                --title "claimset ${tag#v}" ;;
-            true)                   # a re-run: replace the files of the existing draft
-              gh release upload "$tag" dist/* --clobber ;;
-            *)
-              echo "::error::release $tag is already published; a published version is never rebuilt"
-              exit 1 ;;
-          esac
-          echo "Draft release for $tag: review it on GitHub and publish it to upload to PyPI." >> "$GITHUB_STEP_SUMMARY"
+          if gh release view "$TAG" > /dev/null 2>&1; then     # a draft from an earlier run: this run replaces it
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --draft --target "$GITHUB_SHA" --generate-notes \
+              --title "claimset ${TAG#v}"
+          fi
+          echo "Draft release $TAG for ${GITHUB_SHA:0:12}: review it on GitHub and publish it to upload to PyPI." \
+            >> "$GITHUB_STEP_SUMMARY"

@@ -172,8 +172,8 @@ claimset lab protect          # append-only attribute on the log files (Linux, n
 - After changing the validator, a spec, an example or a template in `agents/`, run `python3 tools/sync_skills.py` to update the copies bundled in the skills and the package.
 - Run the tests with `python3 -m unittest discover -s tests`.
 - Releasing, in two stages:
-  1. Set the version in `pyproject.toml` and `src/claimset/__init__.py`, merge, and push the tag: `git tag v0.39.5 && git push origin v0.39.5`. The `build` workflow runs the tests, builds the sdist and wheel, tries the wheel in a clean environment and drafts a GitHub release with both files attached.
-  2. Review the draft and publish it. The `release` workflow checks the files are the ones `build` made for that tag and uploads them to PyPI by trusted publishing (no token; set up once on PyPI and as a `pypi` environment on GitHub, see `.github/workflows/release.yml`).
+  1. Set the version in `pyproject.toml` and `src/claimset/__init__.py` and merge. Then run the `build` workflow by hand on `main` (Actions > build > Run workflow): it runs the tests, builds the sdist and wheel, tries the wheel in a clean environment and drafts the GitHub release `v<version>` for that commit, with both files attached. Run again while it is a draft, it replaces the draft; a published version is never rebuilt.
+  2. Review the draft and publish it. Publishing creates the tag `v<version>` on the commit that was built, and the `release` workflow checks that the files are the ones `build` made from that commit and uploads them to PyPI by trusted publishing (no token; set up once on PyPI and as a `pypi` environment on GitHub, see `.github/workflows/release.yml`).
 - Planned work is tracked in [issues labelled `roadmap`](https://github.com/entrylib/claimset/issues?q=is%3Aissue+label%3Aroadmap).
 
 ## Licence
