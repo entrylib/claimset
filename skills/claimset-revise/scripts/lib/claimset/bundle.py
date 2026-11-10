@@ -138,8 +138,20 @@ def cmd_spec(args):
     return 0
 
 
+def installed_dirs(root="."):
+    """The skills folders of the agents (claimset.agents) that hold a claimset skill."""
+    from .agents import HARNESSES
+    dirs = dict.fromkeys(d for h in HARNESSES for d in h.skills)
+    return [d for d in dirs if any(_is_claimset_skill(Path(root) / d / n, n) for n in SKILLS)]
+
+
 def cmd_skill(args):
     names = args.names or list(SKILLS)
+    if args.dir is None:
+        found = installed_dirs()
+        if args.action == "check" and len(found) > 1:
+            return max(cmd_skill(argparse_copy(args, dir=d)) for d in found)
+        args = argparse_copy(args, dir=found[0] if found else DEFAULT_DIR)
     try:
         if args.action == "check":
             stale = 0
@@ -163,6 +175,11 @@ def cmd_skill(args):
         return 1
 
 
+def argparse_copy(args, **changes):
+    import argparse
+    return argparse.Namespace(**dict(vars(args), **changes))
+
+
 def add_parsers(sub):
     s = sub.add_parser("spec", help="print the specification this package validates against")
     s.add_argument("--lab", action="store_true", help="the lab record specification instead")
@@ -174,6 +191,8 @@ def add_parsers(sub):
     k = sub.add_parser("skill", help="install or check the agent skills that match this package")
     k.add_argument("action", choices=["install", "check"])
     k.add_argument("names", nargs="*", metavar="skill", help=f"{', '.join(SKILLS)} (default: all)")
-    k.add_argument("--dir", default=DEFAULT_DIR, help=f"the skills directory (default: {DEFAULT_DIR})")
+    k.add_argument("--dir", default=None,
+                   help=f"the skills directory (default: every agent's skills folder that holds them, else "
+                        f"{DEFAULT_DIR}; `claimset init` installs them for other agents)")
     k.add_argument("--force", action="store_true", help="replace a directory that is not a claimset skill")
     k.set_defaults(func=cmd_skill)

@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from claimset import cli
-from claimset.validate import validate
+from claimset.validate import SCHEMA_VERSION, validate
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
@@ -1628,7 +1628,7 @@ class TestRulesV033(Base):
         definition(self.d, "D2").pop("assumptions")
         self.d["schema_version"] = "0.32"
         _, done, todo = migrate(self.d)
-        self.assertIn("schema_version 0.32 -> 0.39", done)
+        self.assertIn(f"schema_version 0.32 -> {SCHEMA_VERSION}", done)
         self.assertTrue(any(t.startswith("C2: no longer inherits C3") for t in todo))
 
 

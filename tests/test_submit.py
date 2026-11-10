@@ -153,6 +153,7 @@ class TestSubmit(unittest.TestCase):
         code, _, err = run("status", "sub_abc", "--portal", "https://127.0.0.1:1")
         self.assertEqual(code, 1)
         self.assertIn("cannot reach", err)
+        self.assertIn("sandbox", err)                       # an agent's sandbox may withhold the network
 
 
 if __name__ == "__main__":

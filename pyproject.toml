@@ -1,19 +1,19 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "claimset"
-version = "0.39.4"
+version = "0.40.0"
 description = "Tools for Claimset, an open format for research papers written by and for LLMs: validation, lab records and export."
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [{name = "Claimset contributors"}]
 keywords = ["research", "scholarly communication", "LLM", "agents", "claims", "reproducibility"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
   "Topic :: Scientific/Engineering",
 ]
@@ -21,6 +21,7 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/entrylib/claimset"
+Issues = "https://github.com/entrylib/claimset/issues"
 
 [project.scripts]
 claimset = "claimset.cli:main"
@@ -29,4 +30,4 @@ claimset = "claimset.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-claimset = ["data/spec/*.md", "data/examples/*.json", "data/skills/*/SKILL.md", "data/skills/claimset-lab/claimset"]
+claimset = ["data/spec/*.md", "data/spec/extensions/*.md", "data/examples/*.json", "data/skills/*/SKILL.md", "data/skills/claimset-lab/claimset", "data/agents/*"]

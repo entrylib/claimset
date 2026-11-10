@@ -350,6 +350,8 @@ def render(doc):
                     + (f" by {authors}" if authors else ""))
     if p.get("contributions"):
         meta.append("contributions " + ", ".join(p["contributions"]))
+    if isinstance(p.get("highlights"), list) and p["highlights"]:
+        meta.append("highlights " + ", ".join(str(x) for x in p["highlights"]))
     out.append(_join(meta))
     if p.get("declarations"):
         out.append("declarations " + _declarations(p["declarations"]))

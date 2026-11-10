@@ -197,9 +197,24 @@ def cmd_actor(args):
     if args.words and by == new_id:
         raise LabError("L28", "actor: --words records what a person told the agent registering them; give the "
                               "agent's ID with --by (or $CLAIMSET_ACTOR)")
-    body = {"kind": args.kind, "name": args.name, "orcid": args.orcid,
-            "models": [_parse_model(m) for m in args.model] or None,
-            "record_source": args.record_source, "words": args.words, "given_at": args.given_at,
+    models, record_source, system = [_parse_model(m) for m in args.model], args.record_source, None
+    if args.kind == "agent":
+        if not models and os.environ.get("CLAIMSET_MODEL"):
+            # The human set the model in the harness's configuration (§5.2): user_reported, not the agent's word
+            models = [_parse_model(os.environ["CLAIMSET_MODEL"])]
+            record_source = record_source or "user_reported"
+        if args.system:
+            parts = [x.strip() for x in args.system.split("|")]
+            system = {"name": parts[0], "version": parts[1] if len(parts) > 1 else None,
+                      "uri": parts[2] if len(parts) > 2 else None}
+        else:
+            from .. import agents as _agents
+            system = _agents.detect_system()
+    elif args.system:
+        raise LabError("schema", "actor: --system is the harness an agent runs in; people and organisations have none")
+    body = {"kind": args.kind, "name": args.name, "orcid": args.orcid, "models": models or None,
+            "system": _clean(system) if system else None,
+            "record_source": record_source, "words": args.words, "given_at": args.given_at,
             "channel": args.channel}
     event = lab.append("actor", _clean(body), by=by, supersedes=args.supersedes)
     _emit(args, event)
@@ -717,9 +732,18 @@ def cmd_anchor(args):
 
 def cmd_guard(args):
     if args.print_config:
-        print(json.dumps(_guard.claude_code_config(_guard.guard_command()), indent=2))
+        from .. import agents as _agents
+        config = _agents.hook_config(args.agent, _guard.guard_command())
+        for path, content in config.items():
+            if len(config) > 1 or args.agent != "claude":
+                print(f"# {path}")                       # Claude Code's: the JSON alone, as before
+            print(json.dumps(content, indent=2) if isinstance(content, dict) else content)
+        if not config:
+            print(f"{_agents.harness(args.agent).name} runs no command before a tool call: it has no guard",
+                  file=sys.stderr)
+            return 1
         return 0
-    return _guard.main_hook(sys.stdin, sys.stderr)
+    return _guard.main_hook(sys.stdin, sys.stderr, agent=args.agent, stdout=sys.stdout)
 
 
 def cmd_protect(args):
@@ -873,7 +897,10 @@ def add_parser(subparsers):
     p.add_argument("--kind", required=True, choices=["agent", "human", "organisation"])
     p.add_argument("--name", required=True)
     p.add_argument("--model", action="append", default=[],
-                   help="'provider|name|version[|identifier]'; repeat for several models")
+                   help="'provider|name|version[|identifier]'; repeat for several models (default: $CLAIMSET_MODEL, "
+                        "set by the human; recorded as user_reported)")
+    p.add_argument("--system", metavar="NAME[|VERSION[|URI]]",
+                   help="the harness the agent runs in (default: the one that identifies itself in the environment)")
     p.add_argument("--orcid")
     p.add_argument("--record-source", choices=["harness", "user_reported", "self_reported"])
     p.add_argument("--words", help="an agent registering a person: the person's reply giving their name (and ORCID "
@@ -1122,7 +1149,12 @@ def add_parser(subparsers):
     p.add_argument("--every", choices=["plan", "event"], help="anchor after every plan (default) or every event")
 
     p = lab_sub.add_parser("guard", help="hook for agent harnesses: refuse tool calls that would modify the lab")
-    p.add_argument("--print-config", action="store_true", help="print the Claude Code hook configuration")
+    p.add_argument("--print-config", action="store_true",
+                   help="print the hook configuration for --agent (`claimset init --guard` writes it)")
+    p.add_argument("--agent", default="claude", metavar="NAME",
+                   help="the harness: claude (default), codex, gemini, qwen, opencode, copilot, cursor, cline; the "
+                        "guard reads every harness's tool calls, so this matters only for --print-config and for "
+                        "harnesses that answer otherwise than by exit code 2 (cline)")
     p.set_defaults(func=cmd_guard)
 
     p = cmd("protect", cmd_protect, "make the log files append-only at the operating-system level",

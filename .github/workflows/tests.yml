@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:          # run by build.yml before a release is drafted
 
 jobs:
   test:

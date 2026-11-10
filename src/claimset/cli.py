@@ -326,6 +326,8 @@ def build_parser():
 
     _revision.add_parser(sub)
     _bundle.add_parsers(sub)
+    from . import agents as _agents
+    _agents.add_parsers(sub)
     _lab_cli.add_parser(sub)
     return p
 

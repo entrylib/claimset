@@ -14,7 +14,8 @@ Research is iterative, so the format has a companion: the **lab record**, an app
 |---|---|
 | `spec/` | The claimset specification and the lab record specification (normative) |
 | `src/claimset/` | The `claimset` Python package and command-line tool |
-| `skills/` | Instructions for AI agents (Claude skills), bundling everything they need |
+| `skills/` | Instructions for AI agents (Agent Skills), bundling everything they need |
+| `agents/` | What `claimset init` writes for coding agents: the instructions block and the guard's plugin |
 | `examples/` | Valid example claimsets |
 | `tests/` | Test suite |
 | `tools/` | Maintenance scripts |
@@ -22,7 +23,8 @@ Research is iterative, so the format has a companion: the **lab record**, an app
 ## Install
 
 ```
-pip install git+https://github.com/entrylib/claimset
+pip install claimset                                   # a release, from PyPI
+pip install git+https://github.com/entrylib/claimset    # the development version
 ```
 
 The package has no dependencies beyond the Python standard library (Python 3.10 or later). It carries the specifications and the agent skills of its version:
@@ -31,9 +33,19 @@ The package has no dependencies beyond the Python standard library (Python 3.10 
 claimset spec                  # the claimset specification this version validates against
 claimset spec --lab            # the lab record specification
 claimset spec --revision       # the revision specification: reviews, responses, revised versions, scores
+claimset init                  # set the project up for the coding agent running this shell (see below)
 claimset skill install         # install or update the skills in .claude/skills (--dir for another place)
 claimset skill check           # are the installed skills this version's?
 ```
+
+The tools and skills work with any coding agent. `claimset init` sets a project up for the ones its people use, from one template:
+
+```
+claimset init --agent codex --agent gemini --agent claude    # or --agent all; --list shows every agent
+claimset init --agent opencode --guard                        # also the lab record's guard, where the agent has hooks
+```
+
+It installs the skills in the fewest folders that reach every agent chosen (`.agents/skills/` for Codex, Gemini CLI, Qwen Code, opencode, Kilo Code, GitHub Copilot, Cursor, Windsurf, Amp, Goose, Factory, Crush, Zed and MiniMax Code; `.claude/skills/` for Claude Code; their own for Junie, Kiro and Deep Code), writes one instructions block to `AGENTS.md` that `CLAUDE.md` and `GEMINI.md` import, and with `--guard` registers the guard in each agent's hook configuration (Claude Code, Codex, Gemini CLI, Qwen Code, opencode, GitHub Copilot, Cursor, Cline). Running it again updates what it wrote and leaves the rest of those files alone. Any model works: DeepSeek, MiniMax, Qwen or Kimi through opencode, Kilo Code, Crush or another harness are set up the same way, and the harness an agent runs in is recorded with it (lab record §5.2). An agent that cannot tell which model it is takes it from `CLAIMSET_MODEL`, which the human sets.
 
 Studies and papers live in the research repository, each study on its own branch `claimset/<study>` that is never merged with the code. The tool checks it out at `claimset/<study>/` (ignored by the code branches), and commits and pushes it after every change to the record (see the lab record specification §3):
 
@@ -81,7 +93,7 @@ Keep a lab record while doing research:
 
 ```
 claimset lab init --title "Working title"
-claimset lab actor --kind agent --name "Research agent" --model "Anthropic|Claude Opus|5.5"
+claimset lab actor --kind agent --name "Research agent" --model "Anthropic|Claude Opus|5.5"   # the harness is recorded too
 export CLAIMSET_ACTOR=AC1
 claimset lab question "Does X improve Y?"
 claimset lab hypothesis "X improves Y on monthly series." --question Q1
@@ -106,7 +118,7 @@ When the research is done, draft the claimset from the record:
 claimset lab export -o claimset.json
 ```
 
-The draft carries everything the record states: a claim for every tested hypothesis (negative results included) with its outcome and whether the test was planned, evidence with the runs and results behind it, contributors, models and the exploration counts. Export also prints a completion list of what only people or the writing agent can decide: licence, guarantor, principal claims, wording and scope. The `claimset-submit` skill works through it.
+The draft carries everything the record states: a claim for every tested hypothesis (negative results included) with its outcome and whether the test was planned, evidence with the runs and results behind it, contributors, models and the exploration counts. Export also prints a completion list of what only people or the writing agent can decide: licence, guarantor, principal claims, the highlights a reader sees first (up to five, chosen by the guarantor), wording and scope. The `claimset-submit` skill works through it.
 
 Several agents working at once each keep their own log, merged when they finish:
 
@@ -141,12 +153,12 @@ claimset lab protect          # append-only attribute on the log files (Linux, n
 ```
 
 - **Anchoring** commits the log to its own branch without touching your working tree and never force-pushes. A confirmatory run is refused until its plan has been anchored, so the plan provably existed before the results. Protect the branch on your git host against force-pushes and deletion to make the remote copy append-only.
-- **The guard** is a hook for agent harnesses that refuses tool calls that would edit or delete files in the lab directory other than through `claimset lab`. For Claude Code, add the output of `claimset lab guard --print-config` to `.claude/settings.json` (see [hooks](https://docs.claude.com/en/docs/claude-code/hooks)).
+- **The guard** is a hook for agent harnesses that refuses tool calls that would edit or delete files in the lab directory other than through `claimset lab`. `claimset init --guard --agent NAME` installs it for Claude Code, Codex, Gemini CLI, Qwen Code, opencode, GitHub Copilot, Cursor or Cline (`claimset lab guard --print-config --agent NAME` prints the configuration instead). Codex, Gemini CLI, Qwen Code and Copilot run a project's hooks only once you trust them.
 - **The append-only attribute** makes the kernel refuse anything but appending, as long as the agent cannot use `sudo`.
 
 ## For AI agents
 
-`skills/claimset-submit/` teaches an agent to turn finished research, or a lab record, into a valid claimset submission. It is self-contained: copy the folder into your agent's skills directory (for Claude Code, `.claude/skills/` in a project or `~/.claude/skills/`). Agents without skills support can be given its `SKILL.md` as instructions.
+`skills/claimset-submit/` teaches an agent to turn finished research, or a lab record, into a valid claimset submission. It is self-contained: `claimset init` installs it where your agent reads skills, or copy the folder there yourself. Agents without skills support are pointed at its `SKILL.md` by the block `claimset init` writes to `AGENTS.md`.
 
 `skills/claimset-lab/` teaches an agent to keep a lab record while it does research: registering itself honestly, planning before testing, running code through the tool, recording failures and negative results, working alongside other agents, and handing over to `claimset-submit` at the end. It bundles a copy of the `claimset` package, so it works without installing anything (`python3 scripts/claimset lab ...`).
 
@@ -157,8 +169,11 @@ claimset lab protect          # append-only attribute on the log files (Linux, n
 ## Contributing
 
 - The specifications in `spec/` are the source of truth; the validator implements them and the tests check both.
-- After changing the validator, a spec or an example, run `python3 tools/sync_skills.py` to update the copies bundled in the skills.
+- After changing the validator, a spec, an example or a template in `agents/`, run `python3 tools/sync_skills.py` to update the copies bundled in the skills and the package.
 - Run the tests with `python3 -m unittest discover -s tests`.
+- Releasing, in two stages:
+  1. Set the version in `pyproject.toml` and `src/claimset/__init__.py`, merge, and push the tag: `git tag v0.39.5 && git push origin v0.39.5`. The `build` workflow runs the tests, builds the sdist and wheel, tries the wheel in a clean environment and drafts a GitHub release with both files attached.
+  2. Review the draft and publish it. The `release` workflow checks the files are the ones `build` made for that tag and uploads them to PyPI by trusted publishing (no token; set up once on PyPI and as a `pypi` environment on GitHub, see `.github/workflows/release.yml`).
 - Planned work is tracked in [issues labelled `roadmap`](https://github.com/entrylib/claimset/issues?q=is%3Aissue+label%3Aroadmap).
 
 ## Licence
