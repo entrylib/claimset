@@ -1,5 +1,9 @@
 """Bringing a claimset written under an earlier version (v0.23 or later) to the current version.
 
+`migrate` makes the changes that need no judgement and lists what does; `report` then compares the file under
+the version it declared with the migrated file under the current one: what must change (new errors), what
+should change (new warnings), what the file already had, and what no rule checks (to decide).
+
 Only what is mechanical is changed:
 - v0.30: the roles of each evidence `setup` are renamed (compared -> studied, data -> cases, design -> procedure,
   measures -> lens);
@@ -25,6 +29,8 @@ without an availability (rule 75), the
 `exemplars` of qualitative evidence, which become excerpt results (rule 66), declarations (warning 29) and
 highlights (warning 39).
 """
+
+import re
 
 from .validate import (OLD_SETUP_ROLES, SCHEMA_VERSION, as_dict, as_list, bind_quantity, bindable,
                        inherited_assumptions)
@@ -210,3 +216,38 @@ def registration_target(uri):
     if m:
         return m.group(1), "doi"
     return uri.strip(), "url"
+
+
+#: A to-do item that names a rule or warning: the target version's validator reports it when it applies
+CITES_RULE = re.compile(r"\b(?:rule|warning) \d+\b")
+
+
+def _validation(doc):
+    """The report of a submission (or of a correction or revision, when it names the claimset it changes)."""
+    from .validate import validate
+    paper = as_dict(doc.get("paper"))
+    return validate(doc, revision=bool(paper.get("id")) and not paper.get("correction_reason"))
+
+
+def _key(finding):
+    return finding.get("rule"), finding.get("where")
+
+
+def report(original, migrated, todo=()):
+    """What the migration asks of the file, comparing it under the version it declared with the migrated file under
+    the current version (spec §2.6): {"from", "to", "must_change": the errors the current version raises that the
+    file did not have, "should_change": the new warnings, "to_decide": the to-do items no rule checks (what needs
+    the writer's or the guarantor's judgement), "already": {"errors", "warnings"} the file had before, which the
+    migration did not cause, "errors": whether the migrated file has errors}. A file of a version before the
+    baseline has no rules to compare with: everything the current version reports is new."""
+    before, after = _validation(original), _validation(migrated)
+    old = {_key(f) for f in before.errors + before.warnings if f.get("rule") != "79"}
+    return {
+        "from": original.get("schema_version"), "to": migrated.get("schema_version"),
+        "must_change": [f for f in after.errors if _key(f) not in old],
+        "should_change": [f for f in after.warnings if _key(f) not in old],
+        "to_decide": [x for x in todo if not CITES_RULE.search(x)],
+        "already": {"errors": [f for f in after.errors if _key(f) in old],
+                    "warnings": [f for f in after.warnings if _key(f) in old]},
+        "errors": bool(after.errors),
+    }

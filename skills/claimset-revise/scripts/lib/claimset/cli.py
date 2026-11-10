@@ -183,16 +183,39 @@ def _cmd_migrate(args):
               f"without the platform's fields and submit it as a revision (revision spec §5).", file=sys.stderr)
         return 1
     out, done, todo = _migrate.migrate(doc)
+    rep = _migrate.report(doc, out, todo)
     with open(args.output or args.file, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=1, ensure_ascii=False)
         fh.write("\n")
-    for line in done:
-        print(f"changed: {line}")
-    for line in todo:
-        print(f"to do:   {line}")
-    if not done and not todo:
-        print("nothing to migrate")
-    return 0
+    if args.json:
+        print(json.dumps(dict(rep, changed=done), indent=1, ensure_ascii=False))
+        return 1 if rep["errors"] else 0
+
+    def line(f):
+        return f"  {f.get('rule')} {f.get('where') or '(file)'}: {f.get('message')}"
+    print(f"{args.output or args.file}: specification {rep['from']} -> {rep['to']}")
+    for x in done:
+        print(f"changed: {x}")
+    if rep["must_change"]:
+        print(f"must change: {len(rep['must_change'])} error(s) under v{rep['to']} that the file did not have under "
+              f"v{rep['from']}:")
+        print("\n".join(line(f) for f in rep["must_change"]))
+    if rep["should_change"]:
+        print(f"should change: {len(rep['should_change'])} new warning(s) under v{rep['to']}:")
+        print("\n".join(line(f) for f in rep["should_change"]))
+    if rep["to_decide"]:
+        print("to decide (no rule checks these; they need your or the guarantor's judgement):")
+        print("\n".join(f"  {x}" for x in rep["to_decide"]))
+    already = rep["already"]
+    if already["errors"] or already["warnings"]:
+        print(f"already there under v{rep['from']}, not caused by the migration, still to fix: "
+              f"{len(already['errors'])} error(s), {len(already['warnings'])} warning(s):")
+        for f in already["errors"] + already["warnings"]:
+            print(line(f))
+    if not (done or rep["must_change"] or rep["should_change"] or rep["to_decide"]):
+        print("nothing to migrate or change")
+    print(f"The migrated file has {'errors: fix them before submitting' if rep['errors'] else 'no errors'}.")
+    return 1 if rep["errors"] else 0
 
 
 def _cmd_package(args):
@@ -313,10 +336,14 @@ def build_parser():
     st.add_argument("--json", action="store_true", help="the platform's answer as JSON")
     st.set_defaults(func=_cmd_status)
 
-    mg = sub.add_parser("migrate", help="bring a claimset to the current specification: rename what is "
-                                        "mechanical, list what needs judgement")
+    mg = sub.add_parser("migrate", help="bring a claimset to the current specification: make the mechanical changes, "
+                                        "then report what the new version requires that the file's own did not "
+                                        "(must and should change) and what needs judgement; exit 1 while the "
+                                        "migrated file has errors")
     mg.add_argument("file", help="path to the claimset JSON file (rewritten in place unless -o is given)")
     mg.add_argument("-o", "--output", help="write the migrated claimset to this file")
+    mg.add_argument("--json", action="store_true", help="the report as JSON: changed, must_change, should_change, "
+                                                       "to_decide, already")
     mg.set_defaults(func=_cmd_migrate)
 
     su = sub.add_parser("setup", help="create, attach or adopt study branches (claimset/<study>), checked out "
