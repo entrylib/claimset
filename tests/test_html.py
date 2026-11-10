@@ -235,6 +235,37 @@ class TestImages(unittest.TestCase):
         self.assertIn('<img src="images/gel.jpg"', H.render_parts(doc)["body"])
 
 
+class TestDigits(unittest.TestCase):
+    def doc(self):
+        doc = example()
+        e = doc["evidence"][0]
+        e["estimate"] = 0.123456789
+        e["tables"] = [{"id": "T1", "description": "Errors", "columns": ["MCE"],
+                        "rows": [{"id": "r1", "values": [0.000680612]}, {"id": "r2", "values": [300]},
+                                 {"id": "r3", "values": [0.5]}]}]
+        return doc
+
+    def test_rounded_when_asked(self):
+        body = H.render_parts(self.doc(), digits=4)["body"]
+        self.assertIn("= 0.1235", body)
+        self.assertIn('<td class="num" title="0.000680612">0.0006806</td>', body)
+        self.assertIn('<td class="num">300</td>', body)
+        self.assertIn('<td class="num">0.5</td>', body)
+
+    def test_exact_by_default_and_after(self):
+        doc = self.doc()
+        H.render_parts(doc, digits=4)
+        body = H.render_parts(doc)["body"]
+        self.assertIn("0.123456789", body)
+        self.assertIn('<td class="num">0.000680612</td>', body)
+
+    def test_rounding(self):
+        from claimset.render import _rounded
+        for v, want in [(1.00193, "1.002"), (12345.67, "12346"), (1.23456e-9, "0.000000001235"), (-3.14159, "-3.142"),
+                        (0.30000000000000004, "0.3")]:
+            self.assertEqual(_rounded(v, 4), want)
+
+
 class TestOriginAndHeader(unittest.TestCase):
     def test_origins(self):
         self.assertEqual(H.render_parts(example())["origin"], "native")

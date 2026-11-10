@@ -6,6 +6,8 @@ publication (provenance, source spans, availability, artefact locations and lice
 contributors, models, lab identifiers). It adds nothing: every line comes from a field of the file.
 """
 
+import contextvars
+import decimal
 import json
 
 from .validate import inherited_assumptions
@@ -15,12 +17,29 @@ def _s(x):
     return x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)
 
 
+# Significant digits a view shows a number to (html.render_parts(digits=)); None shows it as the file gives it. The
+# file keeps every digit: this only changes what a page prints.
+DIGITS = contextvars.ContextVar("claimset_digits", default=None)
+
+
 def _num(v):
     if v is None:
         return ""
     if isinstance(v, float) and v.is_integer():
         return str(int(v)) if abs(v) < 1e15 else repr(v)
+    d = DIGITS.get()
+    if d and isinstance(v, float) and v == v and abs(v) != float("inf"):
+        return _rounded(v, d)
     return str(v)
+
+
+def _rounded(v, d):
+    """v to d significant digits, never in exponent form and never dropping a digit before the point:
+    0.00068061 -> 0.0006806, 1.00193 -> 1.002, 12345.67 -> 12346."""
+    if abs(v) >= 10 ** d:
+        return str(round(v))
+    text = format(decimal.Decimal(f"{v:.{d}g}"), "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def _join(items, sep="; "):
