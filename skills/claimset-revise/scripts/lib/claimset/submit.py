@@ -2,11 +2,15 @@
 
     submit(source, portal, new_paper=False) -> the portal's response (a dict), or SubmitError
     status(submission_id, portal)           -> the submission's state, or SubmitError
+    save_record(out, folder)                -> the response kept in .claimset/submissions/<id>.json
+    load_record(submission_id, folder)      -> a kept response, or None; the latest with no id
 
 `source` is a submission package (a zip or a BagIt folder, made by `claimset package`), a claimset JSON file, or an
 https URL where one of them is deposited (the portal fetches it). A local file is validated first and not sent if it
 has errors. The portal answers with a consent link for the guarantor, who signs in with ORCID within 48 hours and
-confirms; the link is shown only in that answer.
+confirms; the link is shown only in that answer, so `claimset submit` keeps the answer in
+`.claimset/submissions/<id>.json` (a folder git ignores) and `claimset status` shows the link again from there. A
+guarantor without the link confirms on the platform itself, signing in with ORCID (`confirm_url` in the status).
 
 Only the standard library: urllib.
 """
@@ -124,26 +128,77 @@ def status(submission_id, portal=None):
     return _request("GET", f"{portal_url(portal)}/api/submissions/{urllib.parse.quote(sid)}")
 
 
-def describe_submission(out):
-    """What `claimset submit` prints: the consent link first, since it is shown only once."""
-    lines = [f"Submitted: {out.get('id')} ({out.get('kind', 'new')}), waiting for the guarantor's consent.", ""]
+RECORDS = Path(".claimset") / "submissions"
+
+
+def save_record(out, folder="."):
+    """Keep the platform's answer to a submission, consent link included, where `claimset status` finds it again:
+    .claimset/submissions/<id>.json, in a folder with a .gitignore so that it is never committed. Returns the path,
+    or None if it cannot be written (a read-only sandbox): the answer was printed anyway."""
+    sid = out.get("id")
+    if not isinstance(sid, str) or not sid or "/" in sid or "\\" in sid or sid.startswith("."):
+        return None
+    d = Path(folder) / RECORDS
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        ignore = d.parent / ".gitignore"
+        if not ignore.exists():
+            ignore.write_text("# claimset's local records: never committed\n*\n", encoding="utf-8")
+        path = d / f"{sid}.json"
+        path.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        return path
+    except OSError:
+        return None
+
+
+def load_record(submission_id=None, folder="."):
+    """A kept answer by submission id, or the latest one with no id; None if there is none."""
+    d = Path(folder) / RECORDS
+    if submission_id:
+        files = [d / f"{submission_id}.json"] if "/" not in submission_id and "\\" not in submission_id else []
+    else:
+        files = sorted(d.glob("sub_*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:1] if d.is_dir() else []
+    for f in files:
+        try:
+            return json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    return None
+
+
+def _consent_lines(out, expires):
+    lines = []
     for c in out.get("consent") or []:
         who = f"{c.get('name')} ({c.get('orcid')})" if c.get("name") else c.get("orcid")
         lines += [f"Consent link for {who}:", f"  {c.get('consent_url')}",
                   "Give it to the guarantor: they open it, sign in with ORCID and confirm, by "
-                  f"{out.get('expires', 'the deadline')} (48 hours). Then the claimset is published.",
-                  "This link is shown only now: keep it until the guarantor has confirmed.", ""]
+                  f"{expires or 'the deadline'} (48 hours). Then the claimset is published."]
+    return lines
+
+
+def describe_submission(out, saved=None):
+    """What `claimset submit` prints: the consent link first, since it is shown only once."""
+    lines = [f"Submitted: {out.get('id')} ({out.get('kind', 'new')}), waiting for the guarantor's consent.", ""]
+    consent = _consent_lines(out, out.get("expires"))
+    if consent:
+        lines += consent + [""]
     warnings = (out.get("report") or {}).get("warnings") or []
     if warnings:
         lines.append(f"{len(warnings)} warning(s) (accepted; worth fixing in a later version):")
         lines += [f"  {w.get('rule')} {w.get('where', '')}: {w.get('message', '')}" for w in warnings]
         lines.append("")
     lines.append(f"Follow it: claimset status {out.get('id')}   ({out.get('status_url')})")
+    lines.append(f"Kept in {saved}: `claimset status` shows the consent link again." if saved else
+                 "Not kept on disk: keep this output, the platform shows the consent link only now.")
+    for c in out.get("consent") or []:                  # again at the end, for readers of the last lines
+        lines.append(f"Consent link (again): {c.get('consent_url')}")
+    if out.get("confirm_url"):
+        lines.append(f"Without the link, the guarantor confirms at {out['confirm_url']}, signing in with ORCID.")
     return "\n".join(lines)
 
 
-def describe_status(out):
-    """What `claimset status` prints."""
+def describe_status(out, record=None):
+    """What `claimset status` prints; while pending, the consent link again when `record` (the kept answer) has it."""
     lines = [f"{out.get('id')}: {out.get('state')}"]
     if out.get("corrects"):
         lines.append(f"  a new version of {out['corrects']}")
@@ -151,6 +206,9 @@ def describe_status(out):
         lines.append(f"  guarantor {g.get('orcid')}: {'confirmed' if g.get('confirmed') else 'not yet confirmed'}")
     if out.get("state") == "pending":
         lines.append(f"  waiting for consent until {out.get('expires')}")
+        lines += ["  " + line for line in _consent_lines(record or {}, out.get("expires"))]
+        if out.get("confirm_url"):
+            lines.append(f"  without the link, the guarantor confirms at {out['confirm_url']}, signing in with ORCID")
     if out.get("registry_pull_request"):
         lines.append(f"  registry checks: {out['registry_pull_request']}")
     if out.get("published"):

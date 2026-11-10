@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -50,6 +51,7 @@ class FakePortal(BaseHTTPRequestHandler):
                                       "errors": [], "warnings": []})
         self._answer(201, {"id": "sub_abc", "state": "pending", "kind": "new", "expires": "2026-11-11T12:00:00+00:00",
                            "status_url": "http://127.0.0.1/api/submissions/sub_abc",
+                           "confirm_url": "http://127.0.0.1/confirm",
                            "guarantors": [{"orcid": "0000-0000-0000-0000", "confirmed": False}],
                            "consent": [{"orcid": "0000-0000-0000-0000", "name": "A. Researcher",
                                         "consent_url": "http://127.0.0.1/consent/token"}],
@@ -58,6 +60,10 @@ class FakePortal(BaseHTTPRequestHandler):
 
     def do_GET(self):
         FakePortal.received.append((self.path, None, b""))
+        if self.path == "/api/submissions/sub_new":
+            return self._answer(200, {"id": "sub_new", "state": "pending", "kind": "new",
+                                      "expires": "2026-11-11T12:00:00+00:00", "confirm_url": "http://127.0.0.1/confirm",
+                                      "guarantors": [{"orcid": "0000-0000-0000-0000", "confirmed": False}]})
         if self.path == "/api/submissions/sub_abc":
             return self._answer(200, {"id": "sub_abc", "state": "published", "kind": "new",
                                       "expires": "2026-11-11T12:00:00+00:00",
@@ -89,6 +95,9 @@ class TestSubmit(unittest.TestCase):
         FakePortal.received.clear()
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
+        cwd = os.getcwd()
+        os.chdir(self.tmp)                                  # submit keeps its answer in .claimset/ here
+        self.addCleanup(os.chdir, cwd)
         self.file = self.tmp / "paper.claimset.json"
         self.file.write_text(json.dumps(EXAMPLE))
 
@@ -96,7 +105,11 @@ class TestSubmit(unittest.TestCase):
         code, out, _ = run("submit", str(self.file), "--portal", self.portal)
         self.assertEqual(code, 0)
         self.assertIn("http://127.0.0.1/consent/token", out)
-        self.assertIn("shown only now", out)
+        self.assertTrue(out.rstrip().splitlines()[-2].startswith("Consent link (again): http://127.0.0.1/consent/token"))
+        self.assertIn("confirms at http://127.0.0.1/confirm", out)
+        kept = json.loads((self.tmp / ".claimset" / "submissions" / "sub_abc.json").read_text())
+        self.assertEqual(kept["consent"][0]["consent_url"], "http://127.0.0.1/consent/token")
+        self.assertEqual((self.tmp / ".claimset" / ".gitignore").read_text().splitlines()[-1], "*")
         self.assertIn("claimset status sub_abc", out)
         self.assertIn("W21 artefacts[0]", out)
         path, kind, body = FakePortal.received[0]
@@ -146,6 +159,24 @@ class TestSubmit(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("no such submission", err)
         self.assertEqual(run("status", "../etc", "--portal", self.portal)[0], 1)
+
+    def test_status_shows_the_kept_consent_link(self):
+        sm.save_record({"id": "sub_new", "consent": [{"orcid": "0000-0000-0000-0000",
+                                                     "consent_url": "http://127.0.0.1/consent/kept"}]})
+        code, out, _ = run("status", "--portal", self.portal)                  # no id: the latest kept
+        self.assertEqual(code, 0)
+        self.assertIn("sub_new: pending", out)
+        self.assertIn("http://127.0.0.1/consent/kept", out)
+        self.assertIn("confirms at http://127.0.0.1/confirm", out)
+        code, out, _ = run("status", "sub_new", "--portal", self.portal, "--json")
+        self.assertEqual(json.loads(out)["consent"][0]["consent_url"], "http://127.0.0.1/consent/kept")
+        self.assertIsNone(sm.load_record("../etc"))
+        self.assertIsNone(sm.save_record({"id": "../x"}))
+
+    def test_status_without_an_id_or_record(self):
+        code, _, err = run("status", "--portal", self.portal)
+        self.assertEqual(code, 1)
+        self.assertIn("give the submission's id", err)
 
     def test_portal_address(self):
         with self.assertRaises(sm.SubmitError):

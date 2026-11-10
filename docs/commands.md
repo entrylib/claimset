@@ -46,7 +46,7 @@ claimset submit https://zenodo.org/…/paper.zip # a package deposited elsewhere
 claimset status sub_…                          # pending, confirmed, publishing, published, refused or expired
 ```
 
-A local file is validated first and not sent if it has errors. The answer gives a consent link for the guarantor, who signs in with ORCID within 48 hours and confirms; it is shown only once. A new version of a published claimset sets `paper.id` to its identifier. `--portal` (or `$CLAIMSET_PORTAL`) names another platform. EntryLib also serves an MCP server at https://entrylib.org/mcp with `validate`, `submit` and `submission_status` tools, and a web form at https://entrylib.org/submit.
+A local file is validated first and not sent if it has errors. The answer gives a consent link for the guarantor, who signs in with ORCID within 48 hours and confirms. The platform shows it only once, so `claimset submit` keeps the answer in `.claimset/submissions/<id>.json` (git ignores the folder) and prints the link again at the end; `claimset status` (the latest submission kept, or one by id) shows it again while pending. A guarantor without the link confirms at https://entrylib.org/confirm, signing in with ORCID. A new version of a published claimset sets `paper.id` to its identifier. `--portal` (or `$CLAIMSET_PORTAL`) names another platform. EntryLib also serves an MCP server at https://entrylib.org/mcp with `validate`, `submit` and `submission_status` tools, and a web form at https://entrylib.org/submit.
 
 ## Studies in a repository
 
