@@ -167,14 +167,31 @@ class TestTermsReferencesMaths(unittest.TestCase):
         self.assertIn('Source: <a class="ref" href="#B1">Smith (2020)</a>', body)
         self.assertIn('Used by: <a href="#D1">D1</a>', body)
 
-    def test_latex(self):
-        self.assertEqual(H.latex(r"\phi_1 = 2 - \alpha_0"), "ϕ<sub>1</sub> = 2 − α<sub>0</sub>")
-        self.assertEqual(H.latex(r"\hat{y}_t"), "y\u0302<sub>t</sub>")
-        self.assertEqual(H.latex(r"x^{h-1} \leq \infty"), "x<sup>h−1</sup> ≤ ∞")
-        self.assertEqual(H.latex(r"\unknown<b>"), "\\unknown&lt;b&gt;")
+    def test_maths_and_code(self):
         P = H._Paper({"paper": {}})
-        self.assertEqual(P.text("when $\\alpha_1 < 1$ holds"),
-                         'when <span class="math">α<sub>1</sub> &lt; 1</span> holds')
+        out = P.text("when $\\alpha_1 < 1$ holds, `adam(y, model = \"ANN\")` fits $x")
+        self.assertIn("<math><semantics><mrow><msub><mi>α</mi><mn>1</mn></msub><mo>&lt;</mo><mn>1</mn></mrow>", out)
+        self.assertIn('<code class="cs-code">adam(y, model = &quot;ANN&quot;)</code>', out)
+        self.assertNotIn("`", out)
+        self.assertIn("fits $x", out)                            # not a formula: no closing $
+        self.assertIn('<code class="math-tex">\\foo{x}</code>', P.text("$\\foo{x}$"))   # unread: shown as written
+        self.assertIn('<math display="block">', P.text("$$x^2$$"))
+        self.assertNotIn("<math>", P.text("`$x$` is code"))           # maths is not read inside code
+
+    def test_a_site_writes_out_doi_references(self):
+        doc = {"paper": {}, "claims": [claim("C1", support=None)],
+               "references": [{"id": "B1", "id_type": "doi", "target": "10.1/a"},
+                              {"id": "B2", "id_type": "doi", "target": "10.1/b"},
+                              {"id": "B3", "id_type": "doi", "target": "10.1/unknown"}]}
+        doc["claims"][0]["support"] = [{"kind": "cited", "references": ["B1", "B2"]}]
+        written = {"10.1/a": "Svetunkov, I., & Petropoulos, F. (2018). Old dog, new tricks. IJPR.",
+                   "10.1/b": "Svetunkov, I., & Petropoulos, F. (2018). Another. IJF."}
+        parts = H.render_parts(doc, ref_text=lambda b: written.get(b["target"]))
+        P = H._Paper(doc, ref_text=lambda b: written.get(b["target"]))
+        self.assertEqual(P.labels, {"B1": "Svetunkov and Petropoulos (2018a)", "B2": "Svetunkov and Petropoulos (2018b)",
+                                    "B3": "doi:10.1/unknown"})
+        self.assertIn("Old dog, new tricks. IJPR.", parts["body"])
+        self.assertIn('href="https://doi.org/10.1/a"', parts["body"])
 
 
 class TestImages(unittest.TestCase):

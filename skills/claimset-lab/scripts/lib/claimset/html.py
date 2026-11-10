@@ -1,6 +1,7 @@
 """The page view: a claimset as HTML for people (spec §2.3), in the order of the paper's argument.
 
-    render_parts(doc) -> dict of HTML fragments: header, nav, body (and the title, the origin label, the brief)
+    render_parts(doc, file_url=None, ref_text=None) -> dict of HTML fragments: header, nav, body (and the title,
+                                       the origin label, the brief)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
     origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
 
@@ -12,6 +13,10 @@ Everything taken from the file is escaped: the view is safe to publish however t
 only to the file's own objects (#C3), to ORCID and doi.org, and to http(s) addresses the file gives. Images (figures,
 and the images behind observation records) are shown only from addresses the caller gives for the claimset's own files
 (`file_url`); an image elsewhere is linked, never embedded, so reading the page loads nothing from other sites.
+A site may also write out references the file gives only by identifier (`ref_text(reference)`: a DOI's metadata, as
+"Surname, A., & Other, B. (2018). Title. Journal."), so that they read as author (year) too.
+
+Maths in text ($...$) is MathML (mathml.py), which browsers show without a script; `code` in backticks is code.
 
 Order: In brief, Context, Definitions (grouped by kind), Assumptions, Principal claims, Supporting claims, Evidence,
 Limitations, Open questions, References, Artefacts. The classes are stable: a site styles them with claimset.css, or
@@ -20,6 +25,8 @@ its own rules.
 
 import html
 import re
+
+from .mathml import to_mathml
 
 from .render import _interval, _join, _num, _s, _stat_note, _statistic, _uncertainty, _val
 
@@ -50,111 +57,14 @@ LIGHTS = {"green": "checkable", "amber": "supported, not checkable", "red": "uns
 NOT_CHECKABLE = {"argument", "cited", "expert_judgement", "consensus"}
 
 
-GREEK = {n: chr(c) for n, c in (
-    ("alpha", 0x3b1), ("beta", 0x3b2), ("gamma", 0x3b3), ("delta", 0x3b4), ("epsilon", 0x3f5), ("varepsilon", 0x3b5),
-    ("zeta", 0x3b6), ("eta", 0x3b7), ("theta", 0x3b8), ("vartheta", 0x3d1), ("iota", 0x3b9), ("kappa", 0x3ba),
-    ("lambda", 0x3bb), ("mu", 0x3bc), ("nu", 0x3bd), ("xi", 0x3be), ("pi", 0x3c0), ("rho", 0x3c1), ("sigma", 0x3c3),
-    ("tau", 0x3c4), ("upsilon", 0x3c5), ("phi", 0x3d5), ("varphi", 0x3c6), ("chi", 0x3c7), ("psi", 0x3c8),
-    ("omega", 0x3c9), ("Gamma", 0x393), ("Delta", 0x394), ("Theta", 0x398), ("Lambda", 0x39b), ("Xi", 0x39e),
-    ("Pi", 0x3a0), ("Sigma", 0x3a3), ("Phi", 0x3a6), ("Psi", 0x3a8), ("Omega", 0x3a9))}
-SYMBOLS = {"times": "×", "cdot": "·", "leq": "≤", "le": "≤", "geq": "≥", "ge": "≥", "neq": "≠", "ne": "≠",
-           "pm": "±", "mp": "∓", "infty": "∞", "sum": "∑", "prod": "∏", "int": "∫", "to": "→", "rightarrow": "→",
-           "leftarrow": "←", "Rightarrow": "⇒", "approx": "≈", "sim": "∼", "simeq": "≃", "equiv": "≡", "propto": "∝",
-           "in": "∈", "notin": "∉", "subset": "⊂", "subseteq": "⊆", "cup": "∪", "cap": "∩", "forall": "∀",
-           "exists": "∃", "partial": "∂", "nabla": "∇", "ldots": "…", "dots": "…", "cdots": "⋯", "mid": "|",
-           "ell": "ℓ", "circ": "∘", "prime": "′", "lvert": "|", "rvert": "|", "vert": "|", "langle": "⟨",
-           "rangle": "⟩", "lfloor": "⌊", "rfloor": "⌋", "lceil": "⌈", "rceil": "⌉", "neg": "¬", "land": "∧",
-           "lor": "∨", "emptyset": "∅", "{": "{", "}": "}", "%": "%", "$": "$", "_": "_", "&": "&", "#": "#",
-           ",": "\u2009", ";": "\u2005", ":": "\u2005", "quad": "\u2003", "qquad": "\u2003\u2003", " ": " ", "!": ""}
-FUNCTIONS = {"log", "ln", "exp", "sin", "cos", "tan", "max", "min", "arg", "argmax", "argmin", "sup", "inf", "lim",
-             "det", "var", "Var", "cov", "Cov", "E", "Pr"}
-ACCENTS = {"hat": "\u0302", "widehat": "\u0302", "bar": "\u0304", "overline": "\u0305", "tilde": "\u0303",
-           "widetilde": "\u0303", "dot": "\u0307", "ddot": "\u0308", "vec": "\u20d7"}
-BLACKBOARD = {"R": "ℝ", "N": "ℕ", "Z": "ℤ", "Q": "ℚ", "C": "ℂ", "E": "𝔼", "P": "ℙ"}
-MATH = re.compile(r"\$\$(.+?)\$\$|\$([^$\s][^$]*?)\$|\\\((.+?)\\\)")
+MATH = re.compile(r"\$\$(.+?)\$\$|\$([^$\s][^$]*?)\$|\\\((.+?)\\\)", re.S)
+CODE = re.compile(r"(`+)(.+?)\1", re.S)
 
 
-def latex(expr):
-    """Inline LaTeX as HTML text with sub- and superscripts: Greek letters, operators, accents, fractions and
-    roots. What it does not know it shows as written. A stand-in for MathML; the text stays readable either way."""
-    pos = 0
-
-    def group():
-        nonlocal pos
-        while pos < len(expr) and expr[pos] == " ":
-            pos += 1
-        if pos >= len(expr):
-            return ""
-        if expr[pos] == "{":
-            depth, start = 1, pos + 1
-            pos += 1
-            while pos < len(expr) and depth:
-                depth += {"{": 1, "}": -1}.get(expr[pos], 0)
-                pos += 1
-            return parse(expr[start:pos - 1])
-        return atom()
-
-    def atom():
-        nonlocal pos
-        ch = expr[pos]
-        if ch == "\\":
-            m = re.match(r"\\([A-Za-z]+|.)", expr[pos:])
-            pos += m.end() if m else 1
-            name = m.group(1) if m else ""
-            if name in GREEK:
-                return GREEK[name]
-            if name in SYMBOLS:
-                return esc(SYMBOLS[name])
-            if name in FUNCTIONS:
-                return name
-            if name in ("left", "right", "big", "Big", "bigl", "bigr", "Bigl", "Bigr", "displaystyle", "limits"):
-                return ""
-            if name in ACCENTS:
-                inner = group()
-                return inner + ACCENTS[name] if len(inner) == 1 else f"{inner}{ACCENTS[name]}"
-            if name in ("frac", "dfrac", "tfrac"):
-                a, b = group(), group()
-                wrap = lambda x: x if re.fullmatch(r"[\w.′]+", x) else f"({x})"
-                return f"{wrap(a)}/{wrap(b)}"
-            if name == "sqrt":
-                inner = group()
-                return f"√({inner})" if len(inner) > 1 else f"√{inner}"
-            if name in ("mathbb",):
-                inner = group()
-                return BLACKBOARD.get(inner, inner)
-            if name in ("text", "mathrm", "mathit", "mathbf", "operatorname", "textrm", "mathsf", "boldsymbol",
-                        "mathcal"):
-                return group()
-            return esc("\\" + name)
-        pos += 1
-        return "−" if ch == "-" else "′" if ch == "'" else esc(ch)
-
-    def parse(s):
-        nonlocal expr, pos
-        saved = expr, pos
-        expr, pos = s, 0
-        out = []
-        while pos < len(expr):
-            ch = expr[pos]
-            if ch in "^_":
-                pos += 1
-                inner = group()
-                out.append(f"<sup>{inner}</sup>" if ch == "^" else f"<sub>{inner}</sub>")
-            elif ch == "{":
-                out.append(group())
-            elif ch == "}":
-                pos += 1
-            elif ch == "~":
-                pos += 1
-                out.append(" ")
-            else:
-                out.append(atom())
-        expr, pos = saved
-        return "".join(out)
-    try:
-        return parse(expr)
-    except (RecursionError, AttributeError, IndexError):     # pragma: no cover - shown as written instead
-        return esc(expr)
+def math(tex, display=False):
+    """An expression as MathML (claimset.mathml); one it cannot read is shown as written, as code."""
+    out = to_mathml(tex, display)
+    return out if out is not None else f'<code class="math-tex">{esc(tex)}</code>'
 
 
 def esc(x):
@@ -185,9 +95,10 @@ def _first_sentence(text, limit=160):
 class _Paper:
     """The claimset's objects indexed, and what is computed once for the whole view."""
 
-    def __init__(self, doc, file_url=None):
+    def __init__(self, doc, file_url=None, ref_text=None):
         self.doc = doc
         self.file_url = file_url
+        self.ref_text = ref_text
         self.paper = doc.get("paper") if isinstance(doc.get("paper"), dict) else {}
         listed = lambda k: [x for x in doc.get(k) or [] if isinstance(x, dict) and isinstance(x.get("id"), str)]
         self.claims, self.defs, self.evidence = listed("claims"), listed("definitions"), listed("evidence")
@@ -202,9 +113,14 @@ class _Paper:
     # ---------- references ----------
     def _reference_labels(self):
         """Author (year) for each reference: "Hyndman et al. (2008)", "Kolassa (2011)"; a, b for repeats."""
-        labels = {}
+        labels, self.written = {}, {}
         for b in self.refs:
             t, kind = b.get("target"), b.get("id_type")
+            if kind not in (None, "reference") and self.ref_text is not None:
+                written = self.ref_text(b)                    # the site's lookup (a DOI's metadata, say)
+                if isinstance(written, str) and written.strip():
+                    self.written[b["id"]] = t = written.strip()
+                    kind = "reference"
             if kind == "doi":
                 labels[b["id"]] = f"doi:{t}"
                 continue
@@ -307,14 +223,23 @@ class _Paper:
 
     # ---------- text ----------
     def text(self, s):
-        """A statement or description: escaped, with [[D1:term]] as a link to the definition and inline LaTeX
-        ($...$) as maths."""
+        """A statement or description: escaped, with [[D1:term]] as a link to the definition, inline LaTeX
+        ($...$, $$...$$, \\(...\\)) as MathML and `code` as code."""
         if not isinstance(s, str):
             return esc(s)
         out, last = [], 0
+        for m in CODE.finditer(s):
+            out.append(self._maths(s[last:m.start()]))
+            out.append(f'<code class="cs-code">{esc(m.group(2).strip())}</code>')
+            last = m.end()
+        out.append(self._maths(s[last:]))
+        return "".join(out)
+
+    def _maths(self, s):
+        out, last = [], 0
         for m in MATH.finditer(s):
             out.append(self._terms(s[last:m.start()]))
-            out.append(f'<span class="math">{latex(m.group(1) or m.group(2) or m.group(3))}</span>')
+            out.append(math(m.group(1) or m.group(2) or m.group(3), display=m.group(1) is not None))
             last = m.end()
         out.append(self._terms(s[last:]))
         return "".join(out)
@@ -774,13 +699,15 @@ def _section(sid, title, items, intro=""):
     return (f'<section class="cs-section" id="{sid}"><h2>{title}</h2>{intro}' + "\n".join(items) + "</section>")
 
 
-def render_parts(doc, file_url=None):
+def render_parts(doc, file_url=None, ref_text=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
     light). `file_url(artefact)` gives the address an image of the claimset is served at, or None when the
-    artefact is not an image the site shows; without it, image files are shown from their relative paths (a local preview beside the package's files)."""
-    P = _Paper(doc, file_url)
+    artefact is not an image the site shows; without it, image files are shown from their relative paths (a local
+    preview beside the package's files). `ref_text(reference)` writes out a reference the file gives only by
+    identifier (a DOI), or returns None."""
+    P = _Paper(doc, file_url, ref_text)
     source_link = ""
     cf = P.paper.get("converted_from")
     if isinstance(cf, dict) and isinstance(cf.get("source_id"), str):
@@ -846,6 +773,8 @@ def render_parts(doc, file_url=None):
     def reference(b):
         t = b.get("target")
         shown = _doi(t) if b.get("id_type") == "doi" else (_link(t) if b.get("id_type") == "url" else esc(t))
+        if b["id"] in P.written:                              # written out by the site, then its identifier
+            shown = f"{esc(P.written[b['id']])} {shown}"
         used = P.users(b["id"])
         return (f'<li id="{esc(b["id"])}"><span class="cs-id">{esc(P.labels.get(b["id"], b["id"]))}</span> {shown}'
                 + (f' <span class="cs-tail">Used by: {used}</span>' if used else "") + "</li>")

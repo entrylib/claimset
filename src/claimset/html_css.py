@@ -7,6 +7,8 @@ CSS = """\
   --cs-ink: #1b1b1b; --cs-muted: #5f5f5f; --cs-rule: #d0d0d0; --cs-rule-light: #e4e4e4; --cs-panel: #f4f4f4;
   --cs-accent: #0b57d0; --cs-target: #eef3fc;
   --cs-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cs-math-font: math, "STIX Two Math", "Cambria Math", "Latin Modern Math", serif;
+  --cs-code-font: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --cs-green: #2e8b57; --cs-amber: #d08c1a; --cs-red: #c0392b;
 }
 @media (prefers-color-scheme: dark) {
@@ -77,7 +79,9 @@ CSS = """\
   .cs-toc { position: static; max-height: none; }
   .cs-layout { gap: 24px; }
 }
-.math { white-space: nowrap; }
-.math sub, .math sup { font-size: 75%; line-height: 0; }
+math { font-family: var(--cs-math-font); font-size: 1.05em; }
+math[display="block"] { margin: 8px 0; }
+.cs-code, .math-tex { font-family: var(--cs-code-font); font-size: 0.9em; background: var(--cs-panel);
+  border: 1px solid var(--cs-rule-light); border-radius: 3px; padding: 0 4px; overflow-wrap: anywhere; }
 .cs-table td.txt { text-align: left; }
 """
