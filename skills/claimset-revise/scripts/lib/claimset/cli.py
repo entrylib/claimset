@@ -137,6 +137,9 @@ def _cmd_render(args):
         except KeyError:
             print(f"ERROR: {args.file} has no claim {args.claim}", file=sys.stderr)
             return 1
+    elif args.html:
+        from . import html as _html
+        text = _html.render_html(doc)
     else:
         text = _render.render(doc)
     if args.output:
@@ -260,6 +263,9 @@ def build_parser():
     rv.add_argument("--published", action="store_true", help="the file is a published claimset")
     rv.add_argument("--claim", help="only this claim and what it rests on (a claim bundle): C4")
     rv.add_argument("--bundle", action="store_true", help="with --claim: the claim bundle as JSON, not its reading view")
+    rv.add_argument("--html", action="store_true",
+                    help="the page view for people (HTML), as EntryLib shows it; images are shown from the files "
+                         "beside the claimset, so write it into the claimset's folder")
     rv.set_defaults(func=_cmd_render)
 
     rn = sub.add_parser("renumber", help="before the first submission: renumber claims and other objects in "
