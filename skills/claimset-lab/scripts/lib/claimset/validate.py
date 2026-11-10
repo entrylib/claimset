@@ -17,13 +17,15 @@ Exit code 0: no errors (warnings allowed). Exit code 1: errors found.
 Implements the rules in spec section 10, plus computed verifiability (section 5)
 and heuristic checks of statement text (section 8). Standard library only.
 """
+import ast
 import json
 from pathlib import Path
 import math
+import operator
 import re
 import sys
 
-SCHEMA_VERSION = "0.40"
+SCHEMA_VERSION = "0.41"
 #: The first specification version accepted (spec §2.6), set when the platform launches. Files of every version from
 #: it to SCHEMA_VERSION are then valid for good, each checked by its own version's rules (a frozen validator in
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
@@ -2119,6 +2121,285 @@ def check_artefact_v032(r, w, a, ref, by_id, coll):
         r.err("1", f"{w}.locator", "where in the cited work, as text")
 
 
+# ---------- Decision rules and what a test's quantities bind (§3.3.3) ----------
+# The grammar of a rule and how a quantity binds an observation are the claimset's; the lab record's tool
+# (claimset.lab.decision) evaluates its plans with these same functions.
+
+RULE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+MAX_RULE_LENGTH = 1000
+_RULE_BINOPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+_RULE_CMPOPS = {ast.Lt: operator.lt, ast.LtE: operator.le, ast.Gt: operator.gt, ast.GtE: operator.ge,
+                ast.Eq: operator.eq, ast.NotEq: operator.ne}
+
+
+class RuleError(ValueError):
+    pass
+
+
+def rule_number(v):
+    """A finite number (not a boolean); a huge integer is not one."""
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return False
+    try:
+        return math.isfinite(v)
+    except OverflowError:
+        return False
+
+
+def _check_rule_node(node, names):
+    """Raise RuleError unless every node is allowed and every name is in `names`."""
+    if isinstance(node, ast.Expression):
+        return _check_rule_node(node.body, names)
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
+        for v in node.values:
+            _check_rule_node(v, names)
+    elif isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.Not, ast.USub, ast.UAdd)):
+        _check_rule_node(node.operand, names)
+    elif isinstance(node, ast.BinOp) and type(node.op) in _RULE_BINOPS:
+        _check_rule_node(node.left, names)
+        _check_rule_node(node.right, names)
+    elif isinstance(node, ast.Compare) and all(type(op) in _RULE_CMPOPS for op in node.ops):
+        _check_rule_node(node.left, names)
+        for c in node.comparators:
+            _check_rule_node(c, names)
+    elif isinstance(node, ast.Name):
+        if node.id not in names:
+            raise RuleError(f"'{node.id}' is not a quantity or numeric parameter of the plan")
+    elif isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)) and not isinstance(node.value, bool) and not rule_number(node.value):
+            raise RuleError("a constant is too large")
+        if not rule_number(node.value):
+            raise RuleError(f"only numbers are allowed as constants, not {node.value!r}")
+    elif isinstance(node, ast.Call):
+        if not (isinstance(node.func, ast.Name) and node.func.id == "abs" and len(node.args) == 1
+                and not node.keywords):
+            raise RuleError("the only function allowed is abs(x)")
+        _check_rule_node(node.args[0], names)
+    else:
+        raise RuleError(f"'{type(node).__name__}' is not allowed in a rule")
+
+
+def parse_rule(expr, names):
+    """Parse and check a rule expression (§3.3.3); return its tree. Raise RuleError if it is not allowed."""
+    if not isinstance(expr, str) or not expr.strip():
+        raise RuleError("the rule is empty")
+    if len(expr) > MAX_RULE_LENGTH:
+        raise RuleError(f"the rule is longer than {MAX_RULE_LENGTH} characters")
+    try:
+        tree = ast.parse(expr.strip(), mode="eval")
+    except (SyntaxError, ValueError, RecursionError, MemoryError) as exc:
+        raise RuleError(f"not a valid expression ({getattr(exc, 'msg', exc)})") from None
+    _check_rule_node(tree, set(names))
+    return tree
+
+
+def eval_rule(node, env):
+    """The value of a parsed rule over `env` (quantities and numeric parameters)."""
+    if isinstance(node, ast.Expression):
+        return eval_rule(node.body, env)
+    if isinstance(node, ast.BoolOp):
+        vals = [bool(eval_rule(v, env)) for v in node.values]
+        return all(vals) if isinstance(node.op, ast.And) else any(vals)
+    if isinstance(node, ast.UnaryOp):
+        v = eval_rule(node.operand, env)
+        return (not v) if isinstance(node.op, ast.Not) else (-v if isinstance(node.op, ast.USub) else +v)
+    if isinstance(node, ast.BinOp):
+        right = eval_rule(node.right, env)
+        if isinstance(node.op, ast.Div) and right == 0:
+            raise RuleError("division by zero")
+        return _RULE_BINOPS[type(node.op)](eval_rule(node.left, env), right)
+    if isinstance(node, ast.Compare):
+        left = eval_rule(node.left, env)
+        for op, comp in zip(node.ops, node.comparators):
+            right = eval_rule(comp, env)
+            if not _RULE_CMPOPS[type(op)](left, right):
+                return False
+            left = right
+        return True
+    if isinstance(node, ast.Name):
+        return env[node.id]
+    if isinstance(node, ast.Constant):
+        return float(node.value)
+    if isinstance(node, ast.Call):
+        return abs(eval_rule(node.args[0], env))
+    raise RuleError(f"'{type(node).__name__}' is not allowed in a rule")
+
+
+def numeric_parameters(test):
+    """A test's parameters that a rule may name: those with a name and a numeric value."""
+    params = test.get("parameters") if isinstance(test.get("parameters"), dict) else {}
+    return {k: v for k, v in params.items() if isinstance(k, str) and RULE_NAME_RE.match(k) and rule_number(v)}
+
+
+def rule_outcome(test, values):
+    """The outcome a test's rules give on bound `values`: supported, not_supported or inconclusive (both or neither
+    hold). Raise RuleError when a rule cannot be evaluated."""
+    env = dict(numeric_parameters(test), **values)
+    holds = {o: bool(eval_rule(parse_rule(test.get(o), env), env)) for o in ("supported", "not_supported")}
+    if holds["supported"] == holds["not_supported"]:
+        return "inconclusive"
+    return "supported" if holds["supported"] else "not_supported"
+
+
+def read_field(obs, field):
+    """The number a quantity reads from an observation (§3.3.3): its value, the limit or an end of a value that is a
+    limit or a range, a bound of its interval, or the value of its one symmetric uncertainty component of a kind;
+    None when there is no such number."""
+    field = field or "value"
+    if field == "value":
+        return obs.get("value")
+    part, _, key = str(field).partition(".")
+    if part == "value":                                       # value.limit, value.min, value.max
+        return (obs.get("value") if isinstance(obs.get("value"), dict) else {}).get(key)
+    if part == "interval":
+        return (obs.get("interval") if isinstance(obs.get("interval"), dict) else {}).get(key)
+    if part == "uncertainty":
+        comps = [u for u in obs.get("uncertainty") or [] if isinstance(u, dict) and u.get("kind") == key]
+        return comps[0].get("value") if len(comps) == 1 else None
+    return None
+
+
+def _statistic_key(st):
+    """A statistic in one form, so that "mean" and {"name": "mean"} compare equal."""
+    if isinstance(st, str):
+        return json.dumps({"name": st}, sort_keys=True)
+    if isinstance(st, dict):
+        return json.dumps(st, sort_keys=True, ensure_ascii=False)
+    return None
+
+
+def _same(a, b):
+    if rule_number(a) and rule_number(b):
+        return float(a) == float(b)
+    return a == b
+
+
+def bindable(e):
+    """The observations of an evidence object that a test's quantity may bind (§3.3.3): its result entries and the
+    cells of its tables, each {where, variable, conditions, statistic, observation}; a cell's conditions are its
+    table's, its row's labels and its column's, and its statistic its row's or its column's (§3.4)."""
+    out = []
+    for i, rs in enumerate(as_list(e.get("results"))):
+        rs = as_dict(rs)
+        out.append({"where": f"{e.get('id')}.{rs.get('id', f'results[{i}]')}", "variable": rs.get("variable"),
+                    "conditions": as_dict(rs.get("conditions")), "statistic": rs.get("statistic"), "observation": rs})
+    for t in as_list(e.get("tables")):
+        t = as_dict(t)
+        labels = [x for x in as_list(t.get("row_labels")) if isinstance(x, str)]
+        cols = as_list(t.get("columns"))
+        for row in as_list(t.get("rows")):
+            row = as_dict(row)
+            base = dict(as_dict(t.get("conditions")))
+            base.update({k: v for k, v in zip(labels, as_list(row.get("label")))})
+            for c, v in zip(cols, as_list(row.get("values"))):
+                if v is None:
+                    continue                                    # no value reported: nothing to bind
+                cond = dict(base)
+                var = c if isinstance(c, str) else as_dict(c).get("variable")
+                if isinstance(c, dict):
+                    cond.update(as_dict(c.get("conditions")))
+                st = row.get("statistic") if row.get("statistic") is not None else as_dict(c).get("statistic")
+                out.append({"where": f"{e.get('id')}.{t.get('id')}.{row.get('id')}", "variable": var,
+                            "conditions": cond, "statistic": st, "observation": {"value": v}})
+    return out
+
+
+def bind_quantity(q, observations, lab_runs=()):
+    """The observations a quantity binds (§3.3.3): its variable, every condition it gives, and its statistic when it
+    gives one; with `run` (the deciding run, 1 for the first), only observations of that run where they say which
+    (a condition `run` naming one of `lab_runs`)."""
+    want = as_dict(q.get("conditions"))
+    stat = _statistic_key(q.get("statistic")) if q.get("statistic") is not None else None
+    hits = [o for o in observations if o["variable"] == q.get("variable")
+            and all(k in o["conditions"] and _same(o["conditions"][k], v) for k, v in want.items())
+            and (stat is None or _statistic_key(o["statistic"]) == stat)]
+    run = q.get("run")
+    if isinstance(run, int) and not isinstance(run, bool) and 1 <= run <= len(lab_runs) and len(hits) > 1:
+        target = lab_runs[run - 1]
+        hits = [o for o in hits if "run" not in o["conditions"] or o["conditions"]["run"] == target]
+    return hits
+
+
+def check_test_bindings(r, claims, evidence_by_id, strict):
+    """Rule 91 and warning 41: each quantity of a computed test binds exactly one observation of the evidence the
+    claim's support names. Rule 92 and warning 42: the rules, evaluated on the bound values, give the claim's
+    outcome. `strict`: errors (files of v0.41 and later); otherwise warnings (v0.40, amended 2026-11-11)."""
+    def report(rule, warning, where, message, error=True):
+        if strict and error:
+            r.err(rule, where, message)
+        else:
+            r.warn(warning, where, message)
+
+    for cid, c in claims.items():
+        test = c.get("test")
+        if not isinstance(test, dict) or test.get("verdict") != "computed" \
+                or not isinstance(test.get("quantities"), dict) or not test["quantities"]:
+            continue
+        w = f"claims:{cid}.test.quantities"
+        outcome = as_dict(c.get("hypothesis")).get("outcome")
+        conclusive = outcome in ("supported", "not_supported")
+        evs = [as_dict(evidence_by_id.get(s.get("evidence"))) for s in (as_dict(x) for x in as_list(c.get("support")))
+               if isinstance(s.get("evidence"), str) and s.get("evidence") in evidence_by_id]
+        values, unbound, counted, missing = {}, False, False, []
+        for name, q in test["quantities"].items():
+            if not isinstance(q, dict) or not isinstance(q.get("variable"), str):
+                unbound = True                                   # malformed: rule 47 says so
+                continue
+            if q["variable"].startswith("count:"):              # a count over codings: the qualitative extension's
+                counted = True
+                continue
+            if q.get("statistic") is not None and _statistic_problem(q["statistic"]):
+                report("91", "W41", f"{w}.{name}.statistic", f"a statistic as in §3.4: "
+                                                              f"{_statistic_problem(q['statistic'])}")
+            hits = []
+            for e in evs:
+                hits += bind_quantity(q, bindable(e), [x for x in as_list(e.get("lab_runs")) if isinstance(x, str)])
+            field = q.get("field") or "value"
+            if len(hits) > 1:
+                unbound = True
+                stats = {_statistic_key(h["statistic"]) for h in hits}
+                hint = (", which differ by statistic: give the quantity the statistic of the one it reads"
+                        if len(stats) > 1 and q.get("statistic") is None else
+                        ": give the conditions that tell them apart")
+                report("91", "W41", f"{w}.{name}", f"binds {len(hits)} observations "
+                       f"({', '.join(sorted({h['where'] for h in hits}))}), not exactly one{hint}")
+            elif not hits:
+                unbound = True
+                missing.append((name, q))
+            else:
+                v = read_field(hits[0]["observation"], field)
+                if not rule_number(v):
+                    unbound = True
+                    report("91", "W41", f"{w}.{name}", f"binds {hits[0]['where']}, which has no number at {field}",
+                           error=conclusive)
+                else:
+                    values[name] = v
+        if missing:
+            name, q = missing[0]
+            where = ", ".join(e.get("id", "?") for e in evs) or "no evidence"
+            report("91", "W41", w, (
+                f"{len(missing)} of {len(test['quantities'])} quantities bind no observation of {where} "
+                f"({', '.join(n for n, _ in missing)}); {name}, for one, names the variable {q['variable']!r} with "
+                f"the conditions {json.dumps(as_dict(q.get('conditions')), ensure_ascii=False)}, which no result or "
+                f"table cell has. "
+                + ("A conclusive outcome rests on them: bind each to the result or table cell its value was "
+                   "computed from (a cell by its column's variable and its table's, row's and column's conditions)"
+                   if conclusive else
+                   "An inconclusive outcome may rest on no value (a run that failed); if values were recorded, bind "
+                   "each quantity to its result or table cell")), error=conclusive)
+        if unbound or counted or outcome not in ("supported", "not_supported", "inconclusive"):
+            continue
+        try:
+            computed = rule_outcome(test, values)
+        except (RuleError, TypeError, KeyError) as exc:
+            report("92", "W42", f"claims:{cid}.test", f"the rules cannot be evaluated on the bound values: {exc}")
+            continue
+        if computed != outcome:
+            shown = ", ".join(f"{k} = {v:g}" for k, v in values.items())
+            report("92", "W42", f"claims:{cid}.hypothesis.outcome",
+                   f"the rules give {computed} on the bound values ({shown}), not {outcome}")
+
+
 def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     """Rules 66 (terms of observations), 68, 69, 70 (published files), 71 (cycles), 72 (cycles), 73, 74;
     warnings 29 and 30 (spec v0.32)."""
@@ -2379,6 +2660,10 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     if not converted and (not isinstance(decl, dict) or "funding" not in decl or "competing_interests" not in decl):
         r.warn("W29", "paper.declarations", "declare funding and competing interests, as the guarantor states them "
                                             "(an empty funding list and \"None declared.\" are declarations)")
+
+    # ----- what a computed test's quantities bind, and the outcome its rules give (rules 91, 92; warnings 41, 42) -----
+    check_test_bindings(r, claims, {_h(as_dict(e).get("id")): as_dict(e) for e in coll["evidence"]},
+                        strict=schema_version_tuple(SCHEMA_VERSION) >= (0, 41))
 
     # ----- results a table would hold (warning 40; §3.4, Tables are the standard form) -----
     for e in coll["evidence"]:

@@ -9,8 +9,6 @@ can compare and combine numbers and nothing else.
 """
 
 import ast
-import math
-import operator
 import re
 
 from .. import validate as _claimset
@@ -23,103 +21,13 @@ FIELDS = _claimset.QUANTITY_FIELDS                                 # where a qua
 OUTCOMES = ("supported", "not_supported", "inconclusive")          # the order verdicts are reported in
 assert set(OUTCOMES) == _claimset.ENUM["outcome"]
 TEXT_RULE_OUTCOME = {"supported": "supported", "not_supported": "not_supported", "neither": "inconclusive"}
-NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
-MAX_RULE_LENGTH = 1000
-
-_BINOPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
-_CMPOPS = {ast.Lt: operator.lt, ast.LtE: operator.le, ast.Gt: operator.gt, ast.GtE: operator.ge,
-           ast.Eq: operator.eq, ast.NotEq: operator.ne}
-
-
-class RuleError(ValueError):
-    pass
-
-
-def _is_number(v):
-    if not isinstance(v, (int, float)) or isinstance(v, bool):
-        return False
-    try:
-        return math.isfinite(v)
-    except OverflowError:
-        return False
-
-
-def _check_node(node, names):
-    """Raise RuleError unless every node is allowed and every name is in `names`."""
-    if isinstance(node, ast.Expression):
-        return _check_node(node.body, names)
-    if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
-        for v in node.values:
-            _check_node(v, names)
-    elif isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.Not, ast.USub, ast.UAdd)):
-        _check_node(node.operand, names)
-    elif isinstance(node, ast.BinOp) and type(node.op) in _BINOPS:
-        _check_node(node.left, names)
-        _check_node(node.right, names)
-    elif isinstance(node, ast.Compare) and all(type(op) in _CMPOPS for op in node.ops):
-        _check_node(node.left, names)
-        for c in node.comparators:
-            _check_node(c, names)
-    elif isinstance(node, ast.Name):
-        if node.id not in names:
-            raise RuleError(f"'{node.id}' is not a quantity or numeric parameter of the plan")
-    elif isinstance(node, ast.Constant):
-        if isinstance(node.value, (int, float)) and not isinstance(node.value, bool) and not _is_number(node.value):
-            raise RuleError("a constant is too large")
-        if not _is_number(node.value):
-            raise RuleError(f"only numbers are allowed as constants, not {node.value!r}")
-    elif isinstance(node, ast.Call):
-        if not (isinstance(node.func, ast.Name) and node.func.id == "abs" and len(node.args) == 1
-                and not node.keywords):
-            raise RuleError("the only function allowed is abs(x)")
-        _check_node(node.args[0], names)
-    else:
-        raise RuleError(f"'{type(node).__name__}' is not allowed in a rule")
-
-
-def parse(expr, names):
-    """Parse and check a rule expression; return its tree. Raise RuleError if it is not allowed."""
-    if not isinstance(expr, str) or not expr.strip():
-        raise RuleError("the rule is empty")
-    if len(expr) > MAX_RULE_LENGTH:
-        raise RuleError(f"the rule is longer than {MAX_RULE_LENGTH} characters")
-    try:
-        tree = ast.parse(expr.strip(), mode="eval")
-    except SyntaxError as exc:
-        raise RuleError(f"not a valid expression ({exc.msg})") from None
-    _check_node(tree, set(names))
-    return tree
-
-
-def _eval(node, env):
-    if isinstance(node, ast.Expression):
-        return _eval(node.body, env)
-    if isinstance(node, ast.BoolOp):
-        vals = [bool(_eval(v, env)) for v in node.values]
-        return all(vals) if isinstance(node.op, ast.And) else any(vals)
-    if isinstance(node, ast.UnaryOp):
-        v = _eval(node.operand, env)
-        return (not v) if isinstance(node.op, ast.Not) else (-v if isinstance(node.op, ast.USub) else +v)
-    if isinstance(node, ast.BinOp):
-        right = _eval(node.right, env)
-        if isinstance(node.op, ast.Div) and right == 0:
-            raise RuleError("division by zero")
-        return _BINOPS[type(node.op)](_eval(node.left, env), right)
-    if isinstance(node, ast.Compare):
-        left = _eval(node.left, env)
-        for op, comp in zip(node.ops, node.comparators):
-            right = _eval(comp, env)
-            if not _CMPOPS[type(op)](left, right):
-                return False
-            left = right
-        return True
-    if isinstance(node, ast.Name):
-        return env[node.id]
-    if isinstance(node, ast.Constant):
-        return float(node.value)
-    if isinstance(node, ast.Call):
-        return abs(_eval(node.args[0], env))
-    raise RuleError(f"'{type(node).__name__}' is not allowed in a rule")
+# The grammar of a rule and how it is evaluated are the claimset's (§3.3.3), defined once in its validator
+NAME_RE = _claimset.RULE_NAME_RE
+MAX_RULE_LENGTH = _claimset.MAX_RULE_LENGTH
+RuleError = _claimset.RuleError
+_is_number = _claimset.rule_number
+parse = _claimset.parse_rule
+_eval = _claimset.eval_rule
 
 
 RULE_KEYS = ("framework", "parameters", "supported", "not_supported")
@@ -185,8 +93,7 @@ def computed(decision):
 
 
 def numeric_parameters(decision):
-    params = decision.get("parameters") if isinstance(decision.get("parameters"), dict) else {}
-    return {k: v for k, v in params.items() if isinstance(k, str) and NAME_RE.match(k) and _is_number(v)}
+    return _claimset.numeric_parameters(decision)
 
 
 def problems(decision, runs=1, hypotheses=None, same=None):
@@ -355,21 +262,7 @@ def bind(decision, results):
     return values, probs
 
 
-def read_field(result, field):
-    """The number a quantity reads from a result: its value, the limit or an end of a value that is a limit or a
-    range, a bound of its interval, or the symmetric uncertainty of the one component of a kind (`uncertainty.se`);
-    None when there is no such number."""
-    if field == "value":
-        return result.get("value")
-    part, _, key = str(field).partition(".")
-    if part == "value":                                       # value.limit, value.min, value.max
-        return (result.get("value") if isinstance(result.get("value"), dict) else {}).get(key)
-    if part == "interval":
-        return (result.get("interval") if isinstance(result.get("interval"), dict) else {}).get(key)
-    if part == "uncertainty":
-        comps = [u for u in result.get("uncertainty") or [] if isinstance(u, dict) and u.get("kind") == key]
-        return comps[0].get("value") if len(comps) == 1 else None
-    return None
+read_field = _claimset.read_field          # where a quantity reads its number (claimset §3.3.3)
 
 
 def verdict(decision, results):

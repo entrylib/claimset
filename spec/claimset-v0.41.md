@@ -1,10 +1,19 @@
-# Claimset — Specification v0.40 (draft)
+# Claimset — Specification v0.41 (draft)
 
-Status: working draft · Date: 2026-11-10 · Supersedes v0.39, the baseline (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.21.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
+Status: working draft · Date: 2026-11-11 · Supersedes v0.40 (`spec/claimset-v0.40.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.21.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
 
 Claimset is the name of both the open format and the platform.
 
-## Changes since v0.39
+## Changes since v0.40
+
+A planned test's outcome rests on the values its quantities bind. In v0.40 a quantity that bound nothing, or bound several observations, was a warning at most: a claimset whose results were made into tables kept quantities naming result entries that no longer existed, and the outcomes of its planned tests rested on no value, as published.
+
+- §3.3.3, §10: new rule 91. Each quantity of a computed test binds exactly one observation (a result entry or a table cell) of the evidence the claim's support names, with a number at its `field`; only an `inconclusive` outcome may rest on a quantity that binds nothing (warning 41). A quantity may give a `statistic` (from v0.40 as amended on 2026-11-11), which then must be one of §3.4.
+- §3.3.3, §10: new rule 92. The rules, evaluated on the bound values, give the claim's `hypothesis.outcome`.
+- §9: a correction or revision that restructures evidence (result entries made into a table) rebinds the test quantities in the same version.
+- `claimset migrate` brings a v0.40 file to v0.41 and lists the quantities that bind nothing or several observations, to rebind.
+
+## Changes in v0.40 (since v0.39)
 
 The guarantor can say which of the paper's findings and terms a reader should take first. The platform shows them at the top of the paper's page, and the reading view lists them.
 
@@ -19,6 +28,11 @@ Amended on 2026-11-10: tables are the standard form of numerical results. A clai
 
 - §3.4, *Tables are the standard form* (new): more than a handful of numbers from one evidence object are a table, rows the compared units and columns the variables; a claim cites the rows it rests on; result entries remain for a single headline number and for what a cell cannot hold; full-precision values go in a data artefact the table names. New warning 40. Files that list results stay valid.
 - Lab record export (lab record §9) writes tables, and every result of the record to a CSV artefact.
+
+Amended on 2026-11-11: a test's quantities bind table cells. A claimset whose results were made into tables kept quantities naming the old result entries, which bind nothing, and its validation said nothing: the outcomes of its planned tests rested on no value.
+
+- §3.3.3, *Quantities and table cells* (new): a quantity binds a table cell as it binds a result entry, with the table's, row's and column's conditions; a quantity may give a `statistic`, which the cell's must be (the mean and the median of one variable); quantities are rebound when the evidence is restructured. New warnings 41 (a quantity that binds nothing, several observations, or no number) and 42 (the rules, evaluated, give another outcome). Files of v0.40 stay valid; in v0.41 both are errors.
+- §3.4, *Tables are the standard form*: the worked example is the table of entrylib:2026.000001 v2.
 
 ## Changes in v0.39 (since v0.38)
 
@@ -453,7 +467,7 @@ Top-level layout:
 
 ```json
 {
-  "schema_version": "0.40",
+  "schema_version": "0.41",
   "@context": "optional",
   "paper": {},
   "contributors": [],
@@ -536,7 +550,7 @@ data/
 
 ### 2.6 Specification versions and compatibility
 
-`schema_version` (required, top level) is the version of this specification the file follows: `"0.40"`.
+`schema_version` (required, top level) is the version of this specification the file follows: `"0.41"`.
 
 - **Baseline.** The baseline is the first version the platform accepts: **v0.39**, set when the platform launched on 2026-11-09. A file following an earlier version is refused (rule 79) and brought to the current version by `claimset migrate`.
 - **Every version from the baseline is accepted, for good.** A file is checked by the rules of the version it follows, never by rules added later. A validator of a later version keeps the rules of every earlier version from the baseline and applies the ones the file's version calls for. A file valid under its version when it was published is valid under it in every later validator.
@@ -831,8 +845,20 @@ A claim that tests a hypothesis carries it as `hypothesis`, with the test's outc
 | `bayesian` | `prior`, `threshold` (e.g. a Bayes factor or posterior probability that decides), `sample` |
 | `deterministic`, `formal`, `qualitative` | none |
 
-- `quantities`: when the rules are expressions, the results they are evaluated on: `{name: {variable, conditions, field, run}}`. Each binds exactly one result: the one whose `variable` is the given one (§3.4) and whose `conditions` include every given key with the given value, read from `field`: `value` (default), `value.limit` (the number of a limit), `value.min` or `value.max` (an end of a range), `interval.lower`, `interval.upper`, or `uncertainty.<kind>` (the `value` of the result's one symmetric uncertainty component of that kind, §3.4: `uncertainty.se`); with several deciding runs, `run` names the run (1 for the first). They correspond to results in the claim's evidence. (Files before v0.38 name the variable `quantity`.)
-- `supported`, `not_supported`: the two rules, each an expression over the quantities and numeric parameters, or text saying what observation decides. If neither rule holds, the outcome is `inconclusive`; if both hold, the rules overlap and the outcome is `inconclusive`. An **expression** is at most 1,000 characters long and uses finite numbers, names (quantities and numeric parameters), `+ - * /`, unary minus, `abs()`, comparisons (`< <= > >= == !=`, which may be chained: `0 < d < 1`), `and`, `or`, `not` and parentheses; nothing else. Every name is a quantity or a numeric parameter. A quantity that cannot be bound (no result matches, or several do) allows no conclusive outcome.
+- `quantities`: when the rules are expressions, the observations they are evaluated on: `{name: {variable, conditions, statistic, field, run}}`. Each binds exactly one observation of the evidence the claim's support names, a result entry or a table cell (§3.4): the one whose `variable` is the given one and whose `conditions` include every given key with the given value, and, when the quantity gives a `statistic`, whose statistic is that one (a name or `{name, …}` as in §3.4, so that the mean and the median of one variable can be told apart), read from `field`: `value` (default), `value.limit` (the number of a limit), `value.min` or `value.max` (an end of a range), `interval.lower`, `interval.upper`, or `uncertainty.<kind>` (the `value` of the result's one symmetric uncertainty component of that kind, §3.4: `uncertainty.se`); with several deciding runs, `run` names the run (1 for the first). They correspond to results in the claim's evidence. (Files before v0.38 name the variable `quantity`.)
+- `supported`, `not_supported`: the two rules, each an expression over the quantities and numeric parameters, or text saying what observation decides. If neither rule holds, the outcome is `inconclusive`; if both hold, the rules overlap and the outcome is `inconclusive`. An **expression** is at most 1,000 characters long and uses finite numbers, names (quantities and numeric parameters), `+ - * /`, unary minus, `abs()`, comparisons (`< <= > >= == !=`, which may be chained: `0 < d < 1`), `and`, `or`, `not` and parentheses; nothing else. Every name is a quantity or a numeric parameter. A quantity that cannot be bound (no observation matches, or several do) allows no conclusive outcome; the rules evaluated on the bound values give the claim's `hypothesis.outcome` (rules 91 and 92).
+
+  **Quantities and table cells.** A table cell is bound like a result entry: its variable is its column's, and its conditions are the table's `conditions`, its row's labels (each row label is a key, the row's label its value) and its column's `conditions`; its statistic is its row's or its column's. `field` reads `value` and its parts; a cell has no interval or uncertainty (those are columns of their own, §3.4). With several deciding runs, `run` picks the observations whose condition `run` (a row label of the table, as a lab record's export writes it) names that run of the evidence's `lab_runs`. When the evidence of a claim is restructured, its result entries made into a table in a correction or revision, the quantities are rebound in the same version. Claim C5 of entrylib:2026.000001 binds the table E12.T1 (§3.4, *Tables are the standard form*):
+
+```json
+"quantities": {"ms": {"variable": "D13", "conditions": {"method": "D8"}},
+               "ma": {"variable": "D13", "conditions": {"method": "D10"}},
+               "ss": {"variable": "range of the 80% coverage over the level terciles", "conditions": {"method": "D8"}},
+               "sa": {"variable": "range of the 80% coverage over the level terciles", "conditions": {"method": "D10"}}},
+"supported": "ms <= 0.6*ma and ss <= 0.08", "not_supported": "ms >= ma or ss >= sa"
+```
+
+  The quantities bind 0.02236, 0.0352, 0.0773 and 0.2715: neither rule holds, and the outcome is `inconclusive`, as C5 records. The median scaled pinball column, `{"variable": "D14", "statistic": "median"}`, is bound by `{"variable": "D14", "statistic": "median", "conditions": {"method": "D8"}}`; without `statistic` the quantity would also match a column of the mean of D14, had the table one, and bind two cells.
 - `verdict`: `computed` (the rules are expressions and the outcome was computed from the recorded results by the lab tool) · `judged` (the rules are text and the outcome was stated by the writer, who said which rule the evidence met).
 - `runs`: how many runs decided the test. `lab_plan`: the plan's lab-record ID, when there is one. `registration`: the ID of the registration in `references` (§3.13), when the test was registered outside the lab record: `"B7"` (in files before v0.39, the registration's URI). A confirmatory test names its plan: `lab_plan`, `registration`, or both when a lab-record plan was also registered (rule 81).
 - `addresses`: optional list of the global IDs of review comments (`doi:…@v1/RV1.c6`) whose resolution test this test ran (revision §4.2). The test's rules are then the comment's: `supported` its `withdrawn` rule, `not_supported` its `upheld` rule.
@@ -988,27 +1014,27 @@ A single-estimate study may use `estimand`, `estimate`, `interval`, `uncertainty
 - `rows`: list of `{id, label, values, statistic, approximate}`. `id`: `r1`, `r2`, … unique within the table; a row is referenced as `<evidence id>.<table id>.<row id>`, e.g. `E2.T1.r3`. `label`: the row's value on each row label, in order: a definition ID (a member of the dimension when it is a group), a number or text. `values`: one value per column, in order, of any type a result value may have; `null` where the paper reports no value. `statistic` and `approximate`: optional, as on a column, for every value of the row, when the rows are statistics (the mean and the median of each method's errors). A cell's statistic is its row's or its column's: a table gives it on rows or on columns, never on both for one cell.
 - `artefact`: optional artefact ID of the source of the full table. `source_spans`: optional locations of the table in the source text (converted papers).
 
-Each cell is one observation: its variable is the column's; its conditions are the table's, the row's labels and the column's. Intervals, ranks and test statistics are columns of their own: the bounds of an interval are two columns told apart by a condition (`{"variable": "D8", "conditions": {"bound": "95% interval, lower"}}`), and a column of test statistics has statistic `test_statistic`. A column holding the uncertainty of another column's values has the reserved condition key `uncertainty`, whose value is a kind of uncertainty (above): beside a column `"D8"` of means, `{"variable": "D8", "conditions": {"uncertainty": "sd"}}` holds their standard deviations. A table records what the paper reports; it is not split into result entries, and result entries are not repeated in a table.
+Each cell is one observation: its variable is the column's; its conditions are the table's, the row's labels and the column's. Intervals, ranks and test statistics are columns of their own: the bounds of an interval are two columns told apart by a condition (`{"variable": "D8", "conditions": {"bound": "95% interval, lower"}}`), and a column of test statistics has statistic `test_statistic`. A column holding the uncertainty of another column's values has the reserved condition key `uncertainty`, whose value is a kind of uncertainty (above): beside a column `"D8"` of means, `{"variable": "D8", "conditions": {"uncertainty": "sd"}}` holds their standard deviations. A table records what the paper reports; it is not split into result entries, and result entries are not repeated in a table. A test's quantity binds a cell as it binds a result entry, with the cell's conditions (§3.3.3, *Quantities and table cells*).
 
 **Tables are the standard form of numerical results.** More than a handful of numbers from one evidence object (as a rule, more than eight that share a variable or a condition) are a table, not a list of result entries (warning 40). Rows are the compared units: the values of the conditions that tell them apart (the methods, cases, groups or sample sizes). Columns are the variables, each a definition of kind `variable` where the paper defines one, with the conditions that set a variable apart (a nominal level, a subset, a statistic) as the column's conditions or `statistic`. Conditions every value shares go on the table. A claim cites the rows it rests on (`E12.T1.r1`), or the table. Result entries remain for a single headline number that has no table, and for an observation a cell cannot hold: one with an `interval`, an `uncertainty` or `n`, or an excerpt. Values are given to the precision the paper reports; values from a lab record are rounded to four significant digits, except a value a test's quantity binds (§3.3.3), which keeps the precision its verdict was computed at. The full-precision values are a data artefact (a CSV file), which each table names in `artefact`.
 
-Evidence E12 of entrylib:2026.000001 compares two methods on 4,500 M4 series. Version 1 listed its fifteen numbers as result entries (`{"variable": "m4 cov80", "value": 0.7460771604938237, "conditions": {"method": "adam_select"}}` and fourteen more). Version 2 records them as one table, and its claim C5 cites the two rows:
+Evidence E12 of entrylib:2026.000001 compares two methods on 4,500 M4 series. Version 1 listed its fifteen numbers as result entries (`{"variable": "m4 cov80", "value": 0.7460771604938237, "conditions": {"method": "adam_select"}}` and fourteen more). Version 2 records them as one table, its full-precision values in the data artefact A10 that E12 names, and its claim C5 cites the two rows:
 
 ```json
-"tables": [{"id": "T1", "description": "Calibration of the quantile forecasts of auto.adam error selection and R auto.msarima on the fresh M4 sample: coverage of the 80% interval overall and by level tercile, mean calibration error, median scaled pinball, spread of the 80% coverage over the terciles, and the share of series that chose dlnorm",
-  "conditions": {"data": "D9"}, "row_labels": ["method"],
+"tables": [{"id": "T1", "description": "R auto.msarima and auto.adam error selection on the fresh M4 sample, backcasting", "conditions": {"data": "D9", "initial states": "backcasting"}, "row_labels": ["method"],
   "columns": [{"variable": "D4", "conditions": {"nominal level": 0.8}},
+              "D13",
+              {"variable": "D14", "statistic": "median"},
               {"variable": "D4", "conditions": {"nominal level": 0.8, "D7": "low"}},
               {"variable": "D4", "conditions": {"nominal level": 0.8, "D7": "mid"}},
               {"variable": "D4", "conditions": {"nominal level": 0.8, "D7": "high"}},
-              "D13", {"variable": "D14", "statistic": "median"},
-              "spread of 80% coverage over the level terciles", "share of series choosing dlnorm"],
-  "rows": [{"id": "r1", "label": ["D8"], "values": [0.7461, 0.7865, 0.7425, 0.7092, 0.02235705823668769, 0.7514, 0.07729629629629642, 0.6702]},
-           {"id": "r2", "label": ["D10"], "values": [0.6923, 0.8193, 0.7098, 0.5477, 0.035202331961592524, 0.6872, 0.2715277777777778, null]}],
-  "artefact": "A10"}]
+              "range of the 80% coverage over the level terciles",
+              "share of series for which dlnorm is selected"],
+  "rows": [{"id": "r1", "label": ["D8"], "values": [0.7461, 0.02236, 0.7514, 0.7865, 0.7425, 0.7092, 0.0773, 0.6702]},
+           {"id": "r2", "label": ["D10"], "values": [0.6923, 0.0352, 0.6872, 0.8193, 0.7098, 0.5477, 0.2715, null]}]}]
 ```
 
-D8 and D10 are the two methods, D9 the series, D4 coverage, D7 the level terciles, D13 the mean calibration error and D14 the scaled pinball loss. MCE and the spread keep their full precision because C5's test reads them (`ms <= 0.6*ma and ss <= 0.08`); the other values are rounded. A10 is the CSV of every result of the lab record. C5 cites `E12.T1.r1` and `E12.T1.r2` and states the pattern: auto.adam error selection lowers MCE from 0.0352 to 0.0224 and the spread from 0.272 to 0.077, short of the planned reduction of MCE.
+D8 and D10 are the two methods, D9 the series, D4 coverage, D7 the level terciles, D13 the mean calibration error and D14 the scaled pinball loss. C5 cites `E12.T1.r1` and `E12.T1.r2` and states the pattern: auto.adam error selection lowers MCE from 0.0352 to 0.0224 and the range of the 80% coverage from 0.272 to 0.077, short of the planned reduction of MCE. Its test's quantities bind cells of this table (§3.3.3, *Quantities and table cells*).
 
 **Contrasts.** A value that compares two positions on one dimension (a difference in means, a ratio, an odds ratio, a standardised effect size, the p-value of a comparison, a rank difference) is an observation of the pair. Its conditions name one position as usual and the other under the reserved key `comparator`; its variable says what the contrast is (a defined variable such as "difference in mean MASE", or text). `{"variable": "D11", "conditions": {"D26": "D1", "comparator": "D2", "D5": "D14"}, "value": -0.013, "interval": {"level": 0.95, "lower": -0.021, "upper": -0.005, "kind": "confidence"}}` is CES against ETS on the M3 monthly series. The comparator lies on the dimension whose value it replaces: a member of the same group, or a value of the same variable. A table of contrasts has `comparator` in its conditions, its row labels or its columns' conditions. The atom of a claim resting on a contrast has the same comparator (§3.3.5).
 
@@ -1402,6 +1428,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 - **Order and IDs.** Claims are listed in reading order: principal claims, then supporting claims, then secondary claims and assumptions, each in the order of the paper's argument, since the reading view follows file order (§2). Before the first submission, IDs follow that order without gaps: `claimset renumber FILE` renumbers claims, warrants, definitions, limitations and open questions and rewrites every reference to them; a claimset exported from a lab record keeps its link to the record through `hypothesis.lab_event`, not through claim IDs. After publication IDs never change (revision §2, *Stable object IDs*): a revision places a new claim where it belongs in the file, with the next free number, and an ID that is dropped is not reused.
 - A correction is submitted as a complete corrected file whose `paper.id` names the existing claimset and which carries a `correction_reason`. The platform computes the JSON Patch against the latest published version, records it in `changes` with the reason, assigns the next `version` and `previous_version`, and sets `status: corrected`. The identifier (§7) does not change; versions are distinguished by `@v<n>`.
 - A revision is submitted as a complete file built from the current version, whose `paper.id` names the existing claimset and which has no `correction_reason`, together with a response to the unresolved review comments (revision §4–5). The platform records the patch as for a correction, with the comments each operation answers, sets `paper.answers`, and keeps `status: active`. Object IDs are stable across versions: an object that keeps its ID is the same object, refined, and an ID removed from the claimset is never used again.
+- **Restructured evidence.** A correction or revision that changes how evidence records its observations (result entries made into a table, a table split or merged, columns renamed to variable terms, results left to a data artefact) rebinds every test quantity that bound them, in the same version: each quantity names the result entry or table cell its value was computed from, with that observation's variable and conditions (§3.3.3, *Quantities and table cells*; rules 91 and 92). The test itself, its rules and its outcome, does not change: only where its values are found.
 - Retraction, withdrawal or an expression of concern is a governance action by the platform, recorded by `status` and `status_notice`. The paper's content is retained so references still resolve, and every reader sees the status and reason. The platform assigns `status` and `status_notice` to every version as it serves them, so a retracted claimset is served with `status: retracted` even though its published file is unchanged.
 - A platform may remove a claimset whose content must not be served (rights, personal data, the law). At every address of every version it then serves a notice instead, `{"id", "status": "removed", "notice"}`, whose `notice` has the fields of a `status_notice`; it is not a claimset file. The identifier is never given to another claimset. How a platform decides and records these actions is its own policy, not part of this specification.
 - Global IDs without a version resolve to the latest version and carry its status.
@@ -1589,6 +1616,12 @@ The file records identifier type and venue facts for cited works only. Trust in 
 
 90. Highlights (§3.1). `paper.highlights`, if present, is a list of one to five distinct IDs, each the ID of a claim listed in `paper.contributions` or of a definition without `source`.
 
+### 10.29 Rules added in v0.41 (errors: file rejected)
+
+91. Quantities bind (§3.3.3). For a claim whose `test` has `verdict: computed`, each quantity (other than a count of the qualitative extension) binds exactly one observation of the evidence objects the claim's support names: a result entry, or a table cell with its table's, row's and column's conditions, whose variable is the quantity's, whose conditions include every condition the quantity gives, and whose statistic is the quantity's `statistic` when it gives one; the observation has a number at the quantity's `field`; `statistic`, if given, is a statistic of §3.4. A quantity may bind nothing, or an observation without that number, only when `hypothesis.outcome` is `inconclusive` (warning 41).
+
+92. Outcome of a computed test (§3.3.3). When every quantity of a computed test binds, its `supported` and `not_supported` rules, evaluated on the bound values and the numeric parameters, give `hypothesis.outcome`: `supported` when only `supported` holds, `not_supported` when only `not_supported` holds, `inconclusive` when both or neither hold. Rules that cannot be evaluated are an error under this rule.
+
 ### 10.4 Warnings (file accepted, warning recorded)
 
 1. A `recommended` field in §3.11 or §3.12 is missing.
@@ -1631,6 +1664,8 @@ The file records identifier type and venue facts for cited works only. Trust in 
 38. A statistic named `other`: check whether a name in the list fits with its parameters (a geometric mean is a `mean` of kind `geometric`, a percentile a `quantile`); the labels of `other` are gathered for the next version's list (§3.4).
 39. A native submission without `paper.highlights`: ask the guarantor which principal claims and which of the paper's own terms a reader should take first, at most five (§3.1). Leave the field out only if the guarantor prefers none. (New in v0.40.)
 40. An evidence object has more than eight result entries that share a variable, or more than eight that share a condition key: record them as a table, rows the compared units and columns the variables, and cite its rows (§3.4, *Tables are the standard form*). (New in v0.40, amended 2026-11-10.)
+41. A quantity of a computed test whose outcome is `inconclusive` binds no observation of the evidence the claim's support names, or binds one without a number at its `field` (§3.3.3): an inconclusive outcome may rest on no value (a run that failed); if values were recorded, bind each quantity to its result entry or table cell. (New in v0.40, amended 2026-11-11, where it also covered what rule 91 makes an error from v0.41.)
+42. (Files of v0.40 only.) The rules of a computed test, evaluated on the values its quantities bind, give another outcome than the claim's `hypothesis.outcome`. From v0.41 this is rule 92.
 
 ## 11. Platform dependencies
 
@@ -1686,7 +1721,7 @@ What the agent submits. No identifier, version, date, status, classification IDs
 
 ```json
 {
-  "schema_version": "0.40",
+  "schema_version": "0.41",
   "paper": {
     "title": "Method M against the seasonal naive benchmark on UK monthly retail sales",
     "licence": "CC-BY-4.0",
@@ -1786,7 +1821,7 @@ What the agent submits. No identifier, version, date, status, classification IDs
 
 ```json
 {
-  "schema_version": "0.40",
+  "schema_version": "0.41",
   "paper": {
     "id": "doi:10.0000/claimset.2026.000456",
     "title": "Example converted paper",
