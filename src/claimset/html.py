@@ -61,20 +61,10 @@ MATH = re.compile(r"\$\$(.+?)\$\$|\$([^$\s][^$]*?)\$|\\\((.+?)\\\)", re.S)
 CODE = re.compile(r"(`+)(.+?)\1", re.S)
 
 
-#: Formulae written $…$ that still get a line of their own: those with fractions, sums, integrals, roots or matrices,
-#: which crowd a line of text. Otherwise the author decides (spec §8 rule 6): $$…$$ is displayed, $…$ stays in the
-#: sentence.
-TALL = re.compile(r"\\(?:d?frac|sum|prod|int|iint|oint|sqrt|begin|binom|underset|overset)\b")
-
-
-def is_long(tex):
-    return TALL.search(tex) is not None
-
-
 def math(tex, display=False):
-    """An expression as MathML (claimset.mathml), on a line of its own when written as $$...$$ or long (is_long);
-    one it cannot read is shown as written, as code."""
-    out = to_mathml(tex, display or is_long(tex))
+    """An expression as MathML (claimset.mathml), on a line of its own when the author wrote it as $$...$$ (spec §8
+    rule 6), in the sentence when written as $...$; one it cannot read is shown as written, as code."""
+    out = to_mathml(tex, display)
     return out if out is not None else f'<code class="math-tex">{esc(tex)}</code>'
 
 
@@ -251,7 +241,7 @@ class _Paper:
         for m in MATH.finditer(s):
             out.append(self._terms(s[last:m.start()]))
             tex, end = m.group(1) or m.group(2) or m.group(3), m.end()
-            display = m.group(1) is not None or is_long(tex)
+            display = m.group(1) is not None             # the author's choice: $$…$$ (§8 rule 6)
             if display and end < len(s) and s[end] in ",.;:":   # a formula on its own line keeps its punctuation
                 tex, end = tex + s[end], end + 1
             out.append(math(tex, display=display))
