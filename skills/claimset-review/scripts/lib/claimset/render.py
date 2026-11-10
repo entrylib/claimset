@@ -17,9 +17,10 @@ def _s(x):
     return x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)
 
 
-# Significant digits a view shows a number to (html.render_parts(digits=)); None shows it as the file gives it. The
-# file keeps every digit: this only changes what a page prints.
-DIGITS = contextvars.ContextVar("claimset_digits", default=None)
+# How a view rounds numbers (html.render_parts(digits=, decimals=)): None shows them as the file gives them,
+# ("digits", n) to n significant digits, ("decimals", n) to n decimal places. The file keeps every digit: this only
+# changes what a page prints.
+DIGITS = contextvars.ContextVar("claimset_rounding", default=None)
 
 
 def _num(v):
@@ -27,9 +28,9 @@ def _num(v):
         return ""
     if isinstance(v, float) and v.is_integer():
         return str(int(v)) if abs(v) < 1e15 else repr(v)
-    d = DIGITS.get()
-    if d and isinstance(v, float) and v == v and abs(v) != float("inf"):
-        return _rounded(v, d)
+    r = DIGITS.get()
+    if r and isinstance(v, float) and v == v and abs(v) != float("inf"):
+        return _rounded(v, r[1]) if r[0] == "digits" else _decimals(v, r[1])
     return str(v)
 
 
@@ -39,6 +40,15 @@ def _rounded(v, d):
     if abs(v) >= 10 ** d:
         return str(round(v))
     text = format(decimal.Decimal(f"{v:.{d}g}"), "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def _decimals(v, d):
+    """v to d decimal places, without trailing zeros: 0.00068061 -> 0.0007, 1.00193 -> 1.0019, 0.5 -> 0.5. A value
+    that rounds to zero keeps its places (0.0000), so that it does not read as exactly zero."""
+    text = f"{v:.{d}f}"
+    if float(text) == 0:
+        return f"{0:.{d}f}"
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
