@@ -2,6 +2,12 @@
 
 Status: working draft · Date: 2026-11-06 · Supersedes v0.19 · Companion to the claimset specification (`spec/claimset-v0.39.md`), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
 
+## Errata
+
+Bugs are corrected in the text of a version and in the tool, for every record; a correction never refuses what was accepted.
+
+- 2026-11-11. `code_changed_after_plan` was raised whenever a deciding run's commit differed from the plan's. A record kept in the code checkout commits itself when the plan is written, so a run made afterwards had a newer commit with no change of code, and its test was flagged for a change that did not happen. The flag now compares the two commits' files other than the record's own: its folder, and the folders its relocations moved it from (the code moved with it is code). Commits that cannot be compared still raise it. The claimset specification always defined the flag as a change of the analysis code (issue #93).
+
 ## Changes since v0.19
 
 The claimset specification is this record's vocabulary. Lists this specification used to repeat (the kinds of terms, the kinds of artefacts, actors, assumption categories, check outcomes, reasons for withholding, the frameworks of a decision rule and their parameters, the grammar of rule expressions, the test flags, the form of an observation) are now only in the claimset specification, which this one names; the tool takes them from the claimset package, so the two cannot drift apart.
@@ -530,7 +536,7 @@ A hypothesis may be tested again under a new plan (a replication, a larger sampl
 #### 5.7.5 Flags
 
 Some things weaken a planned test without making it invalid. The tool does not refuse them; it reports them as flags of the decided plan (in `verify`, in `verdict`, and in the exported claim's `test.flags`). What each flag means is defined with the test flags of the claimset (claimset §3.3.3); here is when the tool raises it:
-- `code_changed_after_plan`: a deciding run used a different commit from the one recorded with the plan, or the code had uncommitted changes when the plan was written or a deciding run was made. Commit the analysis code before writing the plan to avoid it. Runs whose code is the tool's (an extension's counter) are not counted.
+- `code_changed_after_plan`: the code changed between the plan and a deciding run. Files of the repository other than the record's own (its folder, and the folders its relocations moved it from; code moved with it is code) differ between the commit recorded with the plan and the run's, or the code had uncommitted changes when the plan was written or a deciding run was made. Commits that cannot be compared (a commit the repository does not have) count as a change. Commit the analysis code before writing the plan to avoid it. Runs whose code is the tool's (an extension's counter) are not counted.
 - `holdout_used_elsewhere`: a run other than the plan's deciding runs declared a held-out file of the plan (by hash) as input data. Only inputs declared to the tool (`run --data`) can be detected.
 - `reproduces_prompting_result`: a plan names a hypothesis recorded `from_exploration`, and a result of a deciding run has the same `variable`, the same `conditions` and the same `value` as a result of a run that suggested it (a run named in the hypothesis's `prompted_by`, or the run of a result named there). Under a rule with quantities, only the results the quantities bind are compared; under text rules every result is. Results with value 0 are not compared: a count of zero is what a correct method gives on any data.
 - `sources_captured_after_plan`: a deciding run declared as input data (`run --data`) a file of a source (§5.20) captured after the plan was written. A plan that samples sources still to be collected ("the next 20 threads that a search returns") says so in its `design` and `new_data`.

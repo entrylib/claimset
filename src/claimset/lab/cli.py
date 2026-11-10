@@ -561,8 +561,9 @@ def cmd_verdict(args):
     else:
         out.update(one(rule))
     if d:
-        out["flags"] = plan_flags(st, d[0], d[1])
-        out["warnings"] = [f"exclusion '{x}': no deciding run reports how many units it excluded (a result whose "
+        unclear = []
+        out["flags"] = plan_flags(st, d[0], d[1], lab=_lab(args), notes=unclear)
+        out["warnings"] = unclear + [f"exclusion '{x}': no deciding run reports how many units it excluded (a result whose "
                            f"quantity contains \"excluded\" or the exclusion's name)"
                            for x in uncounted_exclusions(st, d[0], d[1])]
     if args.json:

@@ -825,8 +825,60 @@ FLAGS = ("code_changed_after_plan", "holdout_used_elsewhere", "reproduces_prompt
 assert set(FLAGS) == _C["test_flag"]
 
 
-def plan_flags(state, plan_version, runs):
-    """Warnings about a decided plan's test (§5.7.5): they do not refuse anything, they are reported."""
+def record_paths(state, lab):
+    """The paths the record identifies as itself in the code repository (§5.7.5): its folder now, and the folders
+    its relocations moved it from and, for a move within the code repository, to (`lab move`; an adoption's `to`
+    is on the study branch). The code moved with it (`moved`) is code, and is not among them."""
+    from .layout import repo_top
+    paths = []
+    tops = [t for t in (repo_top(lab.root),) if t]
+    if tops and repo_top(tops[0].parent):
+        tops.append(repo_top(tops[0].parent))                   # a study checkout inside the code checkout
+    for top in tops:
+        try:
+            paths.append(Path(lab.root).resolve().relative_to(Path(top).resolve()).as_posix())
+        except ValueError:
+            pass
+    for body in state.relocations:
+        for key in ("from", "to"):
+            if key == "to" and body.get("branch"):
+                continue
+            if isinstance(body.get(key), str) and body[key].strip().strip("/") not in ("", "."):
+                paths.append(body[key].strip().strip("/"))
+    return list(dict.fromkeys(p for p in paths if p not in ("", ".")))
+
+
+def code_changed(state, lab, before, after):
+    """Whether files other than the record's own differ between two commits of the code (§5.7.5): True or False;
+    None when they cannot be compared here (a commit this repository does not have, no git)."""
+    if not (isinstance(before, str) and isinstance(after, str) and before and after):
+        return None
+    from .layout import repo_top
+    from .record import git
+    tops = [t for t in (repo_top(lab.root),) if t]
+    if tops and repo_top(tops[0].parent):
+        tops.append(repo_top(tops[0].parent))
+    for top in tops:
+        try:
+            have = all(git(["cat-file", "-e", f"{c}^{{commit}}"], cwd=top, check=False).returncode == 0
+                       for c in (before, after))
+        except (OSError, LabError):
+            continue
+        if not have:
+            continue
+        exclude = [f":(exclude,literal){p}" for p in record_paths(state, lab)]
+        out = git(["diff", "--name-only", before, after, "--", "."] + exclude, cwd=top, check=False)
+        if out.returncode != 0:
+            return None
+        return bool(out.stdout.strip())
+    return None
+
+
+def plan_flags(state, plan_version, runs, lab=None, notes=None):
+    """Warnings about a decided plan's test (§5.7.5): they do not refuse anything, they are reported. With `lab`,
+    a deciding run on another commit than the plan's counts as a change of code only when files other than the
+    record's own differ between the two (a record kept in the code checkout commits itself when the plan is
+    written); when the commits cannot be compared, the flag stands and `notes` (a list) says why."""
     flags = []
     b = plan_version["body"]
     commit = b.get("code_version")
@@ -834,8 +886,23 @@ def plan_flags(state, plan_version, runs):
     # a run of an extension's counter runs the tool's own code, whose version it records: the study's analysis code
     # is not what decides it
     analysed = [r for r in visible if not (r["body"].get("parameters") or {}).get("counter")]
-    if analysed and (commit is not None and any(r["body"].get("code_version") != commit or r["body"].get("dirty")
-                                                for r in analysed) or b.get("dirty")):
+    changed = bool(analysed) and (b.get("dirty") or any(r["body"].get("dirty") for r in analysed))
+    if analysed and commit is not None and not changed:
+        for r in analysed:
+            other = r["body"].get("code_version")
+            if other == commit:
+                continue
+            diff = code_changed(state, lab, commit, other) if lab is not None else True
+            if diff is None:
+                if notes is not None:
+                    notes.append(f"{plan_version['id']}: the commit of run {r['id']} ({str(other)[:12]}) could not be "
+                                 f"compared with the plan's ({commit[:12]}) in this repository, so "
+                                 f"code_changed_after_plan stands")
+                diff = True
+            if diff:
+                changed = True
+                break
+    if changed:
         flags.append("code_changed_after_plan")
     sealed = {d.get("hash") for d in b.get("holdout") or [] if isinstance(d, dict)}
     deciding = {r["id"] for r in runs}
@@ -2027,8 +2094,10 @@ def verify(lab, check_files=True, remote=False):
     for root in st.plan_roots:
         d = st.deciding_runs(root)
         if d:
-            for f in plan_flags(st, d[0], d[1]):
+            unclear = []
+            for f in plan_flags(st, d[0], d[1], lab=lab, notes=unclear):
                 rep["notes"].append(f"plan {root}: {f.replace('_', ' ')}")
+            rep["notes"] += unclear
     for root, runs in st.plan_runs.items():
         for r in runs:
             dup = [x for x in duplicate_runs(st, r) if st.pos[x] < st.pos[r["id"]]]

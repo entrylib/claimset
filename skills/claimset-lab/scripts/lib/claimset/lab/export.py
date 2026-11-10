@@ -518,7 +518,10 @@ class _Exporter:
                 claim["test"].update({"verdict": "computed" if _decision.computed(rule) else "judged",
                                       "runs": pv["body"].get("runs", 1), "lab_plan": pv["id"]})
                 self.test_quantities(claim, pv)
-                flags = plan_flags(st, pv, runs)
+                unclear = []
+                flags = plan_flags(st, pv, runs, lab=self.lab, notes=unclear)
+                for note in unclear:
+                    self.todo(f"claims.{claim['id']}.test.flags", note)
                 core = [f for f in flags if f in FLAGS]
                 if core:
                     claim["test"]["flags"] = core
