@@ -388,7 +388,9 @@ class _Parser:
                     cells.append(row(current))
                     rows.append(cells)
                 break
-        align = ' columnalign="left"' if name == "cases" else ""
+        align = (' columnalign="left"' if name == "cases" else
+                 ' columnalign="right left" columnspacing="0"' if name in ("aligned", "align", "align*", "split")
+                 else "")
         table = "<mtable" + align + ">" + "".join(
             "<mtr>" + "".join(f"<mtd>{c or ''}</mtd>" for c in r) + "</mtr>" for r in rows) + "</mtable>"
         left, right = MATRICES[name]
