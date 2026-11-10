@@ -239,8 +239,10 @@ def anchor_git(lab, remote="origin", branch=DEFAULT_BRANCH):
     _git(["update-ref", f"refs/heads/{branch}", commit], cwd=top)
     push = _git(["push", "-q", remote, f"refs/heads/{branch}:refs/heads/{branch}"], cwd=top, check=False)
     if push.returncode != 0:
-        raise LabError("anchor", f"push to {remote}/{branch} was rejected: {push.stderr.strip()}. "
-                                 f"The remote branch changed in a way the tool did not make.")
+        from ..agents import network_hint
+        hint = network_hint(push.stderr)
+        raise LabError("anchor", f"push to {remote}/{branch} failed: {push.stderr.strip()}." + (
+            hint if hint else " The remote branch changed in a way the tool did not make."))
     entry = {"seq": head["seq"], "head_hash": header_hash(head), "service": "git_remote",
              "receipt": {"remote": remote, "branch": branch, "commit": commit}, "at": lab.clock()}
     agents = {}

@@ -187,7 +187,7 @@ class TestEarlierVersions(unittest.TestCase):
         self.assertEqual(c["test"]["registration"], "B1")
         self.assertEqual(out["references"], [{"id": "B1", "target": "10.17605/OSF.IO/ABCDE", "id_type": "doi"}])
         self.assertIn("C2.test.registration: https://doi.org/10.17605/OSF.IO/ABCDE -> reference B1", done)
-        self.assertEqual(todo, [])
+        self.assertEqual([t for t in todo if not t.startswith("paper.highlights")], [])   # chosen by the guarantor
 
     def test_migrate_lists_the_archive_of_a_url_registration(self):
         d = self.v038()

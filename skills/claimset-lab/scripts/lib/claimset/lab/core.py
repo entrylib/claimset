@@ -608,6 +608,15 @@ def check_actor(state, body, by, eid):
                 raise LabError("schema", "actor: each model needs provider, name and version")
     if body.get("orcid") and not ORCID_RE.match(str(body["orcid"])):
         raise LabError("schema", "actor: orcid must look like 0000-0002-1825-0097")
+    system = body.get("system")
+    if system is not None:
+        if kind != "agent":
+            raise LabError("schema", "actor: system is the harness an agent runs in; only agents have one")
+        if not (isinstance(system, dict) and isinstance(system.get("name"), str) and system["name"].strip()
+                and set(system) <= {"name", "version", "uri"}
+                and all(isinstance(system.get(k), str) and system[k].strip() for k in system)):
+            raise LabError("schema", "actor: system is {name, version, uri}: the harness's name, and optionally its "
+                                     "version and a link")
     _check_given(body, "actor")
     check_registration(state, body, by, eid)
 

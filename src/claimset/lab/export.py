@@ -244,6 +244,8 @@ class _Exporter:
                     c["tools"] = ["code_execution"]
                 if not authored and "check" in writes.get(a["id"], set()):
                     c["ai_tasks"] = [{"task": "review", "extent": "full"}]
+                if b.get("system"):
+                    c["system"] = dict(b["system"])
                 if b.get("record_source"):
                     c["record_source"] = b["record_source"]
             else:
@@ -901,6 +903,10 @@ class _Exporter:
                                               "the claimset; give them the guarantor position"},
             {"where": "paper.contributions", "what": "choose the principal claims, set their role to principal and "
                                                      "list them in priority order"},
+            {"where": "paper.highlights", "what": "propose up to five principal claims and terms the paper "
+                                                 "introduces, in priority order, with a line on why each; ask the "
+                                                 "guarantor to choose and record what they decide, or leave the "
+                                                 "field out if they prefer none (claimset §3.1, W39)"},
             {"where": "paper.autonomy", "what": "set autonomy (exported as unknown): autonomous, human_supervised or "
                                                 "human_assisted"},
             {"where": "paper.classification.keywords", "what": "propose keywords"},

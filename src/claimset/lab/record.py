@@ -199,7 +199,9 @@ def push(lab):
                                  f"--remote <name>`")
     out = git(["push", "-q", remote, f"HEAD:refs/heads/{branch}"], cwd=top, check=False)
     if out.returncode != 0:
-        raise LabError("anchor", f"push of {branch} to {remote} failed: {out.stderr.strip()}")
+        from ..agents import network_hint
+        raise LabError("anchor", f"push of {branch} to {remote} failed: {out.stderr.strip()}"
+                                 f"{network_hint(out.stderr)}")
     commit_id = git(["rev-parse", "HEAD"], cwd=top).stdout.strip()
     entry = heads_at(lab, commit_id)
     if entry is None:

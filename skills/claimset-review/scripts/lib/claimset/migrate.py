@@ -10,6 +10,7 @@ Only what is mechanical is changed:
   claim); the extensions used are declared;
 - v0.39: a test's `registration`, a URI until v0.38, becomes the ID of a reference listing the registration (a DOI
   when the URI is one; otherwise a URL, whose archived copy is listed to give);
+- v0.40: nothing changes but the version; highlights are listed for the guarantor to choose;
 - `schema_version` is set to the current version.
 From v0.33 a claim inherits the assumptions of the methods studied only for its own subject (§3.2): the
 assumptions a claim inherited under v0.32 and no longer does are listed, to be added to its own `assumptions`
@@ -18,7 +19,8 @@ From v0.36 a claimset has one guarantor, a person: organisations in positions ot
 guarantor, and extra guarantors, are listed. What needs judgement is listed, not guessed: definitions without a `kind` (rule 63), claims that need an `about`
 (rule 64 for principal claims, warning 27 for the others), figures that need a `function` (rule 67), evidence without a setup (rule 61) and evidence or artefacts
 without an availability (rule 75), the
-`exemplars` of qualitative evidence, which become excerpt results (rule 66), and declarations (warning 29).
+`exemplars` of qualitative evidence, which become excerpt results (rule 66), declarations (warning 29) and
+highlights (warning 39).
 """
 
 from .validate import OLD_SETUP_ROLES, SCHEMA_VERSION, as_dict, as_list, inherited_assumptions
@@ -176,6 +178,9 @@ def migrate(doc):
     if paper.get("origin") == "native" and "declarations" not in paper:
         todo.append("paper.declarations: ask the guarantor for funding and competing interests, and record ethics "
                     "and consent where people took part (warning 29)")
+    if paper.get("origin") == "native" and "highlights" not in paper:
+        todo.append("paper.highlights: ask the guarantor which principal claims and own terms a reader should take "
+                    "first, at most five (§3.1, warning 39)")
     return out, done, todo
 
 

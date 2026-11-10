@@ -114,5 +114,70 @@ class TestActorCli(TestCli):
         self.assertEqual((ev["by"], ev["body"]["words"], ev["body"]["channel"]), ("AC1", WORDS, "chat"))
 
 
+class TestHarness(TestCli):
+    """Lab record v0.21 §5.2: the harness an agent runs in (`system`), and the model the human sets."""
+
+    def setUp(self):
+        super().setUp()
+        self.saved = {k: os.environ.pop(k) for k in list(os.environ)
+                      if k in ("CLAIMSET_MODEL", "AI_AGENT") or k.startswith(("CLAUDECODE", "CODEX_", "GEMINI_CLI",
+                                                                              "OPENCODE", "KILO", "QWEN_CODE"))}
+        self.addCleanup(os.environ.update, self.saved)
+
+    def start(self):
+        self.assertEqual(self.run_cli("lab", "init", "--title", "Study")[0], 0)
+
+    def last(self):
+        return json.loads((Path(self.env["CLAIMSET_LAB"]) / "lab.jsonl").read_text().splitlines()[-1])["body"]
+
+    def test_the_harness_that_names_itself(self):
+        self.start()
+        os.environ["GEMINI_CLI"] = "1"
+        self.addCleanup(os.environ.pop, "GEMINI_CLI", None)
+        self.assertEqual(self.run_cli("lab", "actor", "--kind", "agent", "--name", "A", "--model",
+                                      "Google|Gemini|3|gemini-3-pro")[0], 0)
+        self.assertEqual(self.last()["system"], {"name": "Gemini CLI"})
+
+    def test_given_and_absent(self):
+        self.start()
+        self.run_cli("lab", "actor", "--kind", "agent", "--name", "A", "--model", "DeepSeek|DeepSeek|V3.2",
+                     "--system", "opencode|1.4.2")
+        self.assertEqual(self.last()["system"], {"name": "opencode", "version": "1.4.2"})
+        self.run_cli("lab", "actor", "--kind", "agent", "--name", "B", "--model", "DeepSeek|DeepSeek|V3.2", "--by",
+                     "AC1")
+        self.assertNotIn("system", self.last())
+        code, _, err = self.run_cli("lab", "actor", "--kind", "human", "--name", "Jane", "--system", "x",
+                                    "--words", "I'm Jane.", "--by", "AC1")
+        self.assertNotEqual(code, 0)
+        self.assertIn("--system", err)
+
+    def test_the_model_the_human_sets(self):
+        self.start()
+        os.environ["CLAIMSET_MODEL"] = "MiniMax|MiniMax|M2|MiniMax-M2"
+        self.addCleanup(os.environ.pop, "CLAIMSET_MODEL", None)
+        self.assertEqual(self.run_cli("lab", "actor", "--kind", "agent", "--name", "A")[0], 0)
+        body = self.last()
+        self.assertEqual((body["models"], body["record_source"]),
+                         ([{"provider": "MiniMax", "name": "MiniMax", "version": "M2", "identifier": "MiniMax-M2"}],
+                          "user_reported"))
+
+    def test_export_carries_it(self):
+        self.start()
+        self.run_cli("lab", "actor", "--kind", "agent", "--name", "A", "--model", "DeepSeek|DeepSeek|V3.2",
+                     "--system", "opencode|1.4")
+        self.run_cli("lab", "note", "--by", "AC1", "hello")
+        out = Path(self.tmp.name) / "draft.json"
+        self.run_cli("lab", "export", "-o", str(out))
+        agent = next(c for c in json.loads(out.read_text())["contributors"] if c["type"] == "agent")
+        self.assertEqual(agent["system"], {"name": "opencode", "version": "1.4"})
+
+    def test_a_malformed_system_is_refused(self):
+        self.start()
+        lab = Lab(Path(self.env["CLAIMSET_LAB"]))
+        for bad in ({"version": "1"}, {"name": ""}, {"name": "x", "colour": "red"}, "opencode"):
+            with self.assertRaises(LabError):
+                lab.append("actor", {"kind": "agent", "name": "A", "models": MODEL, "system": bad}, by="AC1")
+
+
 if __name__ == "__main__":
     unittest.main()

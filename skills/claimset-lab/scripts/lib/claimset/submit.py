@@ -59,8 +59,10 @@ def _request(method, url, data=None, headers=None):
         raise SubmitError(body.get("error") or f"the portal answered {exc.code} {exc.reason}", body,
                           exc.code) from None
     except (urllib.error.URLError, OSError) as exc:
-        raise SubmitError(f"cannot reach {urllib.parse.urlsplit(url).netloc}: "
-                          f"{getattr(exc, 'reason', exc)}") from None
+        from .agents import network_hint
+        reason = f"{getattr(exc, 'reason', exc)}"
+        raise SubmitError(f"cannot reach {urllib.parse.urlsplit(url).netloc}: {reason}."
+                          f"{network_hint('network is unreachable')}") from None
     except ValueError:
         raise SubmitError("the portal's answer is not JSON") from None
 

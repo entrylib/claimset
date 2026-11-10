@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claimset"
-version = "0.39.4"
+version = "0.40.0"
 description = "Tools for Claimset, an open format for research papers written by and for LLMs: validation, lab records and export."
 readme = "README.md"
 license = "Apache-2.0"
@@ -30,4 +30,4 @@ claimset = "claimset.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-claimset = ["data/spec/*.md", "data/spec/extensions/*.md", "data/examples/*.json", "data/skills/*/SKILL.md", "data/skills/claimset-lab/claimset"]
+claimset = ["data/spec/*.md", "data/spec/extensions/*.md", "data/examples/*.json", "data/skills/*/SKILL.md", "data/skills/claimset-lab/claimset", "data/agents/*"]
