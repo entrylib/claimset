@@ -219,18 +219,30 @@ def _cmd_submit(args):
         print(json.dumps({"error": str(exc), **exc.body}, indent=1) if args.json else _submit.describe_error(exc),
               file=sys.stdout if args.json else sys.stderr)
         return 1
-    print(json.dumps(out, indent=1) if args.json else _submit.describe_submission(out))
+    saved = _submit.save_record(out)
+    print(json.dumps(out, indent=1) if args.json else _submit.describe_submission(out, saved))
     return 0
 
 
 def _cmd_status(args):
     from . import submit as _submit
+    record = _submit.load_record(args.submission)
+    sid = args.submission or (record or {}).get("id")
+    if not sid:
+        print("error: give the submission's id (sub_...); no submission is kept in .claimset/submissions here",
+              file=sys.stderr)
+        return 1
     try:
-        out = _submit.status(args.submission, args.portal)
+        out = _submit.status(sid, args.portal)
     except _submit.SubmitError as exc:
         print(_submit.describe_error(exc), file=sys.stderr)
         return 1
-    print(json.dumps(out, indent=1) if args.json else _submit.describe_status(out))
+    if args.json:
+        if record and out.get("state") == "pending" and record.get("consent"):
+            out = {**out, "consent": record["consent"]}
+        print(json.dumps(out, indent=1))
+    else:
+        print(_submit.describe_status(out, record))
     return 0
 
 
@@ -283,7 +295,7 @@ def build_parser():
     pk.set_defaults(func=_cmd_package)
 
     sb = sub.add_parser("submit", help="submit a package or claimset file to the platform (EntryLib); prints the "
-                                       "consent link for the guarantor")
+                                       "consent link for the guarantor and keeps it in .claimset/submissions/")
     sb.add_argument("source", help="a submission package (zip or folder, from `claimset package`), a claimset JSON "
                                    "file, or an https URL where one is deposited")
     sb.add_argument("--portal", help="the platform (default: $CLAIMSET_PORTAL, else https://entrylib.org)")
@@ -294,7 +306,8 @@ def build_parser():
 
     st = sub.add_parser("status", help="the state of a submission: pending, confirmed, publishing, published, "
                                        "refused or expired")
-    st.add_argument("submission", help="the submission's id, as `claimset submit` printed it (sub_...)")
+    st.add_argument("submission", nargs="?", help="the submission's id, as `claimset submit` printed it (sub_...); "
+                                                  "by default the latest kept in .claimset/submissions/")
     st.add_argument("--portal", help="the platform (default: $CLAIMSET_PORTAL, else https://entrylib.org)")
     st.add_argument("--json", action="store_true", help="the platform's answer as JSON")
     st.set_defaults(func=_cmd_status)
