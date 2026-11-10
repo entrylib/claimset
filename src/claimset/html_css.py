@@ -1,22 +1,23 @@
 """The stylesheet of the page view (claimset.html), kept as code so that every copy of the package carries it."""
 
 CSS = """\
-/* The page view of a claimset (claimset.html): the claimset's own part of a page. A site supplies the page around it
-   and may override these rules; the colours are variables so a site's theme sets them. */
+/* The page view of a claimset (claimset.html): the claimset's own part of a page, in a plain default look. A site
+   supplies the page around it and its own look: the colours and the font are variables (--cs-*) it sets. */
 .cs-page, .cs-body, .cs-header, .cs-toc {
-  --cs-ink: #1a1a1a; --cs-muted: #555555; --cs-rule: #d6d6d6; --cs-rule-light: #e6e6e6; --cs-panel: #f7f7f5;
-  --cs-accent: #1d4f91; --cs-target: #f4f7fb;
+  --cs-ink: #1b1b1b; --cs-muted: #5f5f5f; --cs-rule: #d0d0d0; --cs-rule-light: #e4e4e4; --cs-panel: #f4f4f4;
+  --cs-accent: #0b57d0; --cs-target: #eef3fc;
+  --cs-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --cs-green: #2e8b57; --cs-amber: #d08c1a; --cs-red: #c0392b;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .cs-page, :root:not([data-theme="light"]) .cs-body,
   :root:not([data-theme="light"]) .cs-header, :root:not([data-theme="light"]) .cs-toc {
-    --cs-ink: #e8e6e1; --cs-muted: #a9a7a1; --cs-rule: #34363b; --cs-rule-light: #2a2c30; --cs-panel: #1c1e21;
-    --cs-accent: #8fb4ea; --cs-target: #1b2433;
+    --cs-ink: #e6e6e6; --cs-muted: #a3a3a3; --cs-rule: #3a3a3a; --cs-rule-light: #2c2c2c; --cs-panel: #1e1e1e;
+    --cs-accent: #8ab4f8; --cs-target: #1d2633;
   }
 }
 .cs-page { max-width: 76rem; margin: 0 auto; padding: 24px 16px 64px; color: var(--cs-ink);
-  font: 17px/1.55 "Source Serif 4", Georgia, serif; font-variant-numeric: lining-nums tabular-nums; }
+  font: 16px/1.55 var(--cs-font); font-variant-numeric: lining-nums tabular-nums; }
 .cs-page a, .cs-body a, .cs-header a, .cs-toc a { color: var(--cs-accent); }
 .cs-origin { display: inline-block; margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .03em;
   text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 8px; }
