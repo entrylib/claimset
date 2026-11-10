@@ -1,8 +1,7 @@
 """The page view: a claimset as HTML for people (spec §2.3), in the order of the paper's argument.
 
-    render_parts(doc, file_url=None, ref_text=None, digits=None, decimals=None) -> dict of HTML fragments: header,
-                                       nav, body (and
-                                       the title, the origin label, the brief)
+    render_parts(doc, file_url=None, ref_text=None, digits=None, number=None) -> dict of HTML fragments: header,
+                                       nav, body (and the title, the origin label, the brief, the sections)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
     origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
 
@@ -62,20 +61,10 @@ MATH = re.compile(r"\$\$(.+?)\$\$|\$([^$\s][^$]*?)\$|\\\((.+?)\\\)", re.S)
 CODE = re.compile(r"(`+)(.+?)\1", re.S)
 
 
-#: Formulae written $…$ that still get a line of their own: those with fractions, sums, integrals, roots or matrices,
-#: which crowd a line of text. Otherwise the author decides (spec §8 rule 6): $$…$$ is displayed, $…$ stays in the
-#: sentence.
-TALL = re.compile(r"\\(?:d?frac|sum|prod|int|iint|oint|sqrt|begin|binom|underset|overset)\b")
-
-
-def is_long(tex):
-    return TALL.search(tex) is not None
-
-
 def math(tex, display=False):
-    """An expression as MathML (claimset.mathml), on a line of its own when written as $$...$$ or long (is_long);
-    one it cannot read is shown as written, as code."""
-    out = to_mathml(tex, display or is_long(tex))
+    """An expression as MathML (claimset.mathml), on a line of its own when the author wrote it as $$...$$ (spec §8
+    rule 6), in the sentence when written as $...$; one it cannot read is shown as written, as code."""
+    out = to_mathml(tex, display)
     return out if out is not None else f'<code class="math-tex">{esc(tex)}</code>'
 
 
@@ -252,7 +241,7 @@ class _Paper:
         for m in MATH.finditer(s):
             out.append(self._terms(s[last:m.start()]))
             tex, end = m.group(1) or m.group(2) or m.group(3), m.end()
-            display = m.group(1) is not None or is_long(tex)
+            display = m.group(1) is not None             # the author's choice: $$…$$ (§8 rule 6)
             if display and end < len(s) and s[end] in ",.;:":   # a formula on its own line keeps its punctuation
                 tex, end = tex + s[end], end + 1
             out.append(math(tex, display=display))
@@ -714,20 +703,24 @@ def _section(sid, title, items, intro=""):
     return (f'<section class="cs-section" id="{sid}"><h2>{title}</h2>{intro}' + "\n".join(items) + "</section>")
 
 
-def render_parts(doc, file_url=None, ref_text=None, digits=None, decimals=None):
+def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
     light). `file_url(artefact)` gives the address an image of the claimset is served at, or None when the
     artefact is not an image the site shows; without it, image files are shown from their relative paths (a local
     preview beside the package's files). `ref_text(reference)` writes out a reference the file gives only by
-    identifier (a DOI), or returns None. `digits` shows non-integer numbers to that many significant digits,
-    `decimals` to that many decimal places (a site's choice: the file keeps every digit, and a rounded table cell
-    carries the exact value as its title); with neither, they are shown as the file gives them."""
-    def count(n):
-        return n if isinstance(n, int) and not isinstance(n, bool) and n >= 0 else None
-    rounding = (("decimals", count(decimals)) if count(decimals) is not None
-                else ("digits", count(digits)) if count(digits) else None)
+    identifier (a DOI), or returns None. How numbers are written is the site's choice: `number(value)` returns the
+    text to show for a number of the file (int or float), or None for the default; `digits` (when there is no
+    `number`) shows non-integer numbers to that many significant digits. The file keeps every digit, and a table cell
+    shown otherwise than as written carries the exact value as its title. `sections` lists the sections shown, as
+    (id, title, count), for a site that builds its own navigation instead of using `nav`."""
+    if callable(number):
+        rounding = number
+    elif isinstance(digits, int) and not isinstance(digits, bool) and digits > 0:
+        rounding = ("digits", digits)
+    else:
+        rounding = None
     token = DIGITS.set(rounding)
     try:
         return _render_parts(doc, file_url, ref_text)
@@ -837,18 +830,19 @@ def _render_parts(doc, file_url, ref_text):
               "supporting": len(supporting), "evidence": len(P.evidence) + len(P.warrants),
               "limitations": len(P.limitations), "questions": len(P.questions), "references": len(P.refs),
               "artefacts": len(P.artefacts)}
-    body, nav = [], []
+    body, nav, shown = [], [], []
     for sid, title, items in sections:
         part = _definitions(P) if items is None else _section(sid, title, items)
         if part:
             body.append(part)
             n = counts.get(sid)
             nav.append(f'<li><a href="#{sid}">{title}</a>' + (f' <span class="count">{n}</span>' if n else "") + "</li>")
+            shown.append((sid, title, n or 0))
     return {"title": P.paper.get("title", ""), "origin": _origin(P), "brief": (brief_ids, automatic),
             "header": _header(P),
             "nav": '<nav class="cs-toc" aria-label="Sections of the claimset"><p class="cs-toc-title">On this page</p>'
                    f'<ol>{"".join(nav)}</ol></nav>',
-            "body": "\n".join(body),
+            "body": "\n".join(body), "sections": shown,
             "lights": {lt: sum(1 for c in P.claims if P.light(c) == lt) for lt in LIGHTS}}
 
 
