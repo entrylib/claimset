@@ -1,7 +1,7 @@
 """The page view: a claimset as HTML for people (spec §2.3), in the order of the paper's argument.
 
-    render_parts(doc, file_url=None, ref_text=None) -> dict of HTML fragments: header, nav, body (and the title,
-                                       the origin label, the brief)
+    render_parts(doc, file_url=None, ref_text=None, digits=None) -> dict of HTML fragments: header, nav, body (and
+                                       the title, the origin label, the brief)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
     origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
 
@@ -28,7 +28,7 @@ import re
 
 from .mathml import to_mathml
 
-from .render import _interval, _join, _num, _s, _stat_note, _statistic, _uncertainty, _val
+from .render import DIGITS, _interval, _join, _num, _s, _stat_note, _statistic, _uncertainty, _val
 
 #: How many principal claims In brief shows at most.
 BRIEF_MAX = 5
@@ -633,8 +633,7 @@ def _table(P, eid, t):
             rows.append(f'<tr id="{esc(eid)}.{esc(t.get("id", ""))}.{esc(r.get("id", ""))}">'
                         + f'<th scope="row">{esc(r.get("id", ""))}{esc(_stat_note(r))}</th>'
                         + "".join(f"<td>{x}</td>" for x in labels)
-                        + "".join(f'<td class="{"num" if isinstance(v, (int, float)) else "txt"}">{P.value(v)}</td>'
-                                  for v in vals) + "</tr>")
+                        + "".join(_cell(P, v) for v in vals) + "</tr>")
     return (f'<div class="cs-table" id="{esc(eid)}.{esc(t.get("id", ""))}"><table><caption>{caption}</caption>'
             "<thead><tr>" + "".join(f'<th scope="col">{h}</th>' for h in head) + "</tr></thead>"
             "<tbody>" + "".join(rows) + "</tbody></table></div>")
@@ -714,14 +713,24 @@ def _section(sid, title, items, intro=""):
     return (f'<section class="cs-section" id="{sid}"><h2>{title}</h2>{intro}' + "\n".join(items) + "</section>")
 
 
-def render_parts(doc, file_url=None, ref_text=None):
+def render_parts(doc, file_url=None, ref_text=None, digits=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
     light). `file_url(artefact)` gives the address an image of the claimset is served at, or None when the
     artefact is not an image the site shows; without it, image files are shown from their relative paths (a local
     preview beside the package's files). `ref_text(reference)` writes out a reference the file gives only by
-    identifier (a DOI), or returns None."""
+    identifier (a DOI), or returns None. `digits` shows non-integer numbers to that many significant digits (a site's
+    choice: the file keeps every digit, and a rounded table cell carries the exact value as its title); None shows
+    them as the file gives them."""
+    token = DIGITS.set(digits if isinstance(digits, int) and not isinstance(digits, bool) and digits > 0 else None)
+    try:
+        return _render_parts(doc, file_url, ref_text)
+    finally:
+        DIGITS.reset(token)
+
+
+def _render_parts(doc, file_url, ref_text):
     P = _Paper(doc, file_url, ref_text)
     source_link = ""
     cf = P.paper.get("converted_from")
@@ -836,6 +845,16 @@ def render_parts(doc, file_url=None, ref_text=None):
                    f'<ol>{"".join(nav)}</ol></nav>',
             "body": "\n".join(body),
             "lights": {lt: sum(1 for c in P.claims if P.light(c) == lt) for lt in LIGHTS}}
+
+
+def _cell(P, v):
+    """A table cell: a number (with its exact value as the title when the view rounds it), or anything else."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        shown = P.value(v)
+        exact = repr(v) if isinstance(v, float) else str(v)
+        title = f' title="{esc(exact)}"' if DIGITS.get() and shown != exact else ""
+        return f'<td class="num"{title}>{shown}</td>'
+    return f'<td class="txt">{P.value(v)}</td>'
 
 
 def stylesheet():
