@@ -1,6 +1,7 @@
 """The page view: a claimset as HTML for people (spec §2.3), in the order of the paper's argument.
 
-    render_parts(doc, file_url=None, ref_text=None, digits=None) -> dict of HTML fragments: header, nav, body (and
+    render_parts(doc, file_url=None, ref_text=None, digits=None, decimals=None) -> dict of HTML fragments: header,
+                                       nav, body (and
                                        the title, the origin label, the brief)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
     origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
@@ -713,17 +714,21 @@ def _section(sid, title, items, intro=""):
     return (f'<section class="cs-section" id="{sid}"><h2>{title}</h2>{intro}' + "\n".join(items) + "</section>")
 
 
-def render_parts(doc, file_url=None, ref_text=None, digits=None):
+def render_parts(doc, file_url=None, ref_text=None, digits=None, decimals=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
     light). `file_url(artefact)` gives the address an image of the claimset is served at, or None when the
     artefact is not an image the site shows; without it, image files are shown from their relative paths (a local
     preview beside the package's files). `ref_text(reference)` writes out a reference the file gives only by
-    identifier (a DOI), or returns None. `digits` shows non-integer numbers to that many significant digits (a site's
-    choice: the file keeps every digit, and a rounded table cell carries the exact value as its title); None shows
-    them as the file gives them."""
-    token = DIGITS.set(digits if isinstance(digits, int) and not isinstance(digits, bool) and digits > 0 else None)
+    identifier (a DOI), or returns None. `digits` shows non-integer numbers to that many significant digits,
+    `decimals` to that many decimal places (a site's choice: the file keeps every digit, and a rounded table cell
+    carries the exact value as its title); with neither, they are shown as the file gives them."""
+    def count(n):
+        return n if isinstance(n, int) and not isinstance(n, bool) and n >= 0 else None
+    rounding = (("decimals", count(decimals)) if count(decimals) is not None
+                else ("digits", count(digits)) if count(digits) else None)
+    token = DIGITS.set(rounding)
     try:
         return _render_parts(doc, file_url, ref_text)
     finally:

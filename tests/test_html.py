@@ -266,6 +266,18 @@ class TestDigits(unittest.TestCase):
             self.assertEqual(_rounded(v, 4), want)
 
 
+    def test_decimal_places(self):
+        body = H.render_parts(self.doc(), decimals=4)["body"]
+        self.assertIn("= 0.1235", body)
+        self.assertIn('<td class="num" title="0.000680612">0.0007</td>', body)
+        self.assertIn('<td class="num">300</td>', body)
+        self.assertIn('<td class="num">0.5</td>', body)
+        from claimset.render import _decimals
+        for v, d, want in [(1.00193, 4, "1.0019"), (0.00001, 4, "0.0000"), (-0.00001, 4, "0.0000"), (29.6, 0, "30"),
+                           (12345.678, 2, "12345.68"), (0.10004, 4, "0.1")]:
+            self.assertEqual(_decimals(v, d), want)
+
+
 class TestOriginAndHeader(unittest.TestCase):
     def test_origins(self):
         self.assertEqual(H.render_parts(example())["origin"], "native")
