@@ -1,8 +1,9 @@
 # Stage 2 of a release: upload to PyPI the files that stage 1 (build.yml) attached to the release.
 #
-# Runs when a release is published (a draft from build.yml, reviewed and published by a maintainer). It downloads
-# the release's sdist and wheel, checks that they are the version the tag names and that build.yml built them
-# (their build attestation), and uploads them with PyPI trusted publishing: no token is stored anywhere.
+# Runs when a release is published (a draft from build.yml, reviewed and published by a maintainer; publishing
+# creates the tag on the commit build.yml built). It downloads the release's sdist and wheel, checks that they are
+# the version the tag names and that build.yml built them from that commit on the default branch (their build
+# attestation), and uploads them with PyPI trusted publishing: no token is stored anywhere.
 #
 # One-time setup on PyPI (https://pypi.org/manage/account/publishing/): a trusted publisher for project `claimset`,
 # owner `entrylib`, repository `claimset`, workflow `release.yml`, environment `pypi`. On GitHub, an environment
@@ -50,15 +51,19 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: The files were built by build.yml from this repository
+      - name: The files were built by build.yml from the tagged commit, on the default branch
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          commit=$(gh api "repos/$REPO/commits/$TAG" --jq .sha)
+          echo "$TAG is commit $commit"
           for f in dist/*; do
             gh attestation verify "$f" --repo "$REPO" \
               --signer-workflow "$REPO/.github/workflows/build.yml" \
-              --source-ref "refs/tags/${{ github.event.release.tag_name }}"
+              --source-ref "refs/heads/$DEFAULT_BRANCH" --source-digest "$commit"
           done
 
       - name: Upload to PyPI
