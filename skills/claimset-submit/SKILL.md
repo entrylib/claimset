@@ -52,7 +52,7 @@ If the work was done with a lab record (`claimset/<study>/lab/lab.jsonl`, or an 
 - Every hypothesis that reached `supported`, `not_supported` or `inconclusive` becomes a claim with `hypothesis: {lab_event, outcome}`, `planning`, and for planned tests `planned_at`, `planned_at_anchor` and `test` (the decision rule) copied from the record. Never upgrade `exploratory` to `confirmatory`, and never change a `test`: it is what the plan fixed before the data were seen.
 - **Negative results are claims too**, in this claimset: state plainly what was not found, with scope and evidence (see `examples/submission-from-lab.json`, claim C4).
 - Fill `paper.exploration` with the counts from the record, and list the record as an artefact of kind `lab_record`, with any `withheld_events` and their reasons.
-- Give evidence objects the `lab_runs` they came from, and take `results` from the record's result events.
+- Give evidence objects the `lab_runs` they came from. Export records their numbers as **tables** (rows the compared units, columns the variables) and writes every result of the record, at full precision, to a CSV beside the claimset (`files/<paper>.results.csv`, a `data` artefact the evidence and tables name). Check each table: a self-contained description, each column named by a variable term where the study defines one (`m4 mce` → the term for MCE), the conditions that set columns apart. Claims cite the rows they rest on (`E12.T1.r1`). Package the claimset (`claimset package`) so the CSV goes with it.
 
 Then continue with the steps below to choose principal claims, review wording and scope, and ask the human.
 
@@ -185,7 +185,9 @@ Fill the profile fields:
 - `simulation`: model, parameters (artefact), runs, seeds, `results`.
 - `formal`: foundation (e.g. `ZFC`), assumptions, steps (each `{id, statement, by, rule}`), proof_artefact, checker. No `theorem` field: the formal claim's statement is the theorem.
 
-**Results are observations** (spec §3.4): each the value of a variable, observed under conditions. Every value a claim reports goes into the evidence's `results`, one entry per value, in any evidence except formal:
+**Tables are the default** (spec §3.4, *Tables are the standard form*): more than a handful of numbers from one evidence object (as a rule, more than eight that share a variable or a condition) go into a table, rows the compared units and columns the variables, and claims cite its rows. The validator warns (W40) about a longer list of result entries. The worked example is evidence E12 of entrylib:2026.000001: fifteen result entries in v1, one table of two rows and eight columns in v2, cited by its claim C5 as `E12.T1.r1` and `E12.T1.r2`. Keep the full-precision values in a data artefact (a CSV) that the table names in `artefact`, and give values in the table to the precision the paper reports (four significant digits for a lab record's results).
+
+**Results are observations** (spec §3.4): each the value of a variable, observed under conditions. A single number a claim reports, with no table to hold it, is a result entry, as is a value a cell cannot hold (with an `interval`, an `uncertainty` or `n`, or an excerpt), in any evidence except formal:
 
 ```json
 "results": [{"id": "R1", "variable": "D11", "value": 10.55, "unit": "1", "n": 500,
@@ -201,7 +203,7 @@ Fill the profile fields:
 - A value read off a figure says so: `"read_from": {"artefact": "A5", "precision": 0.01}`.
 - A contrast (a difference, ratio, effect size or the p-value of a comparison) names the other side with the reserved condition `comparator`: `{"D7": "D2", "comparator": "D3"}`.
 
-Values that form a table go into a table instead, one per table. Rows and columns are dimensions or variables; cells may be any value type:
+Values that form a table go into a table instead, one per table: rows the compared units (methods, cases, groups, sample sizes), columns the variables, the conditions that set a variable apart (a nominal level, a subset, a statistic) as column conditions, and the conditions every value shares on the table. Cells may be any value type:
 
 ```json
 "tables": [{"id": "T1", "description": "Mean MASE and MSIS of three methods on the M3 monthly series, horizons 1 to 18",
@@ -214,7 +216,7 @@ A column may carry conditions of its own: `{"variable": "D8", "conditions": {"ho
 
 **Figures** (`kind: figure`) have a `function`: `data_plot` (record its values as observations and list them in `shows`), `specimen` (an image or recording that is evidence: record what you read from it with `read_from`), or `diagram` (an illustration: never cited as support; write what it shows into definitions). Images are files of the submission package, never embedded in the JSON.
 
-Claims cite a table (`E2.T1`) or a row (`E2.T1.r1`) in their support's `results`. A claimset distils the argument; it does not re-encode every table of the research, so record the tables the claims rest on.
+Claims cite a table (`E2.T1`) or a row (`E2.T1.r1`) in their support's `results`, not result IDs of values a table holds. A claimset distils the argument; it does not re-encode every table of the research, so record the tables the claims rest on, and leave stray numbers no claim uses to the data artefact.
 
 The table holds the numbers; a claim holds what you conclude from them. State the pattern (which method is better or worse, on which measures, under which conditions, including where it is worse) and cite the table or rows; repeat a value only when the conclusion turns on it ("selected for 6 of 11 groups"). Do not write a claim that only retells a table: cite the table from the claim that uses it. The validator warns (W24) when a statement repeats three or more values of the tables it cites.
 

@@ -54,3 +54,5 @@ claimset lab export [--paper NAME]     # writes claimset/<study>/<paper>.claimse
 ```
 
 The draft carries everything the record states: a claim for every tested hypothesis (negative results included) with its outcome and whether the test was planned, evidence with the runs and results behind it, contributors with their models and harnesses, and the exploration counts. Export also prints a completion list of what only people or the writing agent can decide: the licence, the guarantor, the principal claims, the highlights a reader sees first (up to five, chosen by the guarantor), wording and scope. The `claimset-submit` skill works through it.
+
+The numbers of each evidence object are tables (rows the compared units, columns the variables, values to four significant digits), and claims cite their rows. Every result of the record is also written, at full precision, to `files/<paper>.results.csv` beside the claimset, an artefact the evidence and its tables name; `claimset package` puts it in the submission package.
