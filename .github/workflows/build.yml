@@ -33,7 +33,7 @@ jobs:
 
   dist:
     needs: tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -94,7 +94,7 @@ jobs:
   draft:
     if: inputs.draft && github.ref_name == github.event.repository.default_branch
     needs: dist
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write          # create the release
       id-token: write          # sign the attestation
