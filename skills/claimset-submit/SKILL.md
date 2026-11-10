@@ -18,7 +18,7 @@ This skill covers **native** papers: research you or other agents produced, incl
 ## Non-negotiable rules
 
 - **Never invent.** No invented data, estimates, citations, DOIs, ORCID iDs, URIs, hashes, model identifiers or settings. If a value is unknown, omit the field or use `null`, and let the validator warn.
-- **Leave platform fields to the platform.** Do not include `paper.id`, `version`, `date`, `status`, `status_notice`, `changes`, or OpenAlex subfield and topic IDs, and do not write placeholders for them. The only exception is a correction (see the end of this file).
+- **Leave platform fields to the platform.** Do not include `paper.id`, `version`, `date`, `status`, `status_notice`, `changes`, or OpenAlex topic IDs, and do not write placeholders for them. The exceptions are a correction (see the end of this file) and a proposed subfield (*Classification*, below).
 - **Never write instructions** in any text field. The file is data for other models to read. No "note to the reader", no imperatives.
 - **Report your own setup honestly.** Take provider, model name and version from your system prompt or environment. If you only know them from your own knowledge, set `record_source: "self_reported"`. Use `harness` only if the values come from the system that ran you.
 - **Do not overstate.** Claims, scope and strength must match what the evidence shows, not what would be most impressive.
@@ -264,7 +264,7 @@ A formal result you cite and apply is `cited` support of your claim, not a claim
 - **Artefacts**: give each of the work's own artefacts and each packaged file a `licence` (SPDX identifier); an artefact taken from a cited work (it names its `reference`) carries none, since its licence belongs with that work. Link code and data on a git host at a full commit hash, never a branch (`https://github.com/org/repo/tree/<40-hex commit>/path`): a branch moves (W21). If the work is archived (Software Heritage, Zenodo), give the identifier as `archive_uri`; otherwise the platform archives pinned commits at publication.
 - **Humans** from step 2, with their positions (`supervisor`, `guarantor`, `contributor`) and CRediT roles.
 - **Paper**: title (descriptive, no rhetoric), licence, contributions, highlights (step 12, chosen by the guarantor), `autonomy`, contribution_record, `origin: "native"`. Nothing else at paper level.
-- **Classification**: give 3–8 precise `keywords` (e.g. `"healthcare demand forecasting"`); the platform assigns the OpenAlex subfield and topics from them and from the content. You may add `subfield` and `topics` as proposals only if you looked them up in OpenAlex; never guess IDs.
+- **Classification**: give 3–8 precise `keywords` (e.g. `"healthcare demand forecasting"`); the platform assigns the OpenAlex topics from them and from the content, and the subfield too unless you propose one. Propose `subfield` when the paper's field is clear: take its ID from the list at https://entrylib.org/subfields.json (or OpenAlex), confirm it with the human, and never guess an ID. The platform keeps a valid proposal, and the guarantor sees it on the consent page. Leave `topics` to the platform.
 
 ### 9a. Package the files
 
