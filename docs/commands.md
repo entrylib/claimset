@@ -29,12 +29,14 @@ claimset render claimset.json -o claimset.txt  # the reading view: plain text fo
 claimset render claimset.json --html -o claimset.html  # the page view for people, as EntryLib shows it
 claimset render claimset.json --claim C4       # one claim and what it rests on (a claim bundle)
 claimset renumber claimset.json                # before the first submission: IDs in reading order
-claimset migrate claimset.json                 # bring a file from an earlier version; lists what needs judgement
+claimset migrate claimset.json                 # bring a file from an earlier version (below)
 claimset package claimset.json -o paper.zip    # the submission package: the claimset and its files (BagIt)
 claimset validate paper.zip                    # validate a package: files, checksums and the claimset
 ```
 
 The report lists errors (the file is rejected), warnings (accepted and recorded) and the verifiability the platform will compute for each claim. A file is checked by the rules of the specification version it declares, from the baseline (v0.39) on.
+
+`claimset migrate` brings a file to the current specification. It makes the changes that need no judgement, then validates the file under the version it declared and the migrated file under the current one, and reports the difference: **must change** (errors the current version raises that the file did not have), **should change** (new warnings), **to decide** (what no rule checks, such as assumptions a claim no longer inherits), and what the file **already** had under its own version. It exits with 1 while the migrated file has errors; `--json` gives the report to an agent.
 
 ## Submitting to EntryLib
 

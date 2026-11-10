@@ -2358,8 +2358,12 @@ def check_test_bindings(r, claims, evidence_by_id, strict):
             if len(hits) > 1:
                 unbound = True
                 stats = {_statistic_key(h["statistic"]) for h in hits}
+                runs = [x for e in evs for x in as_list(e.get("lab_runs"))]
                 hint = (", which differ by statistic: give the quantity the statistic of the one it reads"
                         if len(stats) > 1 and q.get("statistic") is None else
+                        ", from different deciding runs: give each a condition run (its lab run ID, a row label in "
+                        "a table), which the quantity's run then picks"
+                        if q.get("run") is not None and len(runs) > 1 else
                         ": give the conditions that tell them apart")
                 report("91", "W41", f"{w}.{name}", f"binds {len(hits)} observations "
                        f"({', '.join(sorted({h['where'] for h in hits}))}), not exactly one{hint}")
