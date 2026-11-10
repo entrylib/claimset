@@ -80,7 +80,7 @@ CSS = """\
   .cs-layout { gap: 24px; }
 }
 math { font-family: var(--cs-math-font); font-size: 1.05em; }
-math[display="block"] { margin: 8px 0; }
+math[display="block"] { margin: 10px 0; }
 .cs-code, .math-tex { font-family: var(--cs-code-font); font-size: 0.9em; background: var(--cs-panel);
   border: 1px solid var(--cs-rule-light); border-radius: 3px; padding: 0 4px; overflow-wrap: anywhere; }
 .cs-table td.txt { text-align: left; }

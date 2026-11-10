@@ -176,6 +176,9 @@ class TestTermsReferencesMaths(unittest.TestCase):
         self.assertIn("fits $x", out)                            # not a formula: no closing $
         self.assertIn('<code class="math-tex">\\foo{x}</code>', P.text("$\\foo{x}$"))   # unread: shown as written
         self.assertIn('<math display="block">', P.text("$$x^2$$"))
+        self.assertIn('<math display="block">', P.text(r"so $V_h = \\frac{T}{T-k} c_h$ holds"))   # tall: own line
+        self.assertIn('<math display="block">', P.text(r"$\\epsilon_t \\sim N(0, \\sigma^2)$"))   # long: own line
+        self.assertIn("<math><semantics>", P.text("at $T$ of 100"))                       # short: in the line
         self.assertNotIn("<math>", P.text("`$x$` is code"))           # maths is not read inside code
 
     def test_a_site_writes_out_doi_references(self):
