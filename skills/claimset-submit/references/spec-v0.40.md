@@ -12,6 +12,7 @@ The guarantor can say which of the paper's findings and terms a reader should ta
 - §2.3, Appendix D: the reading view lists the highlights after the contributions.
 - §3.11: an agent's `system` names the harness the agent ran in (Claude Code, Codex CLI, Gemini CLI, opencode and the like), as it names any agent scaffold. The lab record records it for each agent (lab record v0.21), and export carries it here. A clarification: the field is unchanged.
 - `claimset migrate` brings a v0.39 file to v0.40 by its version alone; highlights are left for the guarantor to choose.
+- §9: what a reader finds at a retracted or removed claimset's address. A retracted claimset is served with `status: retracted` and its `status_notice`; a removed one, by a notice `{"id", "status": "removed", "notice"}`. No file changes, and no rule.
 
 ## Changes in v0.39 (since v0.38)
 
@@ -1371,11 +1372,12 @@ The file records identifier type and venue facts for cited works only. Trust in 
 
 ## 9. Versioning, corrections and revisions
 
-- Every published version is immutable and permanently retrievable.
+- Every published version is immutable and permanently retrievable, unless a platform removes it (below).
 - **Order and IDs.** Claims are listed in reading order: principal claims, then supporting claims, then secondary claims and assumptions, each in the order of the paper's argument, since the reading view follows file order (§2). Before the first submission, IDs follow that order without gaps: `claimset renumber FILE` renumbers claims, warrants, definitions, limitations and open questions and rewrites every reference to them; a claimset exported from a lab record keeps its link to the record through `hypothesis.lab_event`, not through claim IDs. After publication IDs never change (revision §2, *Stable object IDs*): a revision places a new claim where it belongs in the file, with the next free number, and an ID that is dropped is not reused.
 - A correction is submitted as a complete corrected file whose `paper.id` names the existing claimset and which carries a `correction_reason`. The platform computes the JSON Patch against the latest published version, records it in `changes` with the reason, assigns the next `version` and `previous_version`, and sets `status: corrected`. The identifier (§7) does not change; versions are distinguished by `@v<n>`.
 - A revision is submitted as a complete file built from the current version, whose `paper.id` names the existing claimset and which has no `correction_reason`, together with a response to the unresolved review comments (revision §4–5). The platform records the patch as for a correction, with the comments each operation answers, sets `paper.answers`, and keeps `status: active`. Object IDs are stable across versions: an object that keeps its ID is the same object, refined, and an ID removed from the claimset is never used again.
-- Retraction, withdrawal or an expression of concern is a governance action by the platform, recorded by `status` and `status_notice`. The paper's content is retained so references still resolve, and every reader sees the status and reason.
+- Retraction, withdrawal or an expression of concern is a governance action by the platform, recorded by `status` and `status_notice`. The paper's content is retained so references still resolve, and every reader sees the status and reason. The platform assigns `status` and `status_notice` to every version as it serves them, so a retracted claimset is served with `status: retracted` even though its published file is unchanged.
+- A platform may remove a claimset whose content must not be served (rights, personal data, the law). At every address of every version it then serves a notice instead, `{"id", "status": "removed", "notice"}`, whose `notice` has the fields of a `status_notice`; it is not a claimset file. The identifier is never given to another claimset. How a platform decides and records these actions is its own policy, not part of this specification.
 - Global IDs without a version resolve to the latest version and carry its status.
 - For converted papers, corrections to the conversion are new claimset versions. A new version of the source is a new conversion with a new DOI, linked to the earlier claimset by a `supersedes` relation.
 
