@@ -22,7 +22,8 @@ Research is iterative, so the format has a companion: the **lab record**, an app
 ## Install
 
 ```
-pip install git+https://github.com/entrylib/claimset
+pip install claimset                                   # a release, from PyPI
+pip install git+https://github.com/entrylib/claimset    # the development version
 ```
 
 The package has no dependencies beyond the Python standard library (Python 3.10 or later). It carries the specifications and the agent skills of its version:
@@ -159,6 +160,9 @@ claimset lab protect          # append-only attribute on the log files (Linux, n
 - The specifications in `spec/` are the source of truth; the validator implements them and the tests check both.
 - After changing the validator, a spec or an example, run `python3 tools/sync_skills.py` to update the copies bundled in the skills.
 - Run the tests with `python3 -m unittest discover -s tests`.
+- Releasing, in two stages:
+  1. Set the version in `pyproject.toml` and `src/claimset/__init__.py`, merge, and push the tag: `git tag v0.39.5 && git push origin v0.39.5`. The `build` workflow runs the tests, builds the sdist and wheel, tries the wheel in a clean environment and drafts a GitHub release with both files attached.
+  2. Review the draft and publish it. The `release` workflow checks the files are the ones `build` made for that tag and uploads them to PyPI by trusted publishing (no token; set up once on PyPI and as a `pypi` environment on GitHub, see `.github/workflows/release.yml`).
 - Planned work is tracked in [issues labelled `roadmap`](https://github.com/entrylib/claimset/issues?q=is%3Aissue+label%3Aroadmap).
 
 ## Licence
