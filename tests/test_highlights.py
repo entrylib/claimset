@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from claimset.migrate import migrate  # noqa: E402
 from claimset.render import render  # noqa: E402
-from claimset.validate import validate  # noqa: E402
+from claimset.validate import SCHEMA_VERSION, validate  # noqa: E402
 from test_validate import converted_base  # noqa: E402
 
 NATIVE = json.loads((ROOT / "examples" / "submission-native.json").read_text(encoding="utf-8"))
@@ -80,7 +80,7 @@ class TestUse(unittest.TestCase):
 
     def test_migrate_lists_them_for_the_guarantor(self):
         out, done, todo = migrate(copy.deepcopy(V039))
-        self.assertEqual(out["schema_version"], "0.40")
+        self.assertEqual(out["schema_version"], SCHEMA_VERSION)
         self.assertEqual([t for t in todo if t.startswith("paper.highlights")], [todo[-1]])
         self.assertNotIn("highlights", out["paper"])
 

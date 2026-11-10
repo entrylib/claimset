@@ -11,6 +11,9 @@ Only what is mechanical is changed:
 - v0.39: a test's `registration`, a URI until v0.38, becomes the ID of a reference listing the registration (a DOI
   when the URI is one; otherwise a URL, whose archived copy is listed to give);
 - v0.40: nothing changes but the version; highlights are listed for the guarantor to choose;
+- v0.41: nothing changes but the version; the quantities of computed tests that bind no observation, or several,
+  are listed to rebind (rule 91), since restructured evidence (result entries made into tables) leaves them
+  naming what is gone;
 - `schema_version` is set to the current version.
 From v0.33 a claim inherits the assumptions of the methods studied only for its own subject (§3.2): the
 assumptions a claim inherited under v0.32 and no longer does are listed, to be added to its own `assumptions`
@@ -23,7 +26,8 @@ without an availability (rule 75), the
 highlights (warning 39).
 """
 
-from .validate import OLD_SETUP_ROLES, SCHEMA_VERSION, as_dict, as_list, inherited_assumptions
+from .validate import (OLD_SETUP_ROLES, SCHEMA_VERSION, as_dict, as_list, bind_quantity, bindable,
+                       inherited_assumptions)
 
 
 def _is_assumption(claim):
@@ -178,6 +182,21 @@ def migrate(doc):
     if paper.get("origin") == "native" and "declarations" not in paper:
         todo.append("paper.declarations: ask the guarantor for funding and competing interests, and record ethics "
                     "and consent where people took part (warning 29)")
+    evidence = {as_dict(e).get("id"): as_dict(e) for e in out.get("evidence") or []}
+    for c in out.get("claims") or []:
+        test = as_dict(as_dict(c).get("test"))
+        if test.get("verdict") != "computed" or not isinstance(test.get("quantities"), dict):
+            continue
+        evs = [evidence[s["evidence"]] for s in as_list(c.get("support"))
+               if isinstance(s, dict) and s.get("evidence") in evidence]
+        for name, q in test["quantities"].items():
+            if not isinstance(q, dict) or not isinstance(q.get("variable"), str) or q["variable"].startswith("count:"):
+                continue
+            hits = [h for e in evs for h in bind_quantity(q, bindable(e), as_list(e.get("lab_runs")))]
+            if len(hits) != 1:
+                todo.append(f"{c.get('id')}.test.quantities.{name}: binds {len(hits)} observations of "
+                            f"{', '.join(e.get('id', '?') for e in evs) or 'no evidence'}; name the result entry or "
+                            f"table cell its value was computed from, by its variable and conditions (rule 91)")
     if paper.get("origin") == "native" and "highlights" not in paper:
         todo.append("paper.highlights: ask the guarantor which principal claims and own terms a reader should take "
                     "first, at most five (§3.1, warning 39)")

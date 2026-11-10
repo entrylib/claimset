@@ -1,6 +1,6 @@
 # Claimset Lab Record — Specification v0.21 (draft)
 
-Status: working draft · Date: 2026-11-10 · Supersedes v0.20 · Companion to the claimset specification (`spec/claimset-v0.40.md`), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
+Status: working draft · Date: 2026-11-10 · Supersedes v0.20 · Companion to the claimset specification (`spec/claimset-v0.41.md`), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
 
 ## Changes since v0.20
 
@@ -11,6 +11,8 @@ A record said which model an agent was, but not which harness ran it: the same m
 - Records begun before v0.21 are read as they were written; `system` is optional in every record.
 
 Amended on 2026-11-10 (§9): export records the results of an evidence object as tables (claimset §3.4, *Tables are the standard form*), not one result entry per number; claims cite table rows; every result of the record is written, at full precision, to a CSV file beside the claimset, listed as a data artefact; results of the cited runs that a claim's status leaves out are not exported.
+
+Amended on 2026-11-11: the companion claimset specification is v0.41, to which the tool exports; nothing in the record changes. A plan's quantities bind results as a claimset's bind observations (claimset §3.3.3), with the same functions.
 
 ## Changes in v0.20 (since v0.19)
 
