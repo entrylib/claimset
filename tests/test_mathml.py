@@ -69,3 +69,11 @@ class TestMathML(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLongFormulae(unittest.TestCase):
+    def test_a_long_formula_scrolls_instead_of_widening_the_page(self):
+        from claimset import html
+        css = html.stylesheet()
+        self.assertIn('math[display="block"] { margin: 10px 0; max-width: 100%; overflow-x: auto;', css)
+        self.assertIn("@media (max-width: 640px) { math { max-width: 100%; overflow-x: auto;", css)

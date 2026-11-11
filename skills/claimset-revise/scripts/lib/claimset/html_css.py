@@ -81,7 +81,10 @@ CSS = """\
   .cs-layout { gap: 24px; }
 }
 math { font-family: var(--cs-math-font); font-size: 1.05em; }
-math[display="block"] { margin: 10px 0; }
+math[display="block"] { margin: 10px 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+/* A formula wider than a phone's screen scrolls on its own instead of widening the page. On a narrow screen only:
+   an inline formula that scrolls may clip a little of an italic letter's overhang. */
+@media (max-width: 640px) { math { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 0 0.1em; } }
 mtable[columnspacing="0"] mtd { padding-left: 0; padding-right: 0; }      /* aligned equations: = under = */
 .cs-code, .math-tex { font-family: var(--cs-code-font); font-size: 0.9em; background: var(--cs-panel);
   border: 1px solid var(--cs-rule-light); border-radius: 3px; padding: 0 4px; overflow-wrap: anywhere; }
