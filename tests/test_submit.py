@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from claimset import submit as sm  # noqa: E402
+from claimset.validate import standalone_problems  # noqa: E402
 from claimset.cli import main  # noqa: E402
 
 EXAMPLE = json.loads((resources.files("claimset") / "data" / "examples" / "submission-native.json")
@@ -115,6 +116,39 @@ class TestSubmit(unittest.TestCase):
         path, kind, body = FakePortal.received[0]
         self.assertEqual((path, kind), ("/api/submissions", "application/json"))
         self.assertEqual(json.loads(body), EXAMPLE)
+
+    def with_packaged_file(self, present=True):
+        """The claimset with an artefact that names a file beside it by relative path (§2.5)."""
+        d = json.loads(json.dumps(EXAMPLE))
+        d["artefacts"].append({"id": "A9", "kind": "data", "uri": "files/results.csv", "licence": "CC-BY-4.0",
+                               "availability": {"level": "public"}, "description": "Every result, at full precision."})
+        self.file.write_text(json.dumps(d))
+        if present:
+            (self.tmp / "files").mkdir()
+            (self.tmp / "files" / "results.csv").write_text("lab_result,value\nRS1,0.5\n")
+        return d
+
+    def test_a_claimset_that_names_packaged_files_is_sent_as_its_package(self):
+        self.with_packaged_file()
+        self.assertEqual([p["where"] for p in standalone_problems(json.loads(self.file.read_text()))],
+                         ["artefacts:A9.uri"])
+        code, out, err = run("submit", str(self.file), "--portal", self.portal)
+        self.assertEqual(code, 0, err)
+        self.assertIn("Sent as a package with the 1 file(s) its artefacts name: files/results.csv.", out)
+        path, kind, body = FakePortal.received[0]
+        self.assertEqual(kind, "application/zip")
+        names = zipfile.ZipFile(io.BytesIO(body)).namelist()
+        self.assertTrue(any(n.endswith("data/files/results.csv") for n in names), names)
+
+    def test_a_missing_packaged_file_stops_the_submission(self):
+        self.with_packaged_file(present=False)
+        code, _, err = run("submit", str(self.file), "--portal", self.portal)
+        self.assertEqual(code, 1)
+        self.assertIn("names files by relative path", err)
+        self.assertEqual(FakePortal.received, [])                          # nothing sent
+
+    def test_a_claimset_with_no_packaged_files_goes_alone(self):
+        self.assertEqual(standalone_problems(EXAMPLE), [])
 
     def test_a_package_folder_is_sent_as_a_zip(self):
         bag = self.tmp / "bag"
