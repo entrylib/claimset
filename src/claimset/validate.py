@@ -140,6 +140,13 @@ ENUM = {
                         "theory", "substance", "organism", "biological_material", "entity", "process", "source", "other"},
 }
 
+#: The profile of the evidence each kind of support points to (§4, rule 10).
+SUPPORT_PROFILE = {"empirical_quant": "quant", "empirical_qual": "qual", "empirical_obs": "observation",
+                   "simulation": "simulation", "formal_proof": "formal"}
+#: The kinds of support whose evidence holds numeric results a claim can cite (§3.4): its statement's numbers come
+#: from them (W17, W24), and a secondary result resting on one is checked by W25.
+RESULT_SUPPORT = frozenset({"empirical_quant", "empirical_obs", "simulation"})
+
 PREFIX = {"definitions": "D", "claims": "C", "evidence": "E", "warrants": "W",
           "limitations": "L", "artefacts": "A", "contributors": "P", "models": "M", "references": "B",
           "open_questions": "O"}
@@ -688,7 +695,7 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
     for cid, c in claims.items():
         if c.get("role") != "secondary" or c.get("type") != "descriptive" or cid in named:
             continue
-        if any(as_dict(s).get("kind") in ("empirical_quant", "empirical_obs", "simulation") for s in as_list(c.get("support"))):
+        if any(_h(as_dict(s).get("kind")) in RESULT_SUPPORT for s in as_list(c.get("support"))):
             r.warn("W25", f"claims:{cid}", "a secondary result on which no claim, warrant or open question rests, and that "
                                            "stands in no relation to another claim: keep it "
                                            "only if it states a loss, limit or null result of the paper's own method; "
@@ -1477,7 +1484,7 @@ def unsourced_numbers(c, support, by_id):
     cited evidence's results (values, intervals, conditions) and table cells and conditions, the test's
     parameters, the claim's scope, and the definitions the statement references. Evidence descriptions do not
     count: a number a statement reports should be a recorded result."""
-    if not {_h(s.get("kind")) for s in support} & {"empirical_quant", "empirical_obs", "simulation"}:
+    if not {_h(s.get("kind")) for s in support} & RESULT_SUPPORT:
         return []
     sources = []
     for s in support:
@@ -1512,7 +1519,7 @@ def table_echo(c, support, by_id):
     Numbers are found as for W17; each distinct number in the statement that equals a cell counts once."""
     cells = []
     for s in support:
-        if s.get("kind") not in ("empirical_quant", "empirical_obs", "simulation"):
+        if _h(s.get("kind")) not in RESULT_SUPPORT:
             continue
         e = by_id(s.get("evidence"), "evidence") if s.get("evidence") else None
         if e is None:
@@ -3029,12 +3036,10 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
                     and k != "demonstration":
                 r.err("67", f"{sw}.artefacts", f"{aid} is a diagram: it illustrates and is never evidence; cite the "
                                                f"observations or the definition it shows")
-        profile_for = {"empirical_quant": "quant", "empirical_qual": "qual", "empirical_obs": "observation",
-                       "simulation": "simulation", "formal_proof": "formal"}
-        if _h(k) in profile_for:
+        if _h(k) in SUPPORT_PROFILE:
             e = ref("10", f"{sw}.evidence", s.get("evidence"), "evidence")
-            if e is not None and e.get("profile") != profile_for[k]:
-                r.err("10", f"{sw}.evidence", f"{k} must point to evidence with profile {profile_for[k]}")
+            if e is not None and e.get("profile") != SUPPORT_PROFILE[k]:
+                r.err("10", f"{sw}.evidence", f"{k} must point to evidence with profile {SUPPORT_PROFILE[k]}")
             if k == "simulation" and e is not None and not (as_list(s.get("artefacts")) or as_list(e.get("artefacts"))):
                 r.err("10", sw, "simulation support requires an artefact")
             if s.get("results"):
