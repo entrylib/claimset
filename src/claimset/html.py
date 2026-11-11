@@ -1,6 +1,6 @@
 """The page view: a claimset as HTML for people (spec §2.3), in the order of the paper's argument.
 
-    render_parts(doc, file_url=None, ref_text=None, digits=None, number=None) -> dict of HTML fragments: header,
+    render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None) -> HTML fragments: header,
                                        nav, body (and the title, the origin label, the brief, the sections)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
     origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
@@ -98,6 +98,7 @@ class _Paper:
 
     def __init__(self, doc, file_url=None, ref_text=None):
         self.doc = doc
+        self.person = None                                  # the site's way of showing people (render_parts)
         self.file_url = file_url
         self.ref_text = ref_text
         self.paper = doc.get("paper") if isinstance(doc.get("paper"), dict) else {}
@@ -423,31 +424,20 @@ def _person(c, verified=False):
             f'{esc(orcid)}</a>)</span>')
 
 
-#: Icons for the people and agents who wrote a paper (inline SVG: no image to load), in the text's colour, each with
-#: its words for screen readers and on hover. Guarantors are named without one.
-ICONS = {
-    "agent": ('<svg class="cs-icon" viewBox="0 0 16 16" width="15" height="15" role="img" aria-label="AI agent">'
-              '<title>AI agent</title><path d="M8 1.5v2.2M4.5 4.5h7a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5'
-              'h-7A1.5 1.5 0 0 1 3 11.5V6a1.5 1.5 0 0 1 1.5-1.5zM1.5 8v2M14.5 8v2M6 10.8h4" fill="none" '
-              'stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="8" r="1" '
-              'fill="currentColor"/><circle cx="10" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="1.5" r="1" '
-              'fill="currentColor"/></svg>'),
-    "human": ('<svg class="cs-icon" viewBox="0 0 16 16" width="15" height="15" role="img" aria-label="Person">'
-              '<title>Person</title><circle cx="8" cy="5" r="2.8" fill="none" stroke="currentColor" '
-              'stroke-width="1.4"/><path d="M2.5 14.5c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" fill="none" '
-              'stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'),
-}
-
-
-def _author(c):
-    """An author or converter with its icon: a person with their ORCID link; an agent with its label after its name
-    (v0.41: `Claude Code · drafting`)."""
+def _author(c, P=None, where="author"):
+    """A person or agent named in the header: the site's way (`person`, render_parts), or plain text: a person with
+    their ORCID link; an agent with its label after its name (v0.41: `Claude Code · drafting`) and "(AI agent)"."""
+    if P is not None and P.person is not None:
+        shown = P.person(c, where)
+        if isinstance(shown, str):
+            return shown
+    if where == "guarantor":
+        return _person(c, True)
     if c.get("type") == "agent":
         label = c.get("label") if isinstance(c.get("label"), str) and c.get("label").strip() else None
-        name = esc(c.get("name") or "an AI agent")
-        return (f'<span class="cs-person">{ICONS["agent"]}{name}'
-                + (f' <span class="cs-label">· {esc(label.strip())}</span>' if label else "") + "</span>")
-    return f'<span class="cs-person">{ICONS["human"]}{_person(c)}</span>'
+        return (f'{esc(c.get("name") or "an AI agent")}'
+                + (f' <span class="cs-label">· {esc(label.strip())}</span>' if label else "") + " (AI agent)")
+    return _person(c)
 
 
 def _header(P):
@@ -456,15 +446,16 @@ def _header(P):
     people = [c for c in P.doc.get("contributors") or [] if isinstance(c, dict)]
     guarantors = [c for c in people if "guarantor" in (c.get("positions") or [])]
     if guarantors:
-        out.append('<p class="cs-guarantor">Guarantor: ' + ", ".join(_person(g, True) for g in guarantors) + "</p>")
+        out.append('<p class="cs-guarantor">Guarantor: ' + ", ".join(_author(g, P, "guarantor") for g in guarantors)
+                   + "</p>")
     cf = p.get("converted_from") if isinstance(p.get("converted_from"), dict) else None
     if cf:
         authors = [a for a in cf.get("source_authors") or [] if isinstance(a, dict)]
         if authors:
             out.append('<p class="cs-authors">Authors of the source paper: '
-                       + ", ".join(_author({**a, "type": "human"}) for a in authors) + "</p>")
+                       + ", ".join(_author({**a, "type": "human"}, P, "source_author") for a in authors) + "</p>")
         converters = [c for c in people if "converter" in (c.get("positions") or [])]
-        by = ", ".join(_author(c) for c in converters)
+        by = ", ".join(_author(c, P, "converter") for c in converters)
         src = _doi(cf.get("source_id")) if cf.get("id_type", "doi") == "doi" else esc(cf.get("source_id"))
         out.append(f'<p class="cs-source">Converted from {src}'
                    + (f" ({esc(cf['source_version'])})" if cf.get("source_version") else "")
@@ -472,7 +463,7 @@ def _header(P):
     else:
         authors = [c for c in people if "author" in (c.get("positions") or [])]
         if authors:
-            out.append('<p class="cs-authors">Authors: ' + ", ".join(_author(c) for c in authors) + "</p>")
+            out.append('<p class="cs-authors">Authors: ' + ", ".join(_author(c, P) for c in authors) + "</p>")
     kw = (p.get("classification") or {}).get("keywords") if isinstance(p.get("classification"), dict) else None
     meta = [esc(p["licence"]) if p.get("licence") else "",
             ("Keywords: " + esc(", ".join(k for k in kw if isinstance(k, str)))) if isinstance(kw, list) and kw else ""]
@@ -727,7 +718,7 @@ def _section(sid, title, items, intro=""):
     return (f'<section class="cs-section" id="{sid}"><h2>{title}</h2>{intro}' + "\n".join(items) + "</section>")
 
 
-def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None):
+def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
@@ -738,7 +729,10 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None):
     text to show for a number of the file (int or float), or None for the default; `digits` (when there is no
     `number`) shows non-integer numbers to that many significant digits. The file keeps every digit, and a table cell
     shown otherwise than as written carries the exact value as its title. `sections` lists the sections shown, as
-    (id, title, count), for a site that builds its own navigation instead of using `nav`."""
+    (id, title, count), for a site that builds its own navigation instead of using `nav`. How people are shown is the
+    site's choice too: `person(contributor, where)` returns the HTML for a person or agent in the header (`where`:
+    `guarantor`, `author`, `converter`, `source_author`), escaping what it takes from the file, or None for the
+    default (a name, a person's ORCID link, an agent's label and "(AI agent)")."""
     if callable(number):
         rounding = number
     elif isinstance(digits, int) and not isinstance(digits, bool) and digits > 0:
@@ -747,13 +741,14 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None):
         rounding = None
     token = DIGITS.set(rounding)
     try:
-        return _render_parts(doc, file_url, ref_text)
+        return _render_parts(doc, file_url, ref_text, person)
     finally:
         DIGITS.reset(token)
 
 
-def _render_parts(doc, file_url, ref_text):
+def _render_parts(doc, file_url, ref_text, person=None):
     P = _Paper(doc, file_url, ref_text)
+    P.person = person if callable(person) else None
     source_link = ""
     cf = P.paper.get("converted_from")
     if isinstance(cf, dict) and isinstance(cf.get("source_id"), str):
