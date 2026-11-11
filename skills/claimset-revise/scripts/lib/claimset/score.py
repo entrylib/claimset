@@ -6,7 +6,8 @@ or amend it first. Optional: nothing requires it.
                               verifiability the platform sets at publication, and scored by rubric.assess()
     search_finder(portal)  -> find(statement): the published claims EntryLib's public search returns for a statement,
                               for the novelty check (`claimset score --novelty`)
-    describe(out, top=3)   -> what `claimset score` prints: rubric.report() between what was scored and the choice
+    describe(out, top=3, by=None)
+                           -> what `claimset score` prints: rubric.report() between what was scored and the choice
 
 The scoring is the rubric's (rubric.assess, rubric.report); this module only prepares the file and supplies the
 claims to compare with. EntryLib's portal calls the same functions for its MCP tool `score`, with its own search.
@@ -106,8 +107,9 @@ def search_finder(portal=None, limit=20):
     return find
 
 
-def describe(out, top=3):
-    """The scores as `claimset score` prints them."""
+def describe(out, top=3, by=None):
+    """The scores as `claimset score` prints them. `by` says where they were computed (default: on this machine;
+    the portal's MCP tool says it scored the file sent to it)."""
     if not out.get("valid"):
         errors = out.get("errors") or []
         lines = [f"Not scored: the claimset has {len(errors)} error(s). Fix them (`claimset validate`) and score it "
@@ -119,9 +121,11 @@ def describe(out, top=3):
     novelty = ("Novelty: principal claims compared with the claims published on EntryLib now." if out.get(
         "novelty_checked") else "Novelty: not checked (`--novelty` compares the principal claims with those "
                                 "published on EntryLib, sending their statements' words to its search).")
+    if by is None:
+        by = ("computed on this machine; nothing was sent" + (" but the search words" if out.get("novelty_checked")
+                                                              else ""))
     head = [f"Scores by the EntryLib rubric {sc['rubric']}, as EntryLib would score this claimset once published "
-            f"(computed on this machine; nothing was sent{' but the search words' if out.get('novelty_checked') else ''}"
-            f"). They check the record, not the science: {RUBRIC_URL}", novelty, ""]
+            f"({by}). They check the record, not the science: {RUBRIC_URL}", novelty, ""]
     tail = ["Scoring is optional. Submit the claimset as it is (`claimset submit`), or amend it and score it again; "
             "EntryLib scores it again when it is published, by the rubric current then."]
     return "\n".join(head) + "\n" + rubric.report(sc, top) + "\n" + "\n".join(tail)

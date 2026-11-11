@@ -94,6 +94,9 @@ class TestPreparation(Files):
         self.assertIn("REPORT 77 top=5", text)
         self.assertIn("Novelty: not checked", text)
         self.assertIn("Scoring is optional. Submit the claimset as it is", text)
+        self.assertIn("(computed on this machine; nothing was sent)", text)
+        with mock.patch.dict(sys.modules, {"rubric": stub}):
+            self.assertIn("(by EntryLib; nothing was kept)", sc.describe(out, by="by EntryLib; nothing was kept"))
 
     def test_a_claimset_with_packaged_files_is_scored_alone_or_as_its_package(self):
         folder = Path(self.tmp.name) / "study"
