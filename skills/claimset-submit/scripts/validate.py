@@ -2809,6 +2809,20 @@ def _zip_problems(z):
     return out + package_problems(payload)
 
 
+def with_verifiability(doc, computed=None):
+    """A copy of a claimset with what the platform sets on each claim at publication (§5): `verifiability` and
+    `verifiability_flags`, from a validation report's `computed` (validated here when not given). The file as it would
+    be published, for scoring it; nothing else changes."""
+    out = json.loads(json.dumps(doc))
+    if computed is None:
+        computed = validate(out).computed
+    for c in as_list(out.get("claims")):
+        values = computed.get(c.get("id")) if isinstance(c, dict) else None
+        if isinstance(values, dict):
+            c.update({k: values[k] for k in ("verifiability", "verifiability_flags") if k in values})
+    return out
+
+
 def standalone_problems(doc):
     """Rule 70 for a claimset submitted alone, outside a package (§2.5): the artefacts that name a file by a
     relative path, which would not reach the platform. [{rule, where, message}]; empty when every file is named by

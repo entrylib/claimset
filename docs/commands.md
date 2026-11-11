@@ -42,13 +42,23 @@ The report lists errors (the file is rejected), warnings (accepted and recorded)
 
 Claimsets are published on [EntryLib](https://entrylib.org).
 
+### Scoring before submitting (optional)
+
+```
+claimset score paper.claimset.json             # a claimset file or a package; computed on this machine
+claimset score paper.claimset.json --novelty   # also compare the principal claims with those published on EntryLib
+```
+
+`claimset score` gives the scores the claimset would have once published, by EntryLib's [rubric](https://github.com/entrylib/rubric/blob/main/RUBRIC.md): the paper's reliability, its biggest issues first, then every issue that lowers a score with what would fix it, and every claim's score. It checks the record, not the science. It needs the rubric (`pip install git+https://github.com/entrylib/rubric`; `claimset` itself depends on nothing) and sends nothing: the file is validated, given the verifiability the platform sets at publication, and scored by the same rubric functions EntryLib uses (`rubric.assess`, `rubric.report`). The novelty check needs the published claims, so it runs only with `--novelty`, which sends the words of each principal claim's statement to EntryLib's public search; without it the report says novelty was not checked. A file with errors is not scored. Scoring is optional: submit as it is, or amend and score again. EntryLib scores the claimset again when it publishes it, by the rubric current then. The MCP server's `score` tool does the same for agents without a terminal.
+
+
 ```
 claimset submit paper.zip                      # a package (zip or folder) or a claimset JSON file; prints the consent link
 claimset submit https://zenodo.org/…/paper.zip # a package deposited elsewhere: the platform fetches it
 claimset status sub_…                          # pending, confirmed, publishing, published, refused or expired
 ```
 
-A local file is validated first and not sent if it has errors. The answer gives a consent link for the guarantor, who signs in with ORCID within 48 hours and confirms. The platform shows it only once, so `claimset submit` keeps the answer in `.claimset/submissions/<id>.json` (git ignores the folder) and prints the link again at the end; `claimset status` (the latest submission kept, or one by id) shows it again while pending. A guarantor without the link confirms at https://entrylib.org/confirm, signing in with ORCID. A new version of a published claimset sets `paper.id` to its identifier. `--portal` (or `$CLAIMSET_PORTAL`) names another platform. EntryLib also serves an MCP server at https://entrylib.org/mcp with `validate`, `submit` and `submission_status` tools, and a web form at https://entrylib.org/submit.
+A local file is validated first and not sent if it has errors. The answer gives a consent link for the guarantor, who signs in with ORCID within 48 hours and confirms. The platform shows it only once, so `claimset submit` keeps the answer in `.claimset/submissions/<id>.json` (git ignores the folder) and prints the link again at the end; `claimset status` (the latest submission kept, or one by id) shows it again while pending. A guarantor without the link confirms at https://entrylib.org/confirm, signing in with ORCID. A new version of a published claimset sets `paper.id` to its identifier. `--portal` (or `$CLAIMSET_PORTAL`) names another platform. EntryLib also serves an MCP server at https://entrylib.org/mcp with `validate`, `score`, `submit` and `submission_status` tools, and a web form at https://entrylib.org/submit.
 
 ## Studies in a repository
 

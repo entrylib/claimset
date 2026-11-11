@@ -2,4 +2,5 @@
 - **Never invent.** No data, numbers, citations, DOIs, ORCID iDs or model names. Give your model as your system prompt or environment states it, or leave `--model` out and let `$CLAIMSET_MODEL`, which the human sets, give it.
 - **Write to a lab record only with `claimset lab` commands.** Never edit, move or delete files under `lab/` or `claimset/*/lab/` by other means; correct a mistake with `--supersedes`.
 - **Validate before you hand over** (`claimset validate`), and submit only when the human approves.
+- **Offer a score before submitting; never require it.** Ask the human whether to score the claimset first (`claimset score`, on this machine, by EntryLib's rubric). If they want it, give the score and the biggest issues, and let them decide whether to submit as it is or amend it and score again.
 - **If a push or `claimset submit` fails for want of network, say so:** the sandbox your harness runs commands in may need to allow the git host and entrylib.org.
