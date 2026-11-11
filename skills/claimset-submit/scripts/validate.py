@@ -2683,6 +2683,9 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
         e = as_dict(e)
         check_result_lists(r, f"evidence:{e.get('id')}", as_list(e.get("results")))
 
+    # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
+    check_inline_formulae(r, coll)
+
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
     if not converted and not published and "highlights" not in paper:
@@ -2712,6 +2715,50 @@ def check_result_lists(r, where, results):
         r.warn("W40", f"{where}.results", f"{worst[0]} result entries share {worst[1]}: record them as a table, rows "
                                          f"the compared units and columns the variables, and cite its rows "
                                          f"(§3.4, Tables are the standard form)")
+
+
+#: Warning 44 (§8 rule 6): an inline formula of more symbols than this belongs on a line of its own. Symbols as a
+#: reader sees them: a LaTeX command is one (\alpha, \sum), braces, ^, _ and spaces none; about 30 fill a phone's line.
+MAX_INLINE_SYMBOLS = 30
+INLINE_FORMULA = re.compile(r"\$\$.+?\$\$|\$([^$\s][^$]*?)\$|\\\((.+?)\\\)", re.S)
+LAYOUT_COMMANDS = re.compile(r"\\(left|right|big|Big|bigg|Bigg|mathrm|mathbf|mathit|mathsf|operatorname|text|quad|,|;|!)"
+                             r"(?![A-Za-z])")
+#: The texts a formula may be written in, by list: the fields holding prose.
+FORMULA_FIELDS = {"claims": ("statement",), "definitions": ("definition",), "evidence": ("description",),
+                  "limitations": ("statement",), "warrants": ("text",), "open_questions": ("question",)}
+
+
+def formula_symbols(tex):
+    """How many symbols a formula shows, roughly: a LaTeX command is one, layout commands, braces, ^, _ and spaces
+    none (warning 44)."""
+    tex = LAYOUT_COMMANDS.sub("", tex)
+    tex = re.sub(r"\\[A-Za-z]+", "x", tex)
+    return len(re.sub(r"[{}^_\s\\]", "", tex))
+
+
+def check_inline_formulae(r, coll):
+    """Warning 44: a formula written in a sentence ($…$) that is too long for one: it cannot break, so on a narrow
+    screen it runs past the line. A model's equations and long expressions go on a line of their own ($$…$$)."""
+    def texts():
+        for lst, fields in FORMULA_FIELDS.items():
+            for x in coll.get(lst) or []:
+                x = as_dict(x)
+                for f in fields:
+                    yield f"{lst}:{x.get('id')}.{f}", x.get(f)
+                if lst == "evidence":
+                    for i, st in enumerate(as_list(x.get("steps"))):
+                        yield f"evidence:{x.get('id')}.steps[{i}].statement", as_dict(st).get("statement")
+    for where, text in texts():
+        if not isinstance(text, str):
+            continue
+        for m in INLINE_FORMULA.finditer(text):
+            tex = (m.group(1) or m.group(2) or "").strip()
+            if tex and formula_symbols(tex) > MAX_INLINE_SYMBOLS:
+                shown = tex if len(tex) <= 40 else tex[:39] + "…"
+                r.warn("W44", where, f"the formula ${shown}$ is too long for a sentence: set it on a line of its own "
+                                     "($$…$$), as a model's equations and long expressions are (§8 rule 6); in a "
+                                     "sentence it cannot break across lines")
+                break
 
 
 #: Rule 90 (§3.1): the most highlights a paper has.

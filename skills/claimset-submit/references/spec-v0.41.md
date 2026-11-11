@@ -13,6 +13,8 @@ A planned test's outcome rests on the values its quantities bind. In v0.40 a qua
 - §9: a correction or revision that restructures evidence (result entries made into a table) rebinds the test quantities in the same version.
 - `claimset migrate` brings a v0.40 file to v0.41 and lists the quantities that bind nothing or several observations, to rebind.
 
+Amended on 2026-11-11: a formula too long for a sentence is set on a line of its own. A formula written in a sentence (`$…$`) cannot break across lines: a long one runs past a phone's screen, and a reader sees a fragment. New warning 44 (an inline formula of more than 30 symbols); §8 rule 6 is unchanged.
+
 Amended on 2026-11-11: an agent says what it did in a few words. Agents put their role in their name ("Claude Code (drafting agent)", "Claude Code (correction agent)") because no field held it, and a page listing three of them read "agent" six times; the first agent, named only by its system, had no role at all.
 
 - §3.11: new optional agent field `label`: what the agent did, in a few words ("drafting", "correction", "proof checking", "JSON preparation"), shown beside its name. An agent's `name` is its system's name (Claude Code), never its role. New rule 93 (`label` is a short text, on agents only); new warning 43 (an agent's name that ends in a role in parentheses). Files that name roles in names stay valid.
@@ -1678,6 +1680,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 41. A quantity of a computed test whose outcome is `inconclusive` binds no observation of the evidence the claim's support names, or binds one without a number at its `field` (§3.3.3): an inconclusive outcome may rest on no value (a run that failed); if values were recorded, bind each quantity to its result entry or table cell. (New in v0.40, amended 2026-11-11, where it also covered what rule 91 makes an error from v0.41.)
 42. (Files of v0.40 only.) The rules of a computed test, evaluated on the values its quantities bind, give another outcome than the claim's `hypothesis.outcome`. From v0.41 this is rule 92.
 43. An agent's `name` ends in parentheses ("Claude Code (drafting agent)"): the name is the system's; what the agent did goes in `label` (§3.11).
+44. A formula written in a sentence (`$…$` or `\(…\)`) shows more than 30 symbols (a LaTeX command counts as one; braces, `^`, `_`, spacing and layout commands as none): set it on a line of its own, `$$…$$` (§8 rule 6). In a sentence it cannot break across lines, and runs past a narrow screen.
 
 ## 11. Platform dependencies
 
