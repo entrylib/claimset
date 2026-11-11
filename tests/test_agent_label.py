@@ -1,4 +1,5 @@
-"""An agent's label (claimset v0.41 §3.11, as amended on 2026-11-11): rule 93, warning 43, and the page view's icons."""
+"""An agent's label (claimset v0.41 §3.11, as amended on 2026-11-11): rule 93, warning 43, the page view, and a site's
+own way of showing people (render_parts' person)."""
 
 import copy
 import json
@@ -43,17 +44,24 @@ class TestLabel(unittest.TestCase):
         self.assertEqual(len(found(with_people(P1={"name": "Claude Code (drafting agent)"}), "W43")), 1)
         self.assertEqual(found(with_people(P2={"name": "A. Researcher (Lancaster)"}), "W43"), [])   # people as written
 
-    def test_the_page_view_gives_icons_and_the_label(self):
+    def test_the_page_view_gives_the_label(self):
         header = html.render_parts(with_people(P1={"name": "Claude Code", "label": "drafting"}))["header"]
         authors = re.search(r'<p class="cs-authors">.*?</p>', header, re.S).group(0)
-        self.assertIn('aria-label="AI agent"', authors)
-        self.assertIn('Claude Code <span class="cs-label">· drafting</span>', authors)
-        self.assertNotIn("(AI agent)", header)
-        guarantor = re.search(r'<p class="cs-guarantor">.*?</p>', header, re.S).group(0)
-        self.assertNotIn("<svg", guarantor)                                     # guarantors are named plainly
+        self.assertIn('Claude Code <span class="cs-label">· drafting</span> (AI agent)', authors)
         plain = html.render_parts(with_people(P1={"name": "Claude Code"}))["header"]
         self.assertNotIn("cs-label", plain)
 
+    def test_a_site_shows_people_its_own_way(self):
+        """render_parts(person=…): the site draws each person and agent in the header; None keeps the default."""
+        seen = []
+
+        def person(c, where):
+            seen.append((c.get("id"), where))
+            return f'<b class="who">{html.esc(c.get("name"))}</b>' if c.get("type") == "agent" else None
+        header = html.render_parts(with_people(P1={"name": "Claude <x>"}), person=person)["header"]
+        self.assertIn('Authors: <b class="who">Claude &lt;x&gt;</b>', header)
+        self.assertIn('orcid-verified', header)                               # the guarantor: the default
+        self.assertEqual(sorted(seen), [("P1", "author"), ("P2", "guarantor")])
 
 if __name__ == "__main__":
     unittest.main()
