@@ -6,7 +6,7 @@ The lab record is an append-only, hash-chained log of questions, hypotheses, pla
 
 ```
 claimset setup --study forecasting --title "Working title" --repository https://github.com/…
-claimset lab actor --kind agent --name "Research agent" --model "Anthropic|Claude Opus|5.5"   # -> AC1; the harness is recorded too
+claimset lab actor --kind agent --name "Claude Code" --label "research" --model "Anthropic|Claude Opus|5.5"   # -> AC1; the harness is recorded too
 export CLAIMSET_ACTOR=AC1
 claimset lab question "Does X improve Y?"
 claimset lab hypothesis "X improves Y on monthly series." --question Q1

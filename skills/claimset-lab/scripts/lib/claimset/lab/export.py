@@ -253,6 +253,8 @@ class _Exporter:
                     c["ai_tasks"] = [{"task": "review", "extent": "full"}]
                 if b.get("system"):
                     c["system"] = dict(b["system"])
+                if b.get("label"):
+                    c["label"] = b["label"]
                 if b.get("record_source"):
                     c["record_source"] = b["record_source"]
             else:

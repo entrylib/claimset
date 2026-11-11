@@ -31,6 +31,8 @@ SCHEMA_VERSION = "0.41"
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
 #: The first version the platform accepts (spec §2.6): set at launch, 2026-11-09. Never lowered or raised.
 BASELINE_VERSION = "0.39"
+#: The longest an agent's `label` may be (§3.11, rule 93); the lab record's actors follow it.
+LABEL_MAX = 60
 
 
 def baseline_version():
@@ -3400,6 +3402,15 @@ def validate_contributors(r, contributors, paper, ref, converted):
         if "supervisor" in pos and t != "human":
             r.err("15", w, "supervisor is held only by humans")
 
+        label = p.get("label")
+        if label is not None:                               # rule 93 (v0.41): a short text, on agents only
+            if t != "agent":
+                r.err("93", f"{w}.label", "only agents have a label; a person's role is in positions and credit_roles")
+            elif not isinstance(label, str) or not 1 <= len(label.strip()) <= LABEL_MAX:
+                r.err("93", f"{w}.label", "a label is a text of 1 to 60 characters saying what the agent did")
+        if t == "agent" and isinstance(p.get("name"), str) and re.search(r"\([^()]*\)\s*$", p["name"]):
+            r.warn("W43", f"{w}.name", "an agent's name is its system's name; put what it did in label, e.g. "
+                                       "name \"Claude Code\", label \"drafting\"")
         if t == "agent":
             models = [as_dict(m) for m in as_list(p.get("models"))]
             if not models:

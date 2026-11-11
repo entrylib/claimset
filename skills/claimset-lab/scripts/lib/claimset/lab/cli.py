@@ -213,7 +213,7 @@ def cmd_actor(args):
     elif args.system:
         raise LabError("schema", "actor: --system is the harness an agent runs in; people and organisations have none")
     body = {"kind": args.kind, "name": args.name, "orcid": args.orcid, "models": models or None,
-            "system": _clean(system) if system else None,
+            "system": _clean(system) if system else None, "label": args.label,
             "record_source": record_source, "words": args.words, "given_at": args.given_at,
             "channel": args.channel}
     event = lab.append("actor", _clean(body), by=by, supersedes=args.supersedes)
@@ -910,6 +910,8 @@ def add_parser(subparsers):
                         "set by the human; recorded as user_reported)")
     p.add_argument("--system", metavar="NAME[|VERSION[|URI]]",
                    help="the harness the agent runs in (default: the one that identifies itself in the environment)")
+    p.add_argument("--label", help="an agent: what it does here, in a few words (drafting, proof checking); "
+                                   "--name stays the system's name")
     p.add_argument("--orcid")
     p.add_argument("--record-source", choices=["harness", "user_reported", "self_reported"])
     p.add_argument("--words", help="an agent registering a person: the person's reply giving their name (and ORCID "
