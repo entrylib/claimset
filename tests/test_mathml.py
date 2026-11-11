@@ -78,3 +78,28 @@ class TestLongFormulae(unittest.TestCase):
         self.assertIn('math[display="block"] { margin: 10px 0; max-width: 100%; overflow-x: auto;', css)
         self.assertIn("@media (max-width: 640px) { math { max-width: 100%; overflow-x: auto;", css)
         self.assertIn(".cs-brief li > span:last-child { min-width: 0; }", css)
+
+
+class TestLongInlineFormula(unittest.TestCase):
+    """Warning 44 (v0.41 as amended on 2026-11-11, §8 rule 6): a formula too long for a sentence."""
+
+    def warnings(self, statement):
+        import copy
+        import json
+        from importlib import resources
+        from claimset import validate as V
+        d = json.loads((resources.files("claimset") / "data" / "examples" / "submission-native.json").read_text())
+        d = copy.deepcopy(d)
+        d["claims"][0]["statement"] = statement
+        return [w for w in V.validate(d).warnings if w["rule"] == "W44"]
+
+    def test_a_long_formula_in_a_sentence(self):
+        long = r"$\sum_{O_t=1}\log f(z_t\mid Y_{t-1};\theta)+\sum_{O_t=1}\log p_t+\sum_{O_t=0}\log(1-p_t)$"
+        self.assertEqual(len(self.warnings(f"The likelihood is {long}.")), 1)
+        self.assertEqual(self.warnings(f"The likelihood is $${long[1:-1]}$$."), [])        # on a line of its own
+        self.assertEqual(self.warnings(r"With $\epsilon_t \sim N(0, \sigma^2)$ the errors are normal."), [])
+
+    def test_symbols_as_a_reader_sees_them(self):
+        from claimset.validate import formula_symbols
+        self.assertEqual(formula_symbols(r"\left(x_{t}\right)"), 4)              # ( x t )
+        self.assertEqual(formula_symbols(r"\alpha + \beta"), 3)
