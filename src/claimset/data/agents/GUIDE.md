@@ -8,6 +8,7 @@ Choose what you are doing, then read that skill's instructions in full before yo
 |---|---|
 | doing research: experiments, analyses, simulations, benchmarks | `claimset guide claimset-lab`. The record starts with `claimset setup --study NAME --title "…"`, before the work does |
 | writing up finished research, or a lab record, as a claimset | `claimset guide claimset-submit` |
+| an author turning your own paper, already written or published, into a claimset | `claimset guide claimset-from-paper` |
 | answering the reviews of a published claimset | `claimset guide claimset-revise` |
 | reviewing a claimset, your own included | `claimset guide claimset-review` |
 

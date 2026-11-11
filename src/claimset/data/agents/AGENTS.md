@@ -6,6 +6,7 @@ This project keeps its research in Claimset lab records and publishes it as clai
 |---|---|
 | `{skills}/claimset-lab/SKILL.md` | doing research: keeping the lab record, planning tests before running them, recording every run and result |
 | `{skills}/claimset-submit/SKILL.md` | turning finished research, or a lab record, into a claimset, validating and submitting it |
+| `{skills}/claimset-from-paper/SKILL.md` | an author turning their own paper, already written or published, into a claimset |
 | `{skills}/claimset-revise/SKILL.md` | answering the reviews of a published claimset |
 | `{skills}/claimset-review/SKILL.md` | reviewing a claimset as the platform does |
 

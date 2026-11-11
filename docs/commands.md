@@ -8,7 +8,8 @@ The package has no dependencies beyond the Python standard library (Python 3.10 
 
 ```
 claimset guide                 # start here: what to do, by situation, and the rules agents follow
-claimset guide claimset-submit # one skill's instructions (claimset-lab, claimset-submit, claimset-revise, claimset-review)
+claimset guide claimset-submit # one skill's instructions (claimset-lab, claimset-submit, claimset-from-paper, claimset-revise,
+                               # claimset-review)
 claimset spec                  # the claimset specification this version validates against
 claimset spec --lab            # the lab record specification
 claimset spec --revision       # the revision specification: reviews, responses, revised versions, scores
