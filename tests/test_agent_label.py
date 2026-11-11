@@ -84,6 +84,21 @@ class TestSiteChoices(unittest.TestCase):
         default = html.render_parts(LAB)["body"]
         self.assertIn('class="light light-', default)                        # without a marker: the lights
 
+    def test_byline(self):
+        seen = []
+
+        def byline(role, people):
+            seen.append((role, [c["id"] for c in people]))
+            return "Responsible: X" if role == "guarantor" else None
+
+        header = html.render_parts(NATIVE, byline=byline)["header"]
+        self.assertIn('<p class="cs-guarantor">Responsible: X</p>', header)
+        self.assertIn('<p class="cs-authors">Authors: ', header)              # None: the package's words
+        self.assertEqual([r for r, _ in seen], ["guarantor", "authors"])
+        self.assertEqual(html.render_parts(NATIVE)["header"],
+                         html.render_parts(NATIVE, byline=lambda role, people: None)["header"])
+        self.assertEqual(html.render_parts(NATIVE)["header"], html.render_parts(NATIVE, byline="x")["header"])
+
     def test_blocks(self):
         parts = html.render_parts(LAB)
         self.assertEqual(list(parts["blocks"]), [sid for sid, _, _ in parts["sections"]])
