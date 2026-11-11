@@ -17,6 +17,7 @@ Amended on 2026-11-11: an agent says what it did in a few words. Agents put thei
 
 - §3.11: new optional agent field `label`: what the agent did, in a few words ("drafting", "correction", "proof checking", "JSON preparation"), shown beside its name. An agent's `name` is its system's name (Claude Code), never its role. New rule 93 (`label` is a short text, on agents only); new warning 43 (an agent's name that ends in a role in parentheses). Files that name roles in names stay valid.
 - The page view (`claimset render --html`) shows an agent's label after its name (`Claude Code · drafting (AI agent)`). How people are drawn is a site's choice: `render_parts(person=…)` lets it show them its own way (EntryLib draws icons).
+- The page view writes the file's vocabularies in words (a claim's scope, novelty and verification, a test's outcome and weaknesses, dates), and a site may mark claims its own way and link each to a page of its own (`render_parts(marker=…, claim_url=…)`). The reading view, for models, keeps the values.
 - Lab record v0.21: `claimset lab actor --label` records it, and export carries it.
 
 Amended on 2026-11-11: a claimset submitted alone, outside a package, names no packaged file (§2.5, rule 70). The platform's file route had accepted such a claimset with no error, and would have published it without the files its artefacts name. Amended again on 2026-11-11: an agent that can neither send a file nor reach a public URL gives the platform's MCP server the claimset with the contents of its files, and the platform builds the package from them.

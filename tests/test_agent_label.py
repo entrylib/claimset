@@ -65,3 +65,33 @@ class TestLabel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+LAB = json.loads((resources.files("claimset") / "data" / "examples" / "submission-from-lab.json").read_text("utf-8"))
+
+
+class TestSiteChoices(unittest.TestCase):
+    """What a site decides through render_parts: what marks a claim, a claim's own page, how sections are arranged."""
+
+    def test_marker_and_claim_url(self):
+        parts = html.render_parts(LAB, marker=lambda c, where: ("<b>S</b>", " · after") if where == "claim" else "<i>s</i>",
+                                  claim_url=lambda cid: f"/p/x/{cid}" if cid == "C2" else "javascript:x")
+        c2 = re.search(r'<div class="cs-item cs-claim[^"]*" id="C2"><p class="cs-claim-meta">(.*?)</p>', parts["body"])
+        self.assertTrue(c2.group(1).startswith('<b>S</b><a class="cs-claim-page" href="/p/x/C2">C2</a>'))
+        self.assertTrue(c2.group(1).endswith(" · after"))
+        self.assertNotIn("javascript:", parts["body"])                       # only safe addresses are linked
+        self.assertNotIn('class="light light-', re.search(r'<ul class="cs-brief">.*?</ul>', parts["body"], re.S).group(0))
+        default = html.render_parts(LAB)["body"]
+        self.assertIn('class="light light-', default)                        # without a marker: the lights
+
+    def test_blocks(self):
+        parts = html.render_parts(LAB)
+        self.assertEqual(list(parts["blocks"]), [sid for sid, _, _ in parts["sections"]])
+        self.assertEqual("\n".join(parts["blocks"].values()), parts["body"])
+
+    def test_vocabularies_in_words(self):
+        body = html.render_parts(LAB)["body"]
+        self.assertNotRegex(body, r"\bdata_type:|Verdict:|code_changed_after_plan|planned \d{4}-\d\d-\d\dT")
+        self.assertIn("Outcome:</span> computed from the recorded results", body)
+        self.assertEqual(html._date("2026-11-05T11:37:01Z"), "5 November 2026")
+        self.assertEqual(html._date("soon"), "soon")

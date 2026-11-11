@@ -1,6 +1,7 @@
 """The page view: a claimset as HTML for people (spec §2.3), in the order of the paper's argument.
 
-    render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None) -> HTML fragments: header,
+    render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None, marker=None,
+                 claim_url=None) -> HTML fragments: header,
                                        nav, body (and the title, the origin label, the brief, the sections)
     render_html(doc)  -> a whole page, with the stylesheet inline, for previewing a claimset locally
     origin(doc)       -> the origin label: lab, lab · record withheld, converted or native
@@ -52,6 +53,23 @@ SUPPORT_LABELS = {"empirical_quant": "Data", "empirical_qual": "Qualitative data
                   "argument": "Argument", "cited": "Cited", "expert_judgement": "Expert judgement",
                   "consensus": "Consensus", "unstated": "Support not stated"}
 
+#: The file's vocabularies as a reader would say them (the reading view, for models, keeps the values).
+SCOPE_WORDS = {"population": "population", "setting": "setting", "geography": "where", "language": "language",
+               "period": "period", "data_type": "data", "conditions": "conditions", "excludes": "not for"}
+NOVELTY_WORDS = {"replication": "replicates earlier work", "extension": "extends earlier work",
+                 "refutation": "refutes earlier work"}
+VERIFICATION_WORDS = {"machine_checked": "checked by a proof assistant", "agent_checked": "checked by an agent",
+                      "peer_checked": "checked by a person", "disputed": "disputed", "unchecked": "not checked"}
+VERDICT_WORDS = {"computed": "computed from the recorded results", "judged": "judged by the writer"}
+FLAG_WORDS = {"code_changed_after_plan": "the code changed after the plan",
+              "holdout_used_elsewhere": "the held-out data was used elsewhere",
+              "reproduces_prompting_result": "it repeats the result that suggested it",
+              "sources_captured_after_plan": "sources were captured after the plan",
+              "coded_before_plan": "material was coded before the plan",
+              "codebook_changed_after_plan": "the codebook changed after the plan"}
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December"]
+
 #: Lights (§2.3 of the website design): from the claim's verifiability and the kinds of its support.
 LIGHTS = {"green": "checkable", "amber": "supported, not checkable", "red": "unsupported"}
 NOT_CHECKABLE = {"argument", "cited", "expert_judgement", "consensus"}
@@ -70,6 +88,12 @@ def math(tex, display=False):
 
 def esc(x):
     return html.escape(x if isinstance(x, str) else _s(x), quote=True)
+
+
+def _safe_url(url):
+    """An address a site gives for a link (a path on the site or an http(s) address), safe to put in an attribute."""
+    return (url.startswith("/") and not url.startswith("//") or url.startswith(("https://", "http://"))) \
+        and not any(ch in url for ch in "\"'<> ")
 
 
 def _href(uri):
@@ -98,7 +122,9 @@ class _Paper:
 
     def __init__(self, doc, file_url=None, ref_text=None):
         self.doc = doc
-        self.person = None                                  # the site's way of showing people (render_parts)
+        self.person = None                                  # the site's choices (render_parts): people,
+        self.marker = None                                  # what marks a claim,
+        self.claim_url = None                               # and a claim's own page
         self.file_url = file_url
         self.ref_text = ref_text
         self.paper = doc.get("paper") if isinstance(doc.get("paper"), dict) else {}
@@ -175,6 +201,24 @@ class _Paper:
         if v == "audit_only" or kinds <= NOT_CHECKABLE:
             return "amber"
         return "green"
+
+    def mark(self, c, where):
+        """What comes before a claim (`where`: `claim` or `brief`) and after its meta line: the site's (`marker`,
+        render_parts), or the claim's support light before and nothing after."""
+        if self.marker is not None:
+            shown = self.marker(c, where)
+            if isinstance(shown, str):
+                return shown, ""
+            if isinstance(shown, tuple) and len(shown) == 2 and all(isinstance(x, str) for x in shown):
+                return shown
+        return self.lamp(c), ""
+
+    def claim_id(self, c):
+        """A claim's ID in its meta line: linked to the claim's own page when the site gives one (`claim_url`)."""
+        url = self.claim_url(c["id"]) if self.claim_url is not None else None
+        if isinstance(url, str) and _safe_url(url):
+            return f'<a class="cs-claim-page" href="{esc(url)}">{esc(c["id"])}</a>'
+        return esc(c["id"])
 
     def lamp(self, c):
         light = self.light(c)
@@ -501,6 +545,7 @@ def _support(P, c):
 
 
 def _scope(sc):
+    """A claim's scope in words: "data: M4 yearly series; conditions: backcasting, smooth 1.3.0"."""
     if not isinstance(sc, dict):
         return ""
     out = []
@@ -508,21 +553,35 @@ def _scope(sc):
         vals = v if isinstance(v, list) else [v]
         vals = [_s(x) for x in vals if x not in (None, "")]
         if vals:
-            out.append(f"{k}: " + "; ".join(vals))
-    return " | ".join(out)
+            out.append(f"{SCOPE_WORDS.get(k, _words(k))}: " + ", ".join(vals))
+    return "; ".join(out)
+
+
+def _words(x):
+    """A value of the file's vocabularies as words: code_changed_after_plan -> code changed after plan."""
+    return _s(x).replace("_", " ")
+
+
+def _date(x):
+    """An ISO date or time as a reader's date: 2026-11-05T11:37:01Z -> 5 November 2026; anything else as written."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?", _s(x).strip())
+    if not m or not 1 <= int(m.group(2)) <= 12:
+        return _s(x)
+    return f"{int(m.group(3))} {MONTHS[int(m.group(2)) - 1]} {m.group(1)}"
 
 
 def _claim(P, c, principal=False):
-    head = [esc(c["id"]), esc(c.get("type"))]
-    if c.get("novelty") and c.get("novelty") not in ("no_prior_found",):
-        head.append(esc(c["novelty"]))
+    head = [P.claim_id(c), esc(c.get("type"))]
+    if NOVELTY_WORDS.get(c.get("novelty")):
+        head.append(NOVELTY_WORDS[c["novelty"]])
     if c.get("planning") == "confirmatory":
         head.append("planned test")
-    lines = [f'<p class="cs-claim-meta">{P.lamp(c)}' + " · ".join(h for h in head if h) + "</p>",
+    before, after = P.mark(c, "claim")
+    lines = [f'<p class="cs-claim-meta">{before}' + " · ".join(h for h in head if h) + f"{after}</p>",
              f'<p class="cs-statement">{P.text(c.get("statement", ""))}</p>']
     links = []
     if c.get("scope"):
-        links.append(f'<span class="k">Scope:</span> {esc(_scope(c["scope"]))}')
+        links.append(f'<span class="k">Scope:</span> {P.text(_scope(c["scope"]))}')
     sup = _support(P, c)
     if sup:
         links.append(" · ".join(sup))
@@ -544,18 +603,20 @@ def _claim(P, c, principal=False):
     if c.get("warrant"):
         links.append('<span class="k">Warrant:</span> ' + P.ids([c["warrant"]]))
     if c.get("verification"):
-        links.append(f'<span class="k">Verification:</span> {esc(c["verification"])}')
+        links.append(f'<span class="k">Verification:</span> '
+                     f'{esc(VERIFICATION_WORDS.get(c["verification"], _words(c["verification"])))}')
     t = c.get("test")
     if isinstance(t, dict):
         plan = _join([f"lab plan {t['lab_plan']}" if t.get("lab_plan") else "",
                       f"registered {t['registration']}" if t.get("registration") else "",
-                      f"planned {c['planned_at']}" if c.get("planned_at") else ""], ", ")
+                      f"planned {_date(c['planned_at'])}" if c.get("planned_at") else ""], ", ")
         if plan:
             links.append(f'<span class="k">Planned:</span> {esc(plan)}')
         if t.get("verdict"):
-            links.append(f'<span class="k">Verdict:</span> {esc(t["verdict"])}')
+            links.append(f'<span class="k">Outcome:</span> {esc(VERDICT_WORDS.get(t["verdict"], _words(t["verdict"])))}')
         if t.get("flags"):
-            links.append(f'<span class="k">Flags:</span> {esc(", ".join(map(str, t["flags"])))}')
+            links.append('<span class="k">Weaknesses:</span> '
+                         + esc("; ".join(FLAG_WORDS.get(f, _words(f)) for f in t["flags"])))
     if not principal:
         used = P.users(c["id"])
         if used:
@@ -718,7 +779,8 @@ def _section(sid, title, items, intro=""):
     return (f'<section class="cs-section" id="{sid}"><h2>{title}</h2>{intro}' + "\n".join(items) + "</section>")
 
 
-def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None):
+def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None, marker=None,
+                 claim_url=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
@@ -732,7 +794,11 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, pe
     (id, title, count), for a site that builds its own navigation instead of using `nav`. How people are shown is the
     site's choice too: `person(contributor, where)` returns the HTML for a person or agent in the header (`where`:
     `guarantor`, `author`, `converter`, `source_author`), escaping what it takes from the file, or None for the
-    default (a name, a person's ORCID link, an agent's label and "(AI agent)")."""
+    default (a name, a person's ORCID link, an agent's label and "(AI agent)"). `marker(claim, where)` gives what
+    marks a claim (`where`: `claim`, before its meta line, or `brief`, before its statement In brief): HTML, or a pair
+    (before, after the meta line), or None for its support light. `claim_url(id)` gives the address of a claim's own
+    page, which its ID then links to, or None. `blocks` holds each section's HTML by its id, for a site that arranges
+    the sections itself."""
     if callable(number):
         rounding = number
     elif isinstance(digits, int) and not isinstance(digits, bool) and digits > 0:
@@ -741,14 +807,16 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, pe
         rounding = None
     token = DIGITS.set(rounding)
     try:
-        return _render_parts(doc, file_url, ref_text, person)
+        return _render_parts(doc, file_url, ref_text, person, marker, claim_url)
     finally:
         DIGITS.reset(token)
 
 
-def _render_parts(doc, file_url, ref_text, person=None):
+def _render_parts(doc, file_url, ref_text, person=None, marker=None, claim_url=None):
     P = _Paper(doc, file_url, ref_text)
     P.person = person if callable(person) else None
+    P.marker = marker if callable(marker) else None
+    P.claim_url = claim_url if callable(claim_url) else None
     source_link = ""
     cf = P.paper.get("converted_from")
     if isinstance(cf, dict) and isinstance(cf.get("source_id"), str):
@@ -760,7 +828,7 @@ def _render_parts(doc, file_url, ref_text, person=None):
         if x in P.defs:                                     # a term the paper introduces (highlights, §3.1)
             return (f'<li class="cs-brief-term"><span class="light"></span><span><strong>{esc(x.get("term", ""))}</strong>: '
                     f'{P.text(x.get("definition", ""))} <a class="cs-id" href="#{esc(oid)}">{esc(oid)}</a></span></li>')
-        return (f'<li>{P.lamp(x)}<span>{P.text(x.get("statement", ""))} '
+        return (f'<li>{P.mark(x, "brief")[0]}<span>{P.text(x.get("statement", ""))} '
                 f'<a class="cs-id" href="#{esc(oid)}">{esc(oid)}</a></span></li>')
     brief_items = [brief_item(oid) for oid in brief_ids]
     principal = [c for c in P.claims if c.get("role") == "principal" and not P.is_assumption(c)]
@@ -849,11 +917,12 @@ def _render_parts(doc, file_url, ref_text, person=None):
               "supporting": len(supporting), "evidence": len(P.evidence) + len(P.warrants),
               "limitations": len(P.limitations), "questions": len(P.questions), "references": len(P.refs),
               "artefacts": len(P.artefacts)}
-    body, nav, shown = [], [], []
+    body, nav, shown, blocks = [], [], [], {}
     for sid, title, items in sections:
         part = _definitions(P) if items is None else _section(sid, title, items)
         if part:
             body.append(part)
+            blocks[sid] = part
             n = counts.get(sid)
             nav.append(f'<li><a href="#{sid}">{title}</a>' + (f' <span class="count">{n}</span>' if n else "") + "</li>")
             shown.append((sid, title, n or 0))
@@ -861,7 +930,7 @@ def _render_parts(doc, file_url, ref_text, person=None):
             "header": _header(P),
             "nav": '<nav class="cs-toc" aria-label="Sections of the claimset"><p class="cs-toc-title">On this page</p>'
                    f'<ol>{"".join(nav)}</ol></nav>',
-            "body": "\n".join(body), "sections": shown,
+            "body": "\n".join(body), "sections": shown, "blocks": blocks,
             "lights": {lt: sum(1 for c in P.claims if P.light(c) == lt) for lt in LIGHTS}}
 
 
