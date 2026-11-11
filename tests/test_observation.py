@@ -105,3 +105,16 @@ class TestObservation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SupportVocabularyTest(unittest.TestCase):
+    """The support kinds' profiles and the kinds that hold results are defined once, for converters and tools to
+    import (AGENTS.md: a list the format defines lives in validate.py and is imported, never copied)."""
+
+    def test_support_profile_and_result_support(self):
+        from claimset.validate import ENUM, RESULT_SUPPORT, SUPPORT_PROFILE
+        self.assertLessEqual(set(SUPPORT_PROFILE), ENUM["support_kind"])
+        self.assertLessEqual(set(SUPPORT_PROFILE.values()), ENUM["profile"])
+        self.assertEqual(set(SUPPORT_PROFILE.values()), ENUM["profile"])          # every profile has its support
+        self.assertLessEqual(RESULT_SUPPORT, set(SUPPORT_PROFILE))
+        self.assertEqual(SUPPORT_PROFILE["empirical_obs"], "observation")
