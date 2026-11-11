@@ -13,7 +13,7 @@ A planned test's outcome rests on the values its quantities bind. In v0.40 a qua
 - §9: a correction or revision that restructures evidence (result entries made into a table) rebinds the test quantities in the same version.
 - `claimset migrate` brings a v0.40 file to v0.41 and lists the quantities that bind nothing or several observations, to rebind.
 
-Amended on 2026-11-11: a claimset submitted alone, outside a package, names no packaged file (§2.5, rule 70). The platform's file route had accepted such a claimset with no error, and would have published it without the files its artefacts name.
+Amended on 2026-11-11: a claimset submitted alone, outside a package, names no packaged file (§2.5, rule 70). The platform's file route had accepted such a claimset with no error, and would have published it without the files its artefacts name. Amended again on 2026-11-11: an agent that can neither send a file nor reach a public URL gives the platform's MCP server the claimset with the contents of its files, and the platform builds the package from them.
 
 ## Changes in v0.40 (since v0.39)
 
@@ -538,7 +538,7 @@ data/
 
 - An artefact held in the package has a `uri` relative to `data/` (`"files/fig3.png"`) and `version` `sha256:` followed by the file's checksum, which equals the manifest's.
 - An artefact held elsewhere (a commit on a git host, a data repository, a DOI) is not packaged: it keeps its `uri` and `version` as before, and the platform archives it (§3.6).
-- A package with no files is the claimset file alone, which may be submitted as it is. A claimset file submitted alone, outside a package, has no artefact whose `uri` is a relative path: the file it names would not reach the platform, which refuses the submission (rule 70) rather than publish the paper without its files. `claimset submit` packages such a claimset before it sends it; a submission by URL or through the platform's MCP server gives the package (`package_url`), or names every file by an https URL where it is deposited.
+- A package with no files is the claimset file alone, which may be submitted as it is. A claimset file submitted alone, outside a package, has no artefact whose `uri` is a relative path: the file it names would not reach the platform, which refuses the submission (rule 70) rather than publish the paper without its files. `claimset submit` packages such a claimset before it sends it; a submission by URL gives the package (`package_url`). Through the platform's MCP server, the claimset may instead be sent with the contents of the files it names (`files`: each file's `uri` with its text, or its bytes in base64), from which the platform builds the package as `claimset package` does; a file whose checksum differs from the `version` its artefact records is refused, since it is not the file the claimset describes. Otherwise every file is named by an https URL where it is deposited.
 - At publication the platform stores each packaged file by its checksum, so a correction or revision that keeps a file stores it once, and replaces its relative `uri` with the file's permanent location (§2.2). A published file names no relative paths.
 - In a repository, a paper's files live in its study folder, `claimset/<study>/files/` (§2.4), and the package is built from there (`claimset package`, which copies the files, sets each `version` and writes the manifest).
 - **Limits.** The platform accepts a package within these limits, and `claimset package` and `claimset validate` apply the same ones (rule 77):

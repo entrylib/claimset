@@ -1706,6 +1706,29 @@ class TestPackage(Base):
             with self.assertRaises(PackageError):
                 build(self.src, Path(self.tmp.name) / f"bag-{len(uri)}")
 
+    def test_built_from_contents_sent_without_a_folder(self):
+        """§2.5 as amended: the platform's MCP server builds the package from the claimset and its files' contents."""
+        from claimset.package import PackageError, build_from, sha256
+        from claimset.validate import validate_path
+        d = json.loads(self.src.read_text())
+        out = Path(self.tmp.name) / "sent.zip"
+        changes, files = build_from(d, {"files/fig1.png": b"image bytes"}, out)
+        self.assertEqual(files, ["files/fig1.png"])
+        self.assertEqual(validate_path(str(out)).errors, [])
+        d["artefacts"][-1]["version"] = f"sha256:{sha256(self.dir / 'files' / 'fig1.png')}"
+        build_from(d, {"files/fig1.png": b"image bytes"}, Path(self.tmp.name) / "same.zip")   # the recorded file
+        refusals = [({"files/fig1.png": b"image bytez"}, "not the file the claimset describes"),
+                    ({}, "were not sent"),
+                    ({"files/fig1.png": b"image bytes", "files/other.csv": b"a"}, "no artefact names files/other.csv")]
+        for i, (sent, words) in enumerate(refusals):
+            with self.assertRaisesRegex(PackageError, words):
+                build_from(d, sent, Path(self.tmp.name) / f"refused-{i}.zip")
+        d["artefacts"][-1]["uri"] = "../outside.png"
+        with self.assertRaises(PackageError):
+            build_from(d, {"../outside.png": b"x"}, Path(self.tmp.name) / "outside.zip")
+        with self.assertRaises(PackageError):
+            build_from(d, {}, Path(self.tmp.name) / "named.zip", name="../x.json")
+
     def test_cli(self):
         out = Path(self.tmp.name) / "cli.zip"
         buf = io.StringIO()
