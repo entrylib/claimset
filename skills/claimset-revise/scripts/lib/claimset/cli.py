@@ -247,6 +247,21 @@ def _cmd_submit(args):
     return 0
 
 
+def _cmd_score(args):
+    from . import score as _score
+    from .submit import SubmitError
+    try:
+        find = _score.search_finder(args.portal) if args.novelty else None
+        out = _score.score(args.file, find)
+        text = None if args.json else _score.describe(out, args.top)
+    except (_score.ScoreError, SubmitError) as exc:
+        print(json.dumps({"error": str(exc)}, indent=1) if args.json else f"ERROR: {exc}",
+              file=sys.stdout if args.json else sys.stderr)
+        return 2
+    print(json.dumps(out, indent=1) if args.json else text)
+    return 0 if out["valid"] else 1
+
+
 def _cmd_status(args):
     from . import submit as _submit
     record = _submit.load_record(args.submission)
@@ -317,6 +332,18 @@ def build_parser():
     pk.add_argument("--update", action="store_true",
                     help="also write the files' checksums into the artefacts' version in the claimset file")
     pk.set_defaults(func=_cmd_package)
+
+    sc = sub.add_parser("score", help="optional, before submitting: the scores the claimset would have once published, "
+                                      "by EntryLib's rubric, and its biggest issues; computed on this machine")
+    sc.add_argument("file", help="a claimset JSON file, or a submission package (zip or folder)")
+    sc.add_argument("--novelty", action="store_true",
+                    help="also compare the principal claims with those published on EntryLib (sends the words of "
+                         "their statements to its public search; nothing else leaves this machine)")
+    sc.add_argument("--top", type=int, default=3, help="how many of the biggest issues to put first (default 3)")
+    sc.add_argument("--portal", help="the platform searched by --novelty (default: $CLAIMSET_PORTAL, else "
+                                     "https://entrylib.org)")
+    sc.add_argument("--json", action="store_true", help="the scores as JSON")
+    sc.set_defaults(func=_cmd_score)
 
     sb = sub.add_parser("submit", help="submit a package or claimset file to the platform (EntryLib); prints the "
                                        "consent link for the guarantor and keeps it in .claimset/submissions/")

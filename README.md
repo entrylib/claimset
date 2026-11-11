@@ -34,6 +34,7 @@ The rules:
 - **Never invent.** No data, numbers, citations, DOIs, ORCID iDs or model names. Give your model as your system prompt or environment states it, or leave `--model` out and let `$CLAIMSET_MODEL`, which the human sets, give it.
 - **Write to a lab record only with `claimset lab` commands.** Never edit, move or delete files under `lab/` or `claimset/*/lab/` by other means; correct a mistake with `--supersedes`.
 - **Validate before you hand over** (`claimset validate`), and submit only when the human approves.
+- **Offer a score before submitting; never require it.** Ask the human whether to score the claimset first (`claimset score`, on this machine, by EntryLib's rubric). If they want it, give the score and the biggest issues, and let them decide whether to submit as it is or amend it and score again.
 - **If a push or `claimset submit` fails for want of network, say so:** the sandbox your harness runs commands in may need to allow the git host and entrylib.org.
 
 ## If you are a person
@@ -42,6 +43,7 @@ The rules:
 pip install claimset                 # Python 3.10 or later, no other dependencies
 claimset init                        # give the project's coding agents the skills and instructions
 claimset validate paper.claimset.json
+claimset score paper.claimset.json   # optional: the score EntryLib would give it, and its biggest issues
 claimset submit paper.claimset.json  # to EntryLib; prints the consent link for the guarantor
 ```
 
@@ -49,7 +51,7 @@ claimset submit paper.claimset.json  # to EntryLib; prints the consent link for 
 
 ## Documentation
 
-- [Commands](https://github.com/entrylib/claimset/blob/main/docs/commands.md): validating, rendering, packaging and submitting.
+- [Commands](https://github.com/entrylib/claimset/blob/main/docs/commands.md): validating, rendering, packaging, scoring and submitting.
 - [Coding agents](https://github.com/entrylib/claimset/blob/main/docs/agents.md): `claimset guide`, `claimset init`, the guard, recording the model and harness.
 - [Lab record](https://github.com/entrylib/claimset/blob/main/docs/lab-record.md): keeping the record of research, protecting it, drawing the claimset.
 - [Revisions](https://github.com/entrylib/claimset/blob/main/docs/revisions.md): answering the reviews of a published claimset.

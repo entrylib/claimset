@@ -2809,6 +2809,34 @@ def _zip_problems(z):
     return out + package_problems(payload)
 
 
+def with_verifiability(doc, computed=None):
+    """A copy of a claimset with what the platform sets on each claim at publication (§5): `verifiability` and
+    `verifiability_flags`, from a validation report's `computed` (validated here when not given). The file as it would
+    be published, for scoring it; nothing else changes."""
+    out = json.loads(json.dumps(doc))
+    if computed is None:
+        computed = validate(out).computed
+    for c in as_list(out.get("claims")):
+        values = computed.get(c.get("id")) if isinstance(c, dict) else None
+        if isinstance(values, dict):
+            c.update({k: values[k] for k in ("verifiability", "verifiability_flags") if k in values})
+    return out
+
+
+def standalone_problems(doc):
+    """Rule 70 for a claimset submitted alone, outside a package (§2.5): the artefacts that name a file by a
+    relative path, which would not reach the platform. [{rule, where, message}]; empty when every file is named by
+    an https URL or there is none."""
+    doc = doc if isinstance(doc, dict) else {}
+    named = [(as_dict(a).get("id"), as_dict(a).get("uri")) for a in as_list(doc.get("artefacts"))
+             if is_relative_uri(as_dict(a).get("uri"))]
+    return [{"rule": "70", "where": f"artefacts:{aid}.uri",
+             "message": f"{uri} is a file of a package, but the claimset was submitted alone: the file would not "
+                        f"reach the platform. Submit the package (`claimset package`, then `claimset submit` of it, "
+                        f"or its https URL as package_url), or name the file by an https URL where it is deposited "
+                        f"(§2.5)"} for aid, uri in named]
+
+
 def folder_package_problems(root):
     """Rule 77 for a bag folder: links, files outside data/, and the payload's limits. [(where, message)]."""
     import os

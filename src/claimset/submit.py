@@ -82,6 +82,36 @@ def _zip_folder(folder):
     return Path(fh.name)
 
 
+def _package_file(path):
+    """A claimset file whose artefacts name files by relative path, as a package of it and those files (spec §2.5),
+    in a temporary zip the caller deletes; None when it names none. Raises SubmitError when a file is missing."""
+    from .package import PackageError, build
+    from .validate import standalone_problems
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not standalone_problems(doc):
+        return None
+    fh = tempfile.NamedTemporaryFile(prefix="claimset-", suffix=".zip", delete=False)
+    fh.close()
+    out = Path(fh.name)
+    out.unlink()
+    try:
+        build(str(path), str(out))
+    except PackageError as exc:
+        raise SubmitError(f"{path} names files by relative path, which go in its package, and the package cannot be "
+                          f"built: {exc}") from None
+    from .validate import validate_path
+    rep = validate_path(str(out))
+    if rep is None or rep.errors:
+        out.unlink(missing_ok=True)
+        raise SubmitError(f"the package of {path} has {len(rep.errors) if rep else 'unreadable'} error(s): "
+                          f"check it with `claimset package {path} -o paper.zip`",
+                          {"errors": rep.errors if rep else []})
+    return out
+
+
 def check(path):
     """Validate a local submission before it is sent. Returns the report; raises SubmitError on errors."""
     from .validate import validate_path
@@ -108,13 +138,20 @@ def submit(source, portal=None, new_paper=False):
     if not path.exists():
         raise SubmitError(f"no such file: {path}")
     check(path)
-    tmp = _zip_folder(path) if path.is_dir() else None
+    packaged = None if path.is_dir() or zipfile.is_zipfile(path) else _package_file(path)
+    tmp = _zip_folder(path) if path.is_dir() else packaged
     send = tmp or path
     try:
         headers = {"Content-Type": "application/zip" if zipfile.is_zipfile(send) else "application/json",
                    "Content-Length": str(send.stat().st_size)}
         with open(send, "rb") as fh:                        # streamed: a package may be 200 MB
-            return _request("POST", f"{base}/api/submissions{query}", fh, headers)
+            out = _request("POST", f"{base}/api/submissions{query}", fh, headers)
+        if packaged is not None:                            # the files the claimset names went with it (§2.5)
+            with zipfile.ZipFile(packaged) as z:
+                out["packaged"] = sorted(n.split("/data/", 1)[-1] for n in z.namelist()
+                                         if "/data/" in n and not n.endswith("/")
+                                         and n.split("/data/", 1)[-1] != path.name)
+        return out
     finally:
         if tmp:
             tmp.unlink(missing_ok=True)
@@ -179,6 +216,9 @@ def _consent_lines(out, expires):
 def describe_submission(out, saved=None):
     """What `claimset submit` prints: the consent link first, since it is shown only once."""
     lines = [f"Submitted: {out.get('id')} ({out.get('kind', 'new')}), waiting for the guarantor's consent.", ""]
+    if out.get("packaged"):
+        lines[1:1] = [f"Sent as a package with the {len(out['packaged'])} file(s) its artefacts name: "
+                      f"{', '.join(out['packaged'])}."]
     consent = _consent_lines(out, out.get("expires"))
     if consent:
         lines += consent + [""]
