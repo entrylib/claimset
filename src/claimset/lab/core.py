@@ -617,6 +617,12 @@ def check_actor(state, body, by, eid):
                 and all(isinstance(system.get(k), str) and system[k].strip() for k in system)):
             raise LabError("schema", "actor: system is {name, version, uri}: the harness's name, and optionally its "
                                      "version and a link")
+    label = body.get("label")
+    if label is not None:                                   # as an agent contributor's label (claimset §3.11)
+        if kind != "agent":
+            raise LabError("schema", "actor: label says what an agent does; only agents have one")
+        if not isinstance(label, str) or not 1 <= len(label.strip()) <= _claimset.LABEL_MAX:
+            raise LabError("schema", f"actor: label is a text of 1 to {_claimset.LABEL_MAX} characters, e.g. \"drafting\"")
     _check_given(body, "actor")
     check_registration(state, body, by, eid)
 

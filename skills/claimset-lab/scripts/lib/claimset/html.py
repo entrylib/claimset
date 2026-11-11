@@ -423,6 +423,33 @@ def _person(c, verified=False):
             f'{esc(orcid)}</a>)</span>')
 
 
+#: Icons for the people and agents who wrote a paper (inline SVG: no image to load), in the text's colour, each with
+#: its words for screen readers and on hover. Guarantors are named without one.
+ICONS = {
+    "agent": ('<svg class="cs-icon" viewBox="0 0 16 16" width="15" height="15" role="img" aria-label="AI agent">'
+              '<title>AI agent</title><path d="M8 1.5v2.2M4.5 4.5h7a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5'
+              'h-7A1.5 1.5 0 0 1 3 11.5V6a1.5 1.5 0 0 1 1.5-1.5zM1.5 8v2M14.5 8v2M6 10.8h4" fill="none" '
+              'stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6" cy="8" r="1" '
+              'fill="currentColor"/><circle cx="10" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="1.5" r="1" '
+              'fill="currentColor"/></svg>'),
+    "human": ('<svg class="cs-icon" viewBox="0 0 16 16" width="15" height="15" role="img" aria-label="Person">'
+              '<title>Person</title><circle cx="8" cy="5" r="2.8" fill="none" stroke="currentColor" '
+              'stroke-width="1.4"/><path d="M2.5 14.5c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" fill="none" '
+              'stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'),
+}
+
+
+def _author(c):
+    """An author or converter with its icon: a person with their ORCID link; an agent with its label after its name
+    (v0.41: `Claude Code · drafting`)."""
+    if c.get("type") == "agent":
+        label = c.get("label") if isinstance(c.get("label"), str) and c.get("label").strip() else None
+        name = esc(c.get("name") or "an AI agent")
+        return (f'<span class="cs-person">{ICONS["agent"]}{name}'
+                + (f' <span class="cs-label">· {esc(label.strip())}</span>' if label else "") + "</span>")
+    return f'<span class="cs-person">{ICONS["human"]}{_person(c)}</span>'
+
+
 def _header(P):
     p, out = P.paper, []
     out.append(f'<h1 class="cs-title">{esc(p.get("title", ""))}</h1>')
@@ -435,10 +462,9 @@ def _header(P):
         authors = [a for a in cf.get("source_authors") or [] if isinstance(a, dict)]
         if authors:
             out.append('<p class="cs-authors">Authors of the source paper: '
-                       + ", ".join(_person(a) for a in authors) + "</p>")
+                       + ", ".join(_author({**a, "type": "human"}) for a in authors) + "</p>")
         converters = [c for c in people if "converter" in (c.get("positions") or [])]
-        by = ", ".join(esc(c.get("name", "")) + (", an AI agent" if c.get("type") == "agent" else "")
-                       for c in converters)
+        by = ", ".join(_author(c) for c in converters)
         src = _doi(cf.get("source_id")) if cf.get("id_type", "doi") == "doi" else esc(cf.get("source_id"))
         out.append(f'<p class="cs-source">Converted from {src}'
                    + (f" ({esc(cf['source_version'])})" if cf.get("source_version") else "")
@@ -446,9 +472,7 @@ def _header(P):
     else:
         authors = [c for c in people if "author" in (c.get("positions") or [])]
         if authors:
-            names = [(_person(c) if c.get("type") != "agent" else esc(c.get("name", "")) + " (AI agent)")
-                     for c in authors]
-            out.append('<p class="cs-authors">Authors: ' + ", ".join(names) + "</p>")
+            out.append('<p class="cs-authors">Authors: ' + ", ".join(_author(c) for c in authors) + "</p>")
     kw = (p.get("classification") or {}).get("keywords") if isinstance(p.get("classification"), dict) else None
     meta = [esc(p["licence"]) if p.get("licence") else "",
             ("Keywords: " + esc(", ".join(k for k in kw if isinstance(k, str)))) if isinstance(kw, list) and kw else ""]

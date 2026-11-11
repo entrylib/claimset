@@ -18,6 +18,8 @@ A record said which model an agent was, but not which harness ran it: the same m
 
 Amended on 2026-11-10 (§9): export records the results of an evidence object as tables (claimset §3.4, *Tables are the standard form*), not one result entry per number; claims cite table rows; every result of the record is written, at full precision, to a CSV file beside the claimset, listed as a data artefact; results of the cited runs that a claim's status leaves out are not exported.
 
+Amended on 2026-11-11: an agent actor may record its `label`, what it does in a few words, as for agent contributors (claimset §3.11, v0.41); `claimset lab actor --label` records it and export carries it. Optional in every record.
+
 Amended on 2026-11-11: the companion claimset specification is v0.41, to which the tool exports; nothing in the record changes. A plan's quantities bind results as a claimset's bind observations (claimset §3.3.3), with the same functions.
 
 ## Changes in v0.20 (since v0.19)
@@ -419,7 +421,7 @@ Agents run in harnesses (Claude Code, Codex CLI, Gemini CLI, Qwen Code, opencode
 
 Registers a person or agent who will write events. Mirrors claimset contributors.
 
-`{kind, name, orcid, models: [{provider, name, version, identifier}], system, record_source, words, given_at, channel}`: `kind` is a contributor type, and `models`, `system` and `record_source` are as for agent contributors (claimset §3.11, §3.12). `system` (`{name, version, uri}`, agents only) is the harness the agent runs in; `claimset lab actor` records the harness that identifies itself in the environment (§4.6) unless `--system` names one. An agent that does not know its model from its system prompt or environment is given it by the human in `$CLAIMSET_MODEL` (`provider|name|version|identifier`), recorded with `record_source: user_reported`.
+`{kind, name, orcid, models: [{provider, name, version, identifier}], system, label, record_source, words, given_at, channel}`: `kind` is a contributor type, and `models`, `system`, `label` and `record_source` are as for agent contributors (claimset §3.11, §3.12). `label` (agents only) says in a few words what the agent does in this lab (`drafting`, `proof checking`); `claimset lab actor --label` records it, and `name` stays the system's name. `system` (`{name, version, uri}`, agents only) is the harness the agent runs in; `claimset lab actor` records the harness that identifies itself in the environment (§4.6) unless `--system` names one. An agent that does not know its model from its system prompt or environment is given it by the human in `$CLAIMSET_MODEL` (`provider|name|version|identifier`), recorded with `record_source: user_reported`.
 
 **Registration.** An actor is registered by itself (the event's `by` is its own ID) or by an actor already registered (L8). Every event's `by` is the actor who wrote it, so:
 
@@ -831,7 +833,7 @@ Hypotheses without a final status are counted as open; they are not forced close
 | Lab record | Claimset |
 |---|---|
 | `init` | `paper.title` (the working title), `paper.origin: native` |
-| `actor`, agent | contributor of type `agent` with its models (each model defined once in `models`, `accessed` the date of the earliest event by an agent using it), `name`, `system`, `record_source`, `run_period` (dates of its first and last events) and `tools: [code_execution]` if it ran commands. Position `author` if it wrote any event other than `actor` and `check`; otherwise `contributor`, with AI task `review` |
+| `actor`, agent | contributor of type `agent` with its models (each model defined once in `models`, `accessed` the date of the earliest event by an agent using it), `name`, `system`, `label`, `record_source`, `run_period` (dates of its first and last events) and `tools: [code_execution]` if it ran commands. Position `author` if it wrote any event other than `actor` and `check`; otherwise `contributor`, with AI task `review` |
 | `actor`, human or organisation | contributor with `name` and `orcid`, position `contributor`. Who is supervisor and guarantor is decided by people (completion list) |
 | a verdict on a planned test (§5.7.4) | a claim per decided plan and hypothesis it names, in the order of the hypotheses and then the plans: `statement` and `about` from the hypothesis as it stood when the plan was written, `hypothesis: {lab_event, outcome}` (`lab_event` is that version's ID, `outcome` the verdict), defaults `type: descriptive`, `role: supporting`, `novelty: no_prior_found`, `provenance: author_stated` |
 | `term` | a definition (`D1`, `D2`, … in record order, each correction chain once, its latest version) with `term`, `kind`, `definition`, `source` (as text: the completion list asks for it to become an entry of `references`) and `broader`. Term marks and term IDs in statements, `about` and `setup` are replaced by the definition IDs |
@@ -871,7 +873,7 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | `claimset studies` | the studies of the repository: events, open hypotheses, pending plans, commits not pushed |
 | `claimset lab paper NAME --questions Q1 Q2` | records a paper and the questions it reports (§5.17) |
 | `claimset lab move [--to DIR] [--study NAME] [--also OLD=NEW …]` | moves the lab (default `claimset/<study>/lab`) and other files, and records the relocation (§3.4) |
-| `claimset lab actor --kind agent\|human\|organisation --name … [--orcid …] [--model …] [--words "…" [--given-at T] [--channel …]]` | registers an actor: an agent itself, a person themselves, or an agent a person with their words (§5.2) |
+| `claimset lab actor --kind agent\|human\|organisation --name … [--orcid …] [--model …] [--label …] [--words "…" [--given-at T] [--channel …]]` | registers an actor: an agent itself, a person themselves, or an agent a person with their words (§5.2) |
 | `claimset lab question` / `hypothesis` / `assume` / `note` | writes the corresponding event |
 | `claimset lab term MASE --kind variable --definition "…" [--source …]` | records a term (§5.19) |
 | `claimset lab extension NAME [--version V]` | declares an extension of the claimset format (§5.22); commands that need one declare it themselves |

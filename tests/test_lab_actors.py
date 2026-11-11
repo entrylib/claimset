@@ -178,6 +178,24 @@ class TestHarness(TestCli):
             with self.assertRaises(LabError):
                 lab.append("actor", {"kind": "agent", "name": "A", "models": MODEL, "system": bad}, by="AC1")
 
+    def test_an_agents_label(self):
+        """An agent says what it does in a few words (claimset §3.11 v0.41, lab record §5.2); export carries it."""
+        self.start()
+        self.run_cli("lab", "actor", "--kind", "agent", "--name", "Claude Code", "--model", "Anthropic|Claude Opus|5.5",
+                     "--label", "drafting")
+        self.assertEqual(self.last()["label"], "drafting")
+        self.run_cli("lab", "note", "--by", "AC1", "hello")
+        out = Path(self.tmp.name) / "draft.json"
+        self.run_cli("lab", "export", "-o", str(out))
+        agent = next(c for c in json.loads(out.read_text())["contributors"] if c["type"] == "agent")
+        self.assertEqual((agent["name"], agent["label"]), ("Claude Code", "drafting"))
+        lab = Lab(Path(self.env["CLAIMSET_LAB"]))
+        for body in ({"kind": "agent", "name": "A", "models": MODEL, "label": "x" * 61},
+                     {"kind": "agent", "name": "A", "models": MODEL, "label": " "},
+                     {"kind": "human", "name": "Jane", "label": "supervision", "words": WORDS}):
+            with self.assertRaises(LabError):
+                lab.append("actor", body, by="AC1")
+
 
 if __name__ == "__main__":
     unittest.main()

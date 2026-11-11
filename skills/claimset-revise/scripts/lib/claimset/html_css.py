@@ -26,6 +26,8 @@ CSS = """\
 .cs-title { margin: 10px 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.15; font-weight: 700; }
 .cs-guarantor, .cs-authors, .cs-source { margin: 4px 0 0; overflow-wrap: anywhere; }
 .cs-meta { margin: 4px 0 0; font-size: 16px; color: var(--cs-muted); }
+.cs-icon { width: 0.95em; height: 0.95em; vertical-align: -0.12em; margin-right: 0.3em; color: var(--cs-muted); }
+.cs-label { color: var(--cs-muted); }
 .orcid-wrap { color: var(--cs-muted); }
 .orcid-wrap a { color: var(--cs-muted); }
 .cs-layout { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 28px; }

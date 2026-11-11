@@ -13,6 +13,12 @@ A planned test's outcome rests on the values its quantities bind. In v0.40 a qua
 - §9: a correction or revision that restructures evidence (result entries made into a table) rebinds the test quantities in the same version.
 - `claimset migrate` brings a v0.40 file to v0.41 and lists the quantities that bind nothing or several observations, to rebind.
 
+Amended on 2026-11-11: an agent says what it did in a few words. Agents put their role in their name ("Claude Code (drafting agent)", "Claude Code (correction agent)") because no field held it, and a page listing three of them read "agent" six times; the first agent, named only by its system, had no role at all.
+
+- §3.11: new optional agent field `label`: what the agent did, in a few words ("drafting", "correction", "proof checking", "JSON preparation"), shown beside its name. An agent's `name` is its system's name (Claude Code), never its role. New rule 93 (`label` is a short text, on agents only); new warning 43 (an agent's name that ends in a role in parentheses). Files that name roles in names stay valid.
+- The page view (`claimset render --html`) shows an icon for each author, a robot for an agent and a person for a human, instead of the words "(AI agent)", and an agent's label after its name.
+- Lab record v0.21: `claimset lab actor --label` records it, and export carries it.
+
 Amended on 2026-11-11: a claimset submitted alone, outside a package, names no packaged file (§2.5, rule 70). The platform's file route had accepted such a claimset with no error, and would have published it without the files its artefacts name. Amended again on 2026-11-11: an agent that can neither send a file nor reach a public URL gives the platform's MCP server the claimset with the contents of its files, and the platform builds the package from them.
 
 ## Changes in v0.40 (since v0.39)
@@ -1238,7 +1244,7 @@ A paper may pass through several agents without its history being kept. At minim
 | `id` | required | string | `P1` … |
 | `type` | required | enum | `agent` · `human` · `organisation`. An organisation holds only the position `conversion_guarantor` (v0.36); a funder is a declaration, an institution a person's `affiliation` |
 | `positions` | required | list | One or more of the positions below |
-| `name` | required for humans and organisations; recommended for agents | string | For agents: a name for the agent system, if it has one |
+| `name` | required for humans and organisations; recommended for agents | string | For agents: the name of the agent system, if it has one (`Claude Code`), the same for every agent of that system; never its role, which is its `label` |
 | `credit_roles` | recommended | list | CRediT roles (below) |
 
 **Human fields**
@@ -1260,6 +1266,7 @@ A paper may pass through several agents without its history being kept. At minim
 | Field | Obligation | Type | Values / notes |
 |---|---|---|---|
 | `models` | required | list | At least one `{model, role}`. `model`: model ID (§3.12), required. `role`: `sole` · `orchestrator` · `subagent`, optional |
+| `label` | recommended when a paper has more than one agent | string | What the agent did, in a few words, as a reader would name it: `drafting`, `correction`, `proof checking`, `numerical evidence`, `JSON preparation`. At most 60 characters. Shown beside the agent's name (`Claude Code · drafting`); its `credit_roles` and `ai_tasks` say the same in a fixed vocabulary (v0.41, rule 93) |
 | `ai_tasks` | recommended | list | `{task, extent}` (below) |
 | `tools` | recommended | list | `web_search` · `code_execution` · `file_access` · `retrieval` · `other` · `none` |
 | `record_source` | recommended | enum | Where the agent's models, settings and tools were taken from: `harness` (recorded by the system that made the calls) · `user_reported` (entered from the interface) · `self_reported` (stated by the agent from its own knowledge). Absent ⇒ treated as `self_reported` |
@@ -1623,6 +1630,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 91. Quantities bind (§3.3.3). For a claim whose `test` has `verdict: computed`, each quantity (other than a count of the qualitative extension) binds exactly one observation of the evidence objects the claim's support names: a result entry, or a table cell with its table's, row's and column's conditions, whose variable is the quantity's, whose conditions include every condition the quantity gives, and whose statistic is the quantity's `statistic` when it gives one; the observation has a number at the quantity's `field`; `statistic`, if given, is a statistic of §3.4. A quantity may bind nothing, or an observation without that number, only when `hypothesis.outcome` is `inconclusive` (warning 41).
 
 92. Outcome of a computed test (§3.3.3). When every quantity of a computed test binds, its `supported` and `not_supported` rules, evaluated on the bound values and the numeric parameters, give `hypothesis.outcome`: `supported` when only `supported` holds, `not_supported` when only `not_supported` holds, `inconclusive` when both or neither hold. Rules that cannot be evaluated are an error under this rule.
+93. An agent's `label` (§3.11) is a string of 1 to 60 characters; only agents have one.
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -1668,6 +1676,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 40. An evidence object has more than eight result entries that share a variable, or more than eight that share a condition key: record them as a table, rows the compared units and columns the variables, and cite its rows (§3.4, *Tables are the standard form*). (New in v0.40, amended 2026-11-10.)
 41. A quantity of a computed test whose outcome is `inconclusive` binds no observation of the evidence the claim's support names, or binds one without a number at its `field` (§3.3.3): an inconclusive outcome may rest on no value (a run that failed); if values were recorded, bind each quantity to its result entry or table cell. (New in v0.40, amended 2026-11-11, where it also covered what rule 91 makes an error from v0.41.)
 42. (Files of v0.40 only.) The rules of a computed test, evaluated on the values its quantities bind, give another outcome than the claim's `hypothesis.outcome`. From v0.41 this is rule 92.
+43. An agent's `name` ends in parentheses ("Claude Code (drafting agent)"): the name is the system's; what the agent did goes in `label` (§3.11).
 
 ## 11. Platform dependencies
 
