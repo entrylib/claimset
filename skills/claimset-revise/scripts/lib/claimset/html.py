@@ -484,20 +484,30 @@ def _author(c, P=None, where="author"):
     return _person(c)
 
 
+def _line(P, role, people, default):
+    """One line of people in the header: the site's (`byline`) or `default`."""
+    if getattr(P, "byline", None):
+        shown = P.byline(role, people)
+        if isinstance(shown, str):
+            return shown
+    return default
+
+
 def _header(P):
     p, out = P.paper, []
     out.append(f'<h1 class="cs-title">{esc(p.get("title", ""))}</h1>')
     people = [c for c in P.doc.get("contributors") or [] if isinstance(c, dict)]
     guarantors = [c for c in people if "guarantor" in (c.get("positions") or [])]
     if guarantors:
-        out.append('<p class="cs-guarantor">Guarantor: ' + ", ".join(_author(g, P, "guarantor") for g in guarantors)
-                   + "</p>")
+        out.append('<p class="cs-guarantor">' + _line(P, "guarantor", guarantors, "Guarantor: " + ", ".join(
+            _author(g, P, "guarantor") for g in guarantors)) + "</p>")
     cf = p.get("converted_from") if isinstance(p.get("converted_from"), dict) else None
     if cf:
         authors = [a for a in cf.get("source_authors") or [] if isinstance(a, dict)]
         if authors:
-            out.append('<p class="cs-authors">Authors of the source paper: '
-                       + ", ".join(_author({**a, "type": "human"}, P, "source_author") for a in authors) + "</p>")
+            source = [{**a, "type": "human"} for a in authors]
+            out.append('<p class="cs-authors">' + _line(P, "source_authors", source, "Authors of the source paper: "
+                       + ", ".join(_author(a, P, "source_author") for a in source)) + "</p>")
         converters = [c for c in people if "converter" in (c.get("positions") or [])]
         by = ", ".join(_author(c, P, "converter") for c in converters)
         src = _doi(cf.get("source_id")) if cf.get("id_type", "doi") == "doi" else esc(cf.get("source_id"))
@@ -507,7 +517,8 @@ def _header(P):
     else:
         authors = [c for c in people if "author" in (c.get("positions") or [])]
         if authors:
-            out.append('<p class="cs-authors">Authors: ' + ", ".join(_author(c, P) for c in authors) + "</p>")
+            out.append('<p class="cs-authors">' + _line(P, "authors", authors, "Authors: "
+                       + ", ".join(_author(c, P) for c in authors)) + "</p>")
     kw = (p.get("classification") or {}).get("keywords") if isinstance(p.get("classification"), dict) else None
     meta = [esc(p["licence"]) if p.get("licence") else "",
             ("Keywords: " + esc(", ".join(k for k in kw if isinstance(k, str)))) if isinstance(kw, list) and kw else ""]
@@ -780,7 +791,7 @@ def _section(sid, title, items, intro=""):
 
 
 def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, person=None, marker=None,
-                 claim_url=None):
+                 claim_url=None, byline=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
     native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
@@ -794,7 +805,10 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, pe
     (id, title, count), for a site that builds its own navigation instead of using `nav`. How people are shown is the
     site's choice too: `person(contributor, where)` returns the HTML for a person or agent in the header (`where`:
     `guarantor`, `author`, `converter`, `source_author`), escaping what it takes from the file, or None for the
-    default (a name, a person's ORCID link, an agent's label and "(AI agent)"). `marker(claim, where)` gives what
+    default (a name, a person's ORCID link, an agent's label and "(AI agent)"). `byline(role, people)` returns the
+    HTML inside one line of people in the header, its label included (`role`: `guarantor`, `authors`,
+    `source_authors`; `people`: their contributor objects), or None for the default ("Guarantor: …", "Authors: …",
+    "Authors of the source paper: …"). `marker(claim, where)` gives what
     marks a claim (`where`: `claim`, before its meta line, or `brief`, before its statement In brief): HTML, or a pair
     (before, after the meta line), or None for its support light. `claim_url(id)` gives the address of a claim's own
     page, which its ID then links to, or None. `blocks` holds each section's HTML by its id, for a site that arranges
@@ -807,13 +821,14 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, pe
         rounding = None
     token = DIGITS.set(rounding)
     try:
-        return _render_parts(doc, file_url, ref_text, person, marker, claim_url)
+        return _render_parts(doc, file_url, ref_text, person, marker, claim_url, byline)
     finally:
         DIGITS.reset(token)
 
 
-def _render_parts(doc, file_url, ref_text, person=None, marker=None, claim_url=None):
+def _render_parts(doc, file_url, ref_text, person=None, marker=None, claim_url=None, byline=None):
     P = _Paper(doc, file_url, ref_text)
+    P.byline = byline if callable(byline) else None
     P.person = person if callable(person) else None
     P.marker = marker if callable(marker) else None
     P.claim_url = claim_url if callable(claim_url) else None
