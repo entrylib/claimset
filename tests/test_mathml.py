@@ -77,3 +77,4 @@ class TestLongFormulae(unittest.TestCase):
         css = html.stylesheet()
         self.assertIn('math[display="block"] { margin: 10px 0; max-width: 100%; overflow-x: auto;', css)
         self.assertIn("@media (max-width: 640px) { math { max-width: 100%; overflow-x: auto;", css)
+        self.assertIn(".cs-brief li > span:last-child { min-width: 0; }", css)

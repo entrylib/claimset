@@ -43,6 +43,7 @@ CSS = """\
 .cs-section h3 { margin: 22px 0 8px; font-size: 19px; font-weight: 600; }
 .cs-brief { margin: 0; padding: 0; list-style: none; font-size: 18px; }
 .cs-brief li { display: flex; gap: 10px; padding: 3px 0; }
+.cs-brief li > span:last-child { min-width: 0; }       /* the statement, not its formulae, sets the width */
 .cs-brief .light { margin-top: 9px; }
 .cs-brief-term .light { background: transparent; }
 .cs-note, .cs-tail { font-size: 15px; color: var(--cs-muted); }
