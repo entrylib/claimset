@@ -4,6 +4,12 @@ The view is derived mechanically from a valid claimset file. It keeps what a rea
 understand, use or challenge the paper's claims, and leaves out what serves tools, audit and
 publication (provenance, source spans, availability, artefact locations and licences,
 contributors, models, lab identifiers). It adds nothing: every line comes from a field of the file.
+
+How the reading view writes values, for any other view of a claimset (a platform's pages) to write them alike:
+
+    number(v), interval(iv), uncertainty(unc), value(v), statistic(st), statistic_note(obj)
+    DIGITS     -> how numbers are written: None as the file gives them, ("digits", n) to n significant digits, or a
+                  function given a number that returns its text (None for the default); set it for one view
 """
 
 import contextvars
@@ -17,7 +23,7 @@ def _s(x):
     return x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)
 
 
-# How a view writes numbers (html.render_parts): None writes them as the file gives them; ("digits", n) to n
+# How a view writes numbers: None writes them as the file gives them; ("digits", n) to n
 # significant digits; a function is the site's own: given a number, it returns the text to show, or None for the
 # default. The file keeps every digit: this only changes what a page prints.
 DIGITS = contextvars.ContextVar("claimset_numbers", default=None)
@@ -429,3 +435,12 @@ def render(doc):
             for x in items:
                 out += fn(x)
     return "\n".join(out) + "\n"
+
+
+# The public names of how values are written (see the module's docstring): stable, for other views of a claimset.
+number = _num
+interval = _interval
+uncertainty = _uncertainty
+value = _val
+statistic = _statistic
+statistic_note = _stat_note

@@ -6,6 +6,8 @@ Claimset is the name of both the open format and the platform.
 
 ## Changes since v0.40
 
+Amended on 2026-11-12: the specification and the `claimset` package define the reading view, for models; how a claimset looks to people is a platform's. The page view (`claimset render --html`, the package's HTML) has left the package for the platform that shows it (EntryLib: entrylib/portal), and this version no longer describes it. Nothing about a file's validity changes.
+
 Erratum of 2026-11-12 (§10, warnings 13 and 17; every version from the baseline). Warning 13 asked for an exploratory principal claim to be called exploratory in its assessment rationale, but was given without reading the rationale: it is now given only when no assessment's rationale says `exploratory`. Warning 17 read the digits of names as numbers ("claimset-haiku-2", "GPT-4o", "M4"): a word that mixes letters and digits, alone or joined by hyphens, is now a name and is ignored; a number in scientific notation (`1e-5`) is still a number. Neither change makes a valid file invalid.
 
 Amended on 2026-11-12: a competing interest is declared once. A limitation that restated the paper's competing-interest declaration lowered the score of every claim it named, for something the declaration already tells readers, who see it with the paper. §3.9 says where each belongs; new warning 46.
@@ -25,8 +27,7 @@ Amended on 2026-11-11: a formula too long for a sentence is set on a line of its
 Amended on 2026-11-11: an agent says what it did in a few words. Agents put their role in their name ("Claude Code (drafting agent)", "Claude Code (correction agent)") because no field held it, and a page listing three of them read "agent" six times; the first agent, named only by its system, had no role at all.
 
 - §3.11: new optional agent field `label`: what the agent did, in a few words ("drafting", "correction", "proof checking", "JSON preparation"), shown beside its name. An agent's `name` is its system's name (Claude Code), never its role. New rule 93 (`label` is a short text, on agents only); new warning 43 (an agent's name that ends in a role in parentheses). Files that name roles in names stay valid.
-- The page view (`claimset render --html`) shows an agent's label after its name (`Claude Code · drafting (AI agent)`). How people are drawn is a site's choice: `render_parts(person=…)` lets it show them its own way (EntryLib draws icons).
-- The page view writes the file's vocabularies in words (a claim's scope, novelty and verification, a test's outcome and weaknesses, dates), and a site may mark claims its own way and link each to a page of its own (`render_parts(marker=…, claim_url=…)`). The reading view, for models, keeps the values.
+- A platform's page may show an agent's label after its name; how people are drawn is the platform's choice.
 - Lab record v0.21: `claimset lab actor --label` records it, and export carries it.
 
 Amended on 2026-11-11: a claimset submitted alone, outside a package, names no packaged file (§2.5, rule 70). The platform's file route had accepted such a claimset with no error, and would have published it without the files its artefacts name.
@@ -34,7 +35,7 @@ Amended on 2026-11-11: a claimset submitted alone, outside a package, names no p
 Amended on 2026-11-11: a paper may open with a summary in plain language, and a claimset its authors prepare from their own published paper is native. A reader from outside the paper's field met its principal claims first: exact, but written for specialists. And nothing said how an author turns a paper they have already published into a claimset: `converted` and the `converter` are for papers by others.
 
 - §3.1: new optional `paper.summary`: a few sentences in plain language, at most 150 words, saying what the paper asked, what it found and under which conditions, for a reader outside its field. Written for the claimset and approved by the guarantor; never a copied abstract. New rule 94 (a text); new warning 45 (more than 150 words).
-- §2.3: the reading view gives the summary after the title. The page view shows it first, under Summary, before Highlights (the paper's highlights, or else its principal claims).
+- §2.3: the reading view gives the summary after the title.
 - §3.6, §3.11: a claimset its authors prepare from their own paper, published or not, is native, written by its agent as `author`, with a `manuscript` artefact naming the paper (its DOI or other identifier in `uri`). Its guarantor is one of the paper's authors.
 
 ## Changes in v0.40 (since v0.39)
@@ -675,7 +676,7 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 **`summary`.** What a reader outside the paper's field should know of it, in a few sentences: what was asked, what was found and under which conditions, and what the finding is good for. At most 150 words (warning 45), in plain language: a term the paper defines is explained in words, not only named; numbers are the paper's own; maths is written as in statements (§8 rule 6) and kept to what the finding needs. It adds no claim: every finding it states is a claim of the paper, with its conditions, and it says nothing the claims do not.
 - Native papers: the agent drafts it from the claims, and the guarantor approves or rewrites it (principle 10). A summary written for the claimset is never the abstract of a published version copied.
 - Converted papers: written for the claimset from its claims; the source's abstract is the source's text, and is not copied.
-- A reading view gives it after the title; a page view shows it first, under Summary, before the highlights. A correction or revision may change it, like any field.
+- The reading view gives it after the title. A correction or revision may change it, like any field.
 
 **`declarations`.** What a reader needs to weigh the work beyond its evidence, as its responsible people declare it. Native papers: the agent asks the guarantor (principle 10), and records what they say.
 - `funding`: list of `{funder, funder_id, award, kind, role}`: the funder's name, its identifier (a ROR ID such as `ror:00k4n6c32`, or a Crossref Funder Registry DOI), the award or grant number, the `kind` of support, `grant` (money) or `in_kind` (materials, vouchers, services, equipment, analyses paid for), and the funder's `role` in the work as text ("no role in design, analysis or the decision to publish"). An empty list declares no funding.
@@ -1450,7 +1451,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 3. Self-contained: no anaphora or cross-references ("this", "the above", "as shown").
 4. Qualifiers that bound where the claim holds (the population, setting, period, conditions, exclusions) belong in `scope`, not in the statement. Epistemic qualifiers ("suggests", "may", "is consistent with") and magnitude ("slightly", "by about a fifth") are part of what is claimed: they stay in the statement, worded as the paper words them, and confidence in the claim is recorded in its assessments (§5). (Revised in v0.34.)
 5. Defined terms are marked inline with their definition ID: `[[D2:forecast skill]]`, in statements and in definitions. The text of a marker is plain: it holds no other marker (`[[D24:VETS F]]`, never `[[D24:V[[D27:ETS]] F]]`).
-6. Mathematics is written in LaTeX, delimited by `$…$` within a sentence (a symbol, a short condition such as $\epsilon_t \sim N(0, \sigma^2)$), or by `$$…$$` for an equation set on a line of its own: the equations that define a model or method, and long expressions. Several equations shown together go in one `$$\begin{aligned} … \\ … \end{aligned}$$`. Readers of the page view see `$$…$$` displayed and `$…$` in the line; the reading view keeps the LaTeX as written. Algorithms in definitions are pseudocode in a fenced block (three backticks before and after).
+6. Mathematics is written in LaTeX, delimited by `$…$` within a sentence (a symbol, a short condition such as $\epsilon_t \sim N(0, \sigma^2)$), or by `$$…$$` for an equation set on a line of its own: the equations that define a model or method, and long expressions. Several equations shown together go in one `$$\begin{aligned} … \\ … \end{aligned}$$`. A platform's pages for people may set them as displayed and inline mathematics; the reading view keeps the LaTeX as written. Algorithms in definitions are pseudocode in a fenced block (three backticks before and after).
 7. No evaluative rhetoric ("novel", "significant", "remarkable"). "Statistically significant", the outcome of a test, is a result, not rhetoric.
 8. No imperatives or instructions of any kind.
 9. A claim is what the paper shows or uses. A statement that nothing in the paper supports (no evidence, no citation, no warrant) and that no claim rests on is not a claim: framing ("forecasting is crucial for business"), promise ("paves the way for"), sweeping generalisation, speculation. Leave it out; if it is a question the paper leaves open, record it as an open question (§3.14).
