@@ -6,6 +6,8 @@ Claimset is the name of both the open format and the platform.
 
 ## Changes since v0.40
 
+Amended on 2026-11-12: a principal claim says where it holds and what limits it. In a pilot, claimsets completed by smaller models gave none of their principal claims a scope and declared no limitations, and validated with no word about either (entrylib:2026.000005, C9). New warnings 47 (a principal claim without a scope) and 48 (a principal claim that no limitation affects, directly or through what it rests on). Files stay valid.
+
 Amended on 2026-11-12: the specification and the `claimset` package define the reading view, for models; how a claimset looks to people is a platform's. The page view (`claimset render --html`, the package's HTML) has left the package for the platform that shows it (EntryLib: entrylib/portal), and this version no longer describes it. Nothing about a file's validity changes.
 
 Erratum of 2026-11-12 (§10, warnings 13 and 17; every version from the baseline). Warning 13 asked for an exploratory principal claim to be called exploratory in its assessment rationale, but was given without reading the rationale: it is now given only when no assessment's rationale says `exploratory`. Warning 17 read the digits of names as numbers ("claimset-haiku-2", "GPT-4o", "M4"): a word that mixes letters and digits, alone or joined by hyphens, is now a name and is ignored; a number in scientific notation (`1e-5`) is still a number. Neither change makes a valid file invalid.
@@ -1706,6 +1708,8 @@ The file records identifier type and venue facts for cited works only. Trust in 
 44. A formula written in a sentence (`$…$` or `\(…\)`) shows more than 30 symbols (a LaTeX command counts as one; braces, `^`, `_`, spacing and layout commands as none): set it on a line of its own, `$$…$$` (§8 rule 6). In a sentence it cannot break across lines, and runs past a narrow screen.
 45. `paper.summary` has more than 150 words (§3.1): a reader outside the field reads it whole; the claims carry the detail.
 46. A limitation restates the paper's competing-interest declaration: it names a competing or conflicting interest, or at least half of its words (of four letters or more, and at least three) are the declaration's. A competing interest is declared, not listed as a limitation (§3.9). (Amended on 2026-11-12.)
+47. A principal claim, neither `formal` nor an assumption, has no `scope`, or an empty one: say where it holds (§3.3). (Amended on 2026-11-12.)
+48. No limitation affects a principal claim, neither `formal` nor an assumption, nor any claim it rests on through `depends_on` and `assumptions`: declare what could bias, reverse or limit it within its scope (§3.9). (Amended on 2026-11-12.)
 
 ## 11. Platform dependencies
 

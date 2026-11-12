@@ -993,6 +993,8 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
         if len(g) >= 3:
             r.warn("W6", "claims:" + ",".join(g), "these claims share an identical scope; check that each scope fits its own claim")
 
+    principal_gaps(r, claims, coll)
+
     # depends_on cycles (rule 8)
     graph = {cid: [d for d in as_list(c.get("depends_on")) if d in claims] for cid, c in claims.items()}
     state = {}
@@ -1490,6 +1492,36 @@ def restates_interest(statement, declaration):
     words = set(re.findall(r"[a-z]{4,}", text))
     shared = words & set(re.findall(r"[a-z]{4,}", decl))
     return len(shared) >= 3 and len(shared) >= len(words) / 2
+
+
+def principal_gaps(r, claims, coll):
+    """Warnings 47 and 48 (v0.41 as amended on 2026-11-12): a principal claim, neither formal nor an assumption, with
+    no scope, or that no limitation affects, neither its own nor one of a claim it rests on (`depends_on`,
+    `assumptions`, followed to the end)."""
+    limited = {cid for li in coll["limitations"] if isinstance(li, dict)
+               for cid in as_list(li.get("affects")) if isinstance(cid, str)}
+
+    def rests_on(cid):
+        seen, stack = set(), [cid]
+        while stack:
+            x = stack.pop()
+            if x in seen or x not in claims:
+                continue
+            seen.add(x)
+            c = claims[x]
+            stack += [i for i in as_list(c.get("depends_on")) + as_list(c.get("assumptions")) if isinstance(i, str)]
+        return seen
+
+    for cid, c in claims.items():
+        kinds = [as_dict(s).get("kind") for s in as_list(c.get("support"))]
+        if c.get("role") != "principal" or c.get("type") == "formal" or (kinds and all(k == "assumption" for k in kinds)):
+            continue
+        if not as_dict(c.get("scope")):
+            r.warn("W47", f"claims:{cid}.scope", "a principal claim with no scope: say where it holds (the data, "
+                                                  "population, setting, period, conditions and exclusions)")
+        if not limited & rests_on(cid):
+            r.warn("W48", f"claims:{cid}", "no limitation affects this principal claim or what it rests on: declare "
+                                            "what could bias, reverse or limit it within its scope (§3.9)")
 
 
 def says_exploratory(c):
@@ -3653,6 +3685,12 @@ def validate_path(path, published=False, revision=False):
                     file_name=Path(path).name)
 
 
+#: The warnings to address before a claimset is handed over, or to explain (the submit skill, *Hand over*): a number no
+#: record holds (17), a risk of reversal not weighed (20), a test quantity bound to nothing (41), a principal claim
+#: without scope (47) or without any limitation (48).
+HANDOVER = ("W17", "W20", "W41", "W47", "W48")
+
+
 def print_report(rep, published=False, as_json=False):
     """Print a validation report as text or JSON."""
     mode = "published file" if published else "submission"
@@ -3666,6 +3704,10 @@ def print_report(rep, published=False, as_json=False):
             print(f"  ERROR   [rule {e['rule']}] {e['where']}: {e['message']}")
         for w in rep.warnings:
             print(f"  WARNING [{w['rule']}] {w['where']}: {w['message']}")
+        first = [w for w in rep.warnings if w["rule"] in HANDOVER]
+        if first:
+            print(f"  Address before hand-over ({len(first)}), or say in the hand-over why each stays: "
+                  + "; ".join(f"[{w['rule']}] {w['where']}" for w in first))
         if rep.computed:
             print("  Verifiability the platform will compute:")
             for cid, v in rep.computed.items():
