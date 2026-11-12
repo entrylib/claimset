@@ -16,7 +16,7 @@ from . import LAB_SPEC_VERSION, REVISION_SPEC_VERSION, SPEC_VERSION, __version__
 
 PACKAGE = Path(__file__).resolve().parent
 DATA = PACKAGE / "data"
-SKILLS = ("claimset-submit", "claimset-lab", "claimset-revise", "claimset-review")
+SKILLS = ("claimset-submit", "claimset-from-paper", "claimset-lab", "claimset-revise", "claimset-review")
 DEFAULT_DIR = ".claude/skills"
 
 
@@ -56,6 +56,10 @@ def files(name):
                 out[f"scripts/{sub}/{f.name}"] = f
         out.update(_extension_specs())
         return out
+    if name == "claimset-from-paper":                    # adds to claimset-submit, installed with it
+        return {"SKILL.md": DATA / "skills" / name / "SKILL.md",
+                f"references/{spec.name.replace('claimset-v', 'spec-v')}": spec,
+                "examples/submission-native.json": DATA / "examples" / "submission-native.json"}
     if name in ("claimset-lab", "claimset-revise", "claimset-review"):
         out = {"SKILL.md": DATA / "skills" / name / "SKILL.md",
                "scripts/claimset": DATA / "skills" / "claimset-lab" / "claimset",

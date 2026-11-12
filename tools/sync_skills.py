@@ -31,6 +31,10 @@ COPIES = {
         ("examples/published-native.json", "skills/claimset-submit/examples/published-native.json"),
         ("examples/submission-from-lab.json", "skills/claimset-submit/examples/submission-from-lab.json"),
     ],
+    "claimset-from-paper": [
+        ("spec/claimset-v0.41.md", "skills/claimset-from-paper/references/spec-v0.41.md"),
+        ("examples/submission-native.json", "skills/claimset-from-paper/examples/submission-native.json"),
+    ],
     "claimset-lab": [
         ("src/claimset", "skills/claimset-lab/scripts/lib/claimset"),   # the whole package
         ("spec/lab-record-v0.21.md", "skills/claimset-lab/references/lab-record-v0.21.md"),
@@ -73,6 +77,7 @@ COPIES = {
         ("examples/published-native.json", "src/claimset/data/examples/published-native.json"),
         ("examples/submission-from-lab.json", "src/claimset/data/examples/submission-from-lab.json"),
         ("skills/claimset-submit/SKILL.md", "src/claimset/data/skills/claimset-submit/SKILL.md"),
+        ("skills/claimset-from-paper/SKILL.md", "src/claimset/data/skills/claimset-from-paper/SKILL.md"),
         ("skills/claimset-lab/SKILL.md", "src/claimset/data/skills/claimset-lab/SKILL.md"),
         ("skills/claimset-revise/SKILL.md", "src/claimset/data/skills/claimset-revise/SKILL.md"),
         ("skills/claimset-review/SKILL.md", "src/claimset/data/skills/claimset-review/SKILL.md"),

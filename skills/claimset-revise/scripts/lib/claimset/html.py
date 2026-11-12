@@ -106,12 +106,36 @@ def _link(uri, text=None):
     return f'<a href="{esc(uri)}">{text}</a>' if _href(uri) else text
 
 
+def _link_name(uri, limit=40):
+    """What a link to an artefact is called: its file's name, or else its site (`model.R`, `zenodo.org`)."""
+    path = re.sub(r"[?#].*$", "", str(uri)).rstrip("/")
+    host = re.sub(r"^https?://", "", path).split("/")[0]
+    tail = path.rsplit("/", 1)[-1] if "/" in re.sub(r"^https?://", "", path) else ""
+    name = tail or host or str(uri)
+    return name if len(name) <= limit else name[:limit - 1] + "…"
+
+
 def _doi(x):
     return _link(f"https://doi.org/{x}", f"doi:{x}") if isinstance(x, str) and x.startswith("10.") else esc(x)
 
 
-def _first_sentence(text, limit=160):
+def _readable(text):
+    """Text for a tooltip, which shows no markup: terms as shown, formulas as the characters their MathML shows
+    ("$\\epsilon_t$" as "ϵt"), never as LaTeX."""
     text = TERM.sub(lambda m: m.group(2), text or "")
+
+    def formula(m):
+        tex = m.group(1) or m.group(2) or m.group(3) or ""
+        shown = to_mathml(tex)
+        if shown is None:
+            return tex
+        shown = re.sub(r"<annotation\b.*?</annotation>", "", shown, flags=re.S)    # the TeX it was made from
+        return html.unescape(re.sub(r"<[^>]+>", "", shown))
+    return MATH.sub(formula, text)
+
+
+def _first_sentence(text, limit=160):
+    text = _readable(text)
     m = re.search(r"(?<=[.;])\s", text)
     text = text[:m.start()] if m and m.start() < limit else text
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
@@ -906,15 +930,20 @@ def _render_parts(doc, file_url, ref_text, person=None, marker=None, claim_url=N
     def artefact(a):
         desc = a.get("description") or a.get("uri") or ""
         src = P.image_src(a)
-        name = (f'<a href="{esc(src)}">{esc(desc)}</a>' if src else _link(a.get("uri"), desc) if _href(a.get("uri"))
-                else esc(desc))
+        uri = a.get("uri")                               # the description is read; the link is its file or site
+        target = src or (uri if _href(uri) and desc != uri else None)
+        name = (f'{esc(desc)} <a class="cs-open" href="{esc(target)}">{esc(_link_name(target))}</a>' if target
+                else _link(uri) if _href(uri) else esc(desc))
         bits = [esc(x) for x in (a.get("kind"), a.get("function")) if x]
         if a.get("reference"):
             bits.append(P.ref(a["reference"]))
         return (f'<li id="{esc(a["id"])}"><span class="cs-id">{esc(a["id"])} · {" · ".join(bits)}</span> {name}</li>')
 
+    summary = P.paper.get("summary") if isinstance(P.paper.get("summary"), str) and P.paper["summary"].strip() \
+        else None                                       # the authors' summary replaces the list (spec §3.1)
     sections = [
-        ("brief", "In brief", [f'<ul class="cs-brief">{"".join(brief_items)}</ul>{note}'] if brief_items else []),
+        ("brief", "In brief", [f'<p class="cs-summary">{P.text(summary)}</p>'] if summary else
+         [f'<ul class="cs-brief">{"".join(brief_items)}</ul>{note}'] if brief_items else []),
         ("context", "Context", [f'<dl class="cs-context">{"".join(context)}</dl>'] if context else []),
         ("definitions", "Definitions", None),
         ("assumptions", "Assumptions", assumption_items),

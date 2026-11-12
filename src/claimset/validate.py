@@ -2686,6 +2686,9 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
     check_inline_formulae(r, coll)
 
+    # ----- summary (rule 94, warning 45; §3.1) -----
+    check_summary(r, paper)
+
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
     if not converted and not published and "highlights" not in paper:
@@ -2759,6 +2762,25 @@ def check_inline_formulae(r, coll):
                                      "($$…$$), as a model's equations and long expressions are (§8 rule 6); in a "
                                      "sentence it cannot break across lines")
                 break
+
+
+#: Warning 45 (§3.1): the most words a paper's summary has.
+MAX_SUMMARY_WORDS = 150
+
+
+def check_summary(r, paper):
+    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 150 words."""
+    if "summary" not in paper:
+        return
+    text = paper["summary"]
+    if not isinstance(text, str) or not text.strip():
+        r.err("94", "paper.summary", "a text: the paper in a few sentences of plain language, for a reader outside "
+                                     "its field (§3.1)")
+        return
+    words = len(text.split())
+    if words > MAX_SUMMARY_WORDS:
+        r.warn("W45", "paper.summary", f"{words} words: keep the summary to {MAX_SUMMARY_WORDS} words or fewer; "
+                                       "a reader outside the field reads it whole, and the claims carry the detail")
 
 
 #: Rule 90 (§3.1): the most highlights a paper has.
