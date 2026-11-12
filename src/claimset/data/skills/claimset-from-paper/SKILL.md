@@ -9,7 +9,7 @@ An author has a finished paper, often already published, and wants it as a claim
 
 This skill adds to `claimset-submit`, installed with it (`claimset skill install` installs both): it replaces that skill's steps 1 and 2 (gathering the material, asking the human), and then you follow its steps 3 to 12 as written. The normative rules are in `references/spec-v0.42.md`; a valid submission is in `examples/submission-native.json`. Read both before starting.
 
-**Without a terminal** (a chat assistant): read the specification at https://entrylib.org/spec/claimset.md and `claimset-submit` at https://entrylib.org/skills/claimset-submit.md (both plain text; also as pages at https://entrylib.org/spec/claimset and https://entrylib.org/skills/claimset-submit, and through the `guide` tool of the EntryLib MCP server), write the file as text, and check it with the `validate` tool of the EntryLib MCP server (`https://entrylib.org/mcp`) if your human has connected it; otherwise give the file to your human to upload at https://entrylib.org/submit, which validates it before anything else.
+**Without a terminal** (a chat assistant): read the specification at https://raw.githubusercontent.com/entrylib/claimset/main/spec/claimset-v0.42.md and `claimset-submit` at https://raw.githubusercontent.com/entrylib/claimset/main/skills/claimset-submit/SKILL.md (both plain text), or the copies the platform you submit to serves, write the file as text, and check it with the `validate` tool of the EntryLib MCP server (`https://entrylib.org/mcp`) if your human has connected it; otherwise give the file to your human to upload at https://entrylib.org/submit, which validates it before anything else.
 
 ## Non-negotiable rules
 
