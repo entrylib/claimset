@@ -8,10 +8,10 @@ Claimset is the name of both the open format and the platform.
 
 Erratum of 2026-11-12 (§10, warnings 13 and 17; every version from the baseline). Warning 13 asked for an exploratory principal claim to be called exploratory in its assessment rationale, but was given without reading the rationale: it is now given only when no assessment's rationale says `exploratory`. Warning 17 read the digits of names as numbers ("claimset-haiku-2", "GPT-4o", "M4"): a word that mixes letters and digits, alone or joined by hyphens, is now a name and is ignored; a number in scientific notation (`1e-5`) is still a number. Neither change makes a valid file invalid.
 
-Amended on 2026-11-12: a competing interest is declared once. A limitation that restated the paper's competing-interest declaration lowered the score of every claim it named, for something the declaration already tells readers, who see it with the paper. §3.9 says where each belongs; new warning 45.
+Amended on 2026-11-12: a competing interest is declared once. A limitation that restated the paper's competing-interest declaration lowered the score of every claim it named, for something the declaration already tells readers, who see it with the paper. §3.9 says where each belongs; new warning 46.
 
 - §3.9: a competing interest is declared in `paper.declarations.competing_interests`, not repeated as a limitation; a limitation records how the interest bears on the claims it names, and what guarded against it.
-- §10: new warning 45.
+- §10: new warning 46.
 
 A planned test's outcome rests on the values its quantities bind. In v0.40 a quantity that bound nothing, or bound several observations, was a warning at most: a claimset whose results were made into tables kept quantities naming result entries that no longer existed, and the outcomes of its planned tests rested on no value, as published.
 
@@ -30,6 +30,12 @@ Amended on 2026-11-11: an agent says what it did in a few words. Agents put thei
 - Lab record v0.21: `claimset lab actor --label` records it, and export carries it.
 
 Amended on 2026-11-11: a claimset submitted alone, outside a package, names no packaged file (§2.5, rule 70). The platform's file route had accepted such a claimset with no error, and would have published it without the files its artefacts name. Amended again on 2026-11-11: an agent that can neither send a file nor reach a public URL gives the platform's MCP server the claimset with the contents of its files, and the platform builds the package from them.
+
+Amended on 2026-11-11: a paper may open with a summary in plain language, and a claimset its authors prepare from their own published paper is native. A reader from outside the paper's field met its principal claims first: exact, but written for specialists. And nothing said how an author turns a paper they have already published into a claimset: `converted` and the `converter` are for papers by others.
+
+- §3.1: new optional `paper.summary`: a few sentences in plain language, at most 150 words, saying what the paper asked, what it found and under which conditions, for a reader outside its field. Written for the claimset and approved by the guarantor; never a copied abstract. New rule 94 (a text); new warning 45 (more than 150 words).
+- §2.3: the reading view gives the summary after the title. The page view shows it under In brief, in place of the list of principal claims.
+- §3.6, §3.11: a claimset its authors prepare from their own paper, published or not, is native, written by its agent as `author`, with a `manuscript` artefact naming the paper (its DOI or other identifier in `uri`). Its guarantor is one of the paper's authors.
 
 ## Changes in v0.40 (since v0.39)
 
@@ -506,7 +512,7 @@ Top-level layout:
 
 A claimset is stored and exchanged as JSON: the canonical file, which tools validate, the platform publishes and corrections patch. A model that reads the paper is given its **reading view**: a plain-text rendering of the same claimset. JSON field names, quotation marks and the fields that serve tools, audit and publication take a large share of a file and carry nothing a reader needs; the reading view leaves them out.
 
-- **Kept:** the title, licence, source of a converted paper, declarations, contributions, highlights and exploration counts; definitions with their kind, members, the wholes they are part of, their broader terms, assumptions and identifiers; claims with their type, role, novelty (when not `no_prior_found`), support with its pointers and locators, assumptions, `depends_on`, limitations, warrant, strength, verification, verifiability, planning, outcome, scope, relations with their notes (relations within the paper as well), assumptions inherited from the terms they rest on (§3.2, *Assumptions of a term*), and test; evidence with its description, design fields, setup, what it is derived from, estimate, observations (results and tables, with their values, units, conditions and where a value was read from) and proof steps; warrants; limitations; open questions; artefact descriptions, figure functions and the observations a figure shows; references.
+- **Kept:** the title, summary, licence, source of a converted paper, declarations, contributions, highlights and exploration counts; definitions with their kind, members, the wholes they are part of, their broader terms, assumptions and identifiers; claims with their type, role, novelty (when not `no_prior_found`), support with its pointers and locators, assumptions, `depends_on`, limitations, warrant, strength, verification, verifiability, planning, outcome, scope, relations with their notes (relations within the paper as well), assumptions inherited from the terms they rest on (§3.2, *Assumptions of a term*), and test; evidence with its description, design fields, setup, what it is derived from, estimate, observations (results and tables, with their values, units, conditions and where a value was read from) and proof steps; warrants; limitations; open questions; artefact descriptions, figure functions and the observations a figure shows; references.
 - **Left out:** `about` (the statement says the same in words; `about` serves search), `provenance`, `field_provenance`, `source_spans`, `corrections`, availability, artefact locations, versions and licences, contributors, models, execution records, lab-record identifiers, `schema_version` and the platform's publication fields.
 
 - **Order:** claims are grouped by role: principal claims, then supporting claims, then secondary claims, each group in file order. Claims that are not principal and whose support is only `argument` or `unstated` follow, under CLAIMS WITHOUT EVIDENCE, so a reader sees at once what the paper asserts or argues without evidence. Principal claims stay with the principal claims whatever their support.
@@ -617,6 +623,7 @@ The core of this specification is what every field shares and what claims are co
 | `classification` | object | `subfield` (one OpenAlex subfield ID) and `topics` (1–3 OpenAlex topic IDs): platform-assigned; the agent may propose values. `keywords` (free text, for specifics the taxonomy does not reach): supplied by the agent, recommended |
 | `contributions` | list of claim IDs | Required. Ordered by priority; principal claims only |
 | `highlights` | list of IDs | Optional. One to five IDs, ordered by priority: principal claims (each in `contributions`) and terms the paper introduces (definitions without `source`), chosen by the guarantor (below; rule 90) |
+| `summary` | string | Optional. The paper in a few sentences of plain language, for a reader outside its field (below; rule 94, warning 45) |
 | `autonomy` | enum | Native papers only, required: `autonomous` (agents ran the work end to end) · `human_supervised` (humans oversaw the agents' work and approved it) · `human_assisted` (humans carried out substantial parts of the research) · `unknown` |
 | `contribution_record` | enum | Required. `complete` · `partial` · `unknown`. For converted papers, refers to the conversion |
 | `origin` | enum | Required. `native` · `converted` |
@@ -664,6 +671,11 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 - Native papers: the guarantor chooses them (principle 10), as they choose the licence. The agent proposes up to five, in order of priority, with a line on why each, and records what the guarantor decides. If the guarantor prefers none, the field is left out, and the platform shows the contributions in their order.
 - Converted papers: the claims and terms the source itself puts first (its highlights, or without them its abstract), when they are principal claims or the paper's own terms; otherwise the field is left out.
 - A correction or revision may change them, like any field.
+
+**`summary`.** What a reader outside the paper's field should know of it, in a few sentences: what was asked, what was found and under which conditions, and what the finding is good for. At most 150 words (warning 45), in plain language: a term the paper defines is explained in words, not only named; numbers are the paper's own; maths is written as in statements (§8 rule 6) and kept to what the finding needs. It adds no claim: every finding it states is a claim of the paper, with its conditions, and it says nothing the claims do not.
+- Native papers: the agent drafts it from the claims, and the guarantor approves or rewrites it (principle 10). A summary written for the claimset is never the abstract of a published version copied.
+- Converted papers: written for the claimset from its claims; the source's abstract is the source's text, and is not copied.
+- A reading view gives it after the title; a page view shows it first, in place of the list of principal claims. A correction or revision may change it, like any field.
 
 **`declarations`.** What a reader needs to weigh the work beyond its evidence, as its responsible people declare it. Native papers: the agent asks the guarantor (principle 10), and records what they say.
 - `funding`: list of `{funder, funder_id, award, kind, role}`: the funder's name, its identifier (a ROR ID such as `ror:00k4n6c32`, or a Crossref Funder Registry DOI), the award or grant number, the `kind` of support, `grant` (money) or `in_kind` (materials, vouchers, services, equipment, analyses paid for), and the funder's `role` in the work as text ("no role in design, analysis or the decision to publish"). An empty list declares no funding.
@@ -1180,7 +1192,7 @@ A reading model learns little from an image; it learns from the observations. Im
 
 **Bulk data.** Data larger than the paper reports (results per series or per participant, raw measurements, simulation outputs) are artefacts in tabular files (CSV), with `columns` naming the variable or dimension of each column. Their rows are observations like the file's own, and are cited by RFC 7111 fragment, `A4#row=12` (a row) or `A4#row=12-40` (rows). What the claims rest on is recorded in the file as results and tables; bulk data supports and extends them.
 
-Tables are stored as data (CSV or JSON), not images. Prompts are stored verbatim, including system prompts. A `trace` is the log of an agent's run (prompts, tool calls, outputs) as recorded by the system that ran it; it may contain confidential material and uses the availability levels in §3.10. A `manuscript` is a human-readable version of the same work (e.g. a LaTeX or PDF draft) from which the claimset was prepared. An artefact taken from prior work (a public data set, a package the paper's evidence uses) points to its `reference`; its `uri` and `version` are given when the paper gives them.
+Tables are stored as data (CSV or JSON), not images. Prompts are stored verbatim, including system prompts. A `trace` is the log of an agent's run (prompts, tool calls, outputs) as recorded by the system that ran it; it may contain confidential material and uses the availability levels in §3.10. A `manuscript` is a human-readable version of the same work (e.g. a LaTeX or PDF draft) from which the claimset was prepared. When that version is published (a journal article, a preprint), the `manuscript` names it, its DOI or other identifier in `uri`, and the claimset is still native: its authors prepared it from their own work, and one of them is its guarantor. `converted` is for papers by others (§3.11). An artefact taken from prior work (a public data set, a package the paper's evidence uses) points to its `reference`; its `uri` and `version` are given when the paper gives them.
 
 A `uri` on a git host (GitHub, GitLab, Bitbucket, Codeberg and the like) names a full commit hash, e.g. `https://github.com/org/repo/tree/<40 hex digits>/path`, not a branch: a branch moves, so the link would later show other content than the evidence used (warning 21). A repository can still be deleted; `archive_uri` keeps a copy that outlives it.
 
@@ -1219,7 +1231,7 @@ For `axiom`, `check` is `untestable`. Claims list the assumptions they rely on i
 
 Limitations are threats to a claim *within its stated scope*. What the work did not cover belongs in `scope`, not here.
 
-A competing interest is declared once, in `paper.declarations.competing_interests` (§3.1), which readers see with the paper; it is not repeated as a limitation. Who did the work, and why, is for readers to weigh, not a threat to a claim. Record a limitation only when the interest bears on how particular claims were obtained (the authors evaluated their own method, and chose its settings), naming those claims and what guarded against it (a blinded evaluation, settings fixed in a plan); warning 45 points to a limitation that only restates the declaration. (Amended on 2026-11-12.)
+A competing interest is declared once, in `paper.declarations.competing_interests` (§3.1), which readers see with the paper; it is not repeated as a limitation. Who did the work, and why, is for readers to weigh, not a threat to a claim. Record a limitation only when the interest bears on how particular claims were obtained (the authors evaluated their own method, and chose its settings), naming those claims and what guarded against it (a blinded evaluation, settings fixed in a plan); warning 46 points to a limitation that only restates the declaration. (Amended on 2026-11-12.)
 
 | Field | Type | Values / notes |
 |---|---|---|
@@ -1643,6 +1655,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 
 92. Outcome of a computed test (§3.3.3). When every quantity of a computed test binds, its `supported` and `not_supported` rules, evaluated on the bound values and the numeric parameters, give `hypothesis.outcome`: `supported` when only `supported` holds, `not_supported` when only `not_supported` holds, `inconclusive` when both or neither hold. Rules that cannot be evaluated are an error under this rule.
 93. An agent's `label` (§3.11) is a string of 1 to 60 characters; only agents have one.
+94. `paper.summary` (§3.1), when present, is a string with text.
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -1690,7 +1703,8 @@ The file records identifier type and venue facts for cited works only. Trust in 
 42. (Files of v0.40 only.) The rules of a computed test, evaluated on the values its quantities bind, give another outcome than the claim's `hypothesis.outcome`. From v0.41 this is rule 92.
 43. An agent's `name` ends in parentheses ("Claude Code (drafting agent)"): the name is the system's; what the agent did goes in `label` (§3.11).
 44. A formula written in a sentence (`$…$` or `\(…\)`) shows more than 30 symbols (a LaTeX command counts as one; braces, `^`, `_`, spacing and layout commands as none): set it on a line of its own, `$$…$$` (§8 rule 6). In a sentence it cannot break across lines, and runs past a narrow screen.
-45. A limitation restates the paper's competing-interest declaration: it names a competing or conflicting interest, or at least half of its words (of four letters or more, and at least three) are the declaration's. A competing interest is declared, not listed as a limitation (§3.9). (Amended on 2026-11-12.)
+45. `paper.summary` has more than 150 words (§3.1): a reader outside the field reads it whole; the claims carry the detail.
+46. A limitation restates the paper's competing-interest declaration: it names a competing or conflicting interest, or at least half of its words (of four letters or more, and at least three) are the declaration's. A competing interest is declared, not listed as a limitation (§3.9). (Amended on 2026-11-12.)
 
 ## 11. Platform dependencies
 

@@ -45,7 +45,7 @@ def _rubric():
 def _assess(rubric, doc, find, warnings):
     """rubric.assess, given the validator's warnings when the installed rubric reads them (rubric 0.3: the numbers a
     statement gives that match no recorded result, warning 17; a limitation that restates the declared competing
-    interest, warning 45)."""
+    interest, warning 46)."""
     import inspect
     if "warnings" in inspect.signature(rubric.assess).parameters:
         return rubric.assess(doc, find, warnings=warnings)

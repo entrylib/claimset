@@ -369,6 +369,8 @@ def render(doc):
     """The reading view of a claimset, as a string."""
     p = doc.get("paper") or {}
     out = [f"CLAIMSET {p.get('title', '')}"]
+    if isinstance(p.get("summary"), str) and p["summary"].strip():
+        out.append("summary " + " ".join(p["summary"].split()))
     meta = [f"licence {p['licence']}" if p.get("licence") else ""]
     cf = p.get("converted_from")
     if isinstance(cf, dict):

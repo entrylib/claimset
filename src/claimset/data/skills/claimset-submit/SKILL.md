@@ -13,7 +13,7 @@ The normative rules are in `references/spec-v0.41.md`. Extensions of the format,
 
 You produce a **submission**. The platform turns it into the published file: it assigns the claimset's identifier (a DOI, or until the platform registers DOIs a provisional identifier such as `entrylib:2026.000123`) and the version, publication date, status, the OpenAlex classification IDs and each claim's verifiability. You never supply these, and you never ask the human for them.
 
-This skill covers **native** papers: research you or other agents produced, including research first written up as a manuscript (LaTeX, PDF, notes) by the same team. Converting a third party's published paper is a separate process; do not use this skill for it.
+This skill covers **native** papers: research you or other agents produced, including research first written up as a manuscript (LaTeX, PDF, notes) by the same team. Converting a third party's published paper is a separate process; do not use this skill for it. For a paper the human's team has already written or published, use `claimset-from-paper`, which starts from the paper and then follows this skill.
 
 ## Non-negotiable rules
 
@@ -240,7 +240,7 @@ Use `check: "tested"` or `"sensitivity_analysed"` only if the work actually did 
 - **Scope** = what the work covered: population, setting, geography, language, period, data_type, conditions, and `excludes` (where it explicitly does not apply). "English-language data only" is scope.
 - **Write scope claim by claim, never per section.** Claims from the same section often differ: a result about series where every period is observed must not carry the scope "series with unobserved periods". Leave out fields that do not apply. The validator warns when three or more claims share an identical scope; treat that as a prompt to check each one.
 - **Limitation** = a threat to a claim *within* that scope, e.g. "All 1,200 series come from one retailer's store network". Each limitation names the claims it `affects`, its `impact` and its `mitigation`. No paper-wide or generic limitations ("more research is needed" is not a limitation).
-- **A competing interest is declared, not listed as a limitation.** Ask the guarantor and record it in `paper.declarations.competing_interests`; readers see it with the paper. Add a limitation only when the interest bears on how particular claims were obtained (the authors evaluated their own method and chose its settings), naming those claims and what guarded against it (W45, spec §3.9).
+- **A competing interest is declared, not listed as a limitation.** Ask the guarantor and record it in `paper.declarations.competing_interests`; readers see it with the paper. Add a limitation only when the interest bears on how particular claims were obtained (the authors evaluated their own method and chose its settings), naming those claims and what guarded against it (W46, spec §3.9).
 
 ### 8. Assess strength, or verification for formal claims
 
@@ -327,7 +327,8 @@ Give the human a short summary:
 1. Validation result (errors: 0; list remaining warnings and why they remain).
 2. The principal claims, in plain language, with their strength and computed verifiability.
 3. **Highlights, for the guarantor to choose** (spec §3.1): what a reader should take from the paper first, shown at the top of the paper's page on the platform and in the reading view. Propose up to five, in order of priority, from the principal claims and the terms the paper introduces (definitions without `source`: a new method, measure, concept or data set), each with its ID, a plain-language line and why you propose it. Ask the guarantor to choose, reorder or reject them, then record their choice in `paper.highlights` (`["C2", "D4"]`) and validate again. A claim they want highlighted that is not principal becomes a contribution (its `role` and `paper.contributions`). If they prefer none, leave the field out and say so (warning 39 then remains, and is fine). Never choose them yourself.
-4. Open items needing a human: guarantor confirmation on the platform, anything you could not determine.
+4. **A summary, for the guarantor to approve** (spec §3.1, optional): the paper in a few sentences of plain language, at most 150 words, for a reader outside its field, drafted from the principal claims. Ask the guarantor to approve or rewrite it, and record it in `paper.summary`; it is shown first on the paper's page. Never copy an abstract into it.
+5. Open items needing a human: guarantor confirmation on the platform, anything you could not determine.
 
 **Score, if the human wants it.** Before they decide, ask whether a score is worth running; it is optional, and never run it unasked or make it a condition of submitting. `claimset score <paper>.claimset.json` (on this machine; it needs the rubric, `pip install git+https://github.com/entrylib/rubric`) gives the score EntryLib's rubric would give the claimset once published; add `--novelty` only if the human agrees to send the principal claims' words to EntryLib's search. Without a terminal, the EntryLib MCP server's `score` tool does the same. Report the paper's score and band and the biggest issues, each with what would fix it, plainly: the score checks the record (evidence, plan, verifiability, context, open problems), not the science. Then let the human choose: submit as it is, or amend it (fixing only what is true of the research: never weaken a claim's honesty or drop a limitation to raise a score) and score again.
 
