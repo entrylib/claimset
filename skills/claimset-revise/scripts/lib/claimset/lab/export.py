@@ -1159,3 +1159,55 @@ def export(lab, paper=None, results_path=None):
     to the claimset: text} of the files to write beside it (the CSV of every result, at `results_path`, by default
     files/results.csv)."""
     return _Exporter(lab, paper, results_path).run()
+
+
+#: What a completed claimset keeps exactly as export wrote it from the record (lab record §9): the record decides
+#: them, and completing the claimset never changes them.
+RECORD_FIELDS = ("hypothesis", "planning", "planned_at", "planned_at_anchor")
+TEST_FIELDS = ("framework", "parameters", "supported", "not_supported", "flags", "verdict", "registration")
+
+
+def _model_keys(doc, kind="agent"):
+    """{(provider, name, version)} of the models the claimset's agent contributors name."""
+    models = {m.get("id"): m for m in doc.get("models") or [] if isinstance(m, dict)}
+    out = set()
+    for c in doc.get("contributors") or []:
+        if isinstance(c, dict) and c.get("type") == kind:
+            for ref in c.get("models") or []:
+                m = models.get(ref.get("model") if isinstance(ref, dict) else ref) or {}
+                out.add((m.get("provider"), m.get("name"), m.get("version")))
+    return out
+
+
+def check(lab, doc, paper=None):
+    """What a completed claimset changed of what export takes from the record (lab record §9): the claims of the
+    record's hypotheses, their outcome, planning and test, the exploration counts, and the models of the agents that
+    did the work. [message]; empty when it keeps them all."""
+    fresh = export(lab, paper)["draft"]
+    out = []
+    mine = {(c.get("hypothesis") or {}).get("lab_event"): c for c in doc.get("claims") or []
+            if isinstance(c, dict) and isinstance(c.get("hypothesis"), dict)}
+    for c in fresh["claims"]:
+        event = (c.get("hypothesis") or {}).get("lab_event")
+        if not event:
+            continue
+        got = mine.get(event)
+        if got is None:
+            out.append(f"the claim of hypothesis {event} ({c['id']} in the export) is gone: a result of the record "
+                       f"stays in the claimset, whatever its outcome")
+            continue
+        for k in RECORD_FIELDS:
+            if got.get(k) != c.get(k):
+                out.append(f"{got.get('id')}.{k} is {json.dumps(got.get(k))}, but the record gives "
+                           f"{json.dumps(c.get(k))}")
+        for k in TEST_FIELDS:
+            a, b = (got.get("test") or {}).get(k), (c.get("test") or {}).get(k)
+            if a != b:
+                out.append(f"{got.get('id')}.test.{k} is {json.dumps(a)}, but the record gives {json.dumps(b)}")
+    a, b = (doc.get("paper") or {}).get("exploration"), (fresh.get("paper") or {}).get("exploration")
+    if a != b:
+        out.append(f"paper.exploration is {json.dumps(a)}, but the record gives {json.dumps(b)}")
+    for provider, name, version in sorted(_model_keys(fresh) - _model_keys(doc), key=str):
+        out.append(f"the model {provider} {name} {version} of an agent that did the work is gone from the "
+                   f"contributors: keep the models the record names; add your own as another agent contributor")
+    return out

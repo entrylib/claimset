@@ -21,7 +21,7 @@ from . import record as _record
 from .. import validate as _claimset
 
 #: Commands that only read the record: they are allowed anywhere and never commit.
-READERS = {"summary", "list", "show", "verify", "verdict", "guard", "studies", "quote"}
+READERS = {"summary", "list", "show", "verify", "verdict", "guard", "studies", "quote", "next"}
 
 def _lab(args):
     return Lab(_layout.find_lab(args.lab, getattr(args, "study", None)))
@@ -774,11 +774,31 @@ def cmd_merge(args):
     return 0
 
 
+def _check_export(lab, paper, args):
+    """`claimset lab export --check FILE`: what the completed claimset changed of the record's fields (§9)."""
+    try:
+        doc = json.loads(Path(args.check).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise LabError("export", f"cannot read {args.check}: {exc}") from None
+    found = _export.check(lab, doc, paper)
+    if args.json:
+        print(json.dumps({"claimset": args.check, "differences": found}, ensure_ascii=False, indent=2))
+    elif found:
+        print(f"{args.check} changed what the record decides ({len(found)}); restore it as export wrote it:")
+        for f in found:
+            print(f"  - {f}")
+    else:
+        print(f"{args.check} keeps everything export took from the record.")
+    return 1 if found else 0
+
+
 def cmd_export(args):
     from ..validate import validate
 
     lab = _lab(args)
     paper = _export.select_paper(lab, args.paper)
+    if args.check:
+        return _check_export(lab, paper, args)
     if args.output:
         out_path = Path(args.output)
     else:
@@ -844,6 +864,63 @@ def cmd_verify(args):
         if rep["unchecked_types"]:
             print("  Not yet checked by this version: " + ", ".join(rep["unchecked_types"]))
     return 0 if rep["ok"] else 1
+
+
+def _anchored(lab, events):
+    """Whether the newest event is covered by an anchor; True when the record is not set up to be anchored, or it
+    cannot be told."""
+    try:
+        return not events or not _anchor.anchoring(lab) or _anchor.covered(lab, events[-1])
+    except LabError:
+        return True
+
+
+def cmd_next(args):
+    """What to do next: the steps still open, each with its command (lab record §2, principle 8)."""
+    from . import nextstep
+    lab = _lab(args)
+    st = lab.view(_actor(args, required=False), lab.read())
+    todo = nextstep.steps(st.events, _actor(args, required=False), _anchored(lab, st.events))
+    if args.json:
+        print(json.dumps([{"step": w, "command": c} for w, c in todo], ensure_ascii=False, indent=2))
+        return 0
+    if not todo:
+        print("Next: " + nextstep.line(st.events))
+        return 0
+    print(f"Next: {todo[0][0]}.\n  {todo[0][1]}")
+    if len(todo) > 1:
+        print("Then:")
+        for what, command in todo[1:]:
+            print(f"- {what}.\n  {command}")
+    return 0
+
+
+def _not_a_person(lab, by):
+    """Inside an agent harness, the agent writes as itself (lab record §4.6): a command written as a person is refused.
+    A person's approval is recorded by the agent on their behalf, with their words."""
+    from .. import agents as _agents
+    harness = _agents.detect()
+    if harness is None or not by:
+        return
+    st = lab.state()
+    actor = st.latest(by) if st.get(by) is not None else None
+    if actor is not None and actor["type"] == "actor" and (actor["body"] or {}).get("kind") == "human":
+        raise LabError("harness", f"{by} is a person, and this command runs inside {harness.name}, where an agent "
+                                  f"writes: write as yourself (--by your own actor ID). A person's approval is recorded "
+                                  f"with `claimset lab approve … --by <you> --on-behalf-of {by} --words \"<their "
+                                  f"reply>\"`. A person who wants to write as themselves runs the command in a "
+                                  f"terminal of their own, outside {harness.name}.")
+
+
+def _print_next(lab, args):
+    """After a writing command, the next step in one line (claimset lab next gives them all)."""
+    from . import nextstep
+    try:
+        events = lab.view(_actor(args, required=False), lab.read()).events
+        print(f"claimset: next: {nextstep.line(events, _actor(args, required=False), _anchored(lab, events))}",
+              file=sys.stderr)
+    except Exception:  # noqa: BLE001 - a hint, never a reason for a written event to look failed
+        pass
 
 
 def cmd_summary(args):
@@ -1152,6 +1229,9 @@ def add_parser(subparsers):
     p.add_argument("-o", "--output", help="draft file (default claimset/<study>/<paper>.claimset.json, or "
                                           "claimset.draft.json for a lab without a study)")
     p.add_argument("--force", action="store_true", help="overwrite the draft file")
+    p.add_argument("--check", metavar="CLAIMSET", help="write nothing: report what a completed claimset changed of "
+                                                        "what export takes from the record (claims of hypotheses, "
+                                                        "planning, tests, exploration counts, the agents' models)")
 
     p = cmd("anchor", cmd_anchor, "record the head of the log outside the agent's reach", parents=(common,))
     p.add_argument("--git", action="store_true", help="use git anchoring (records the configuration)")
@@ -1172,6 +1252,7 @@ def add_parser(subparsers):
             parents=(common,))
     p.add_argument("--undo", action="store_true", help="remove the append-only attribute")
     cmd("summary", cmd_summary, "current state of the research", parents=(viewer,))
+    cmd("next", cmd_next, "what to do next: the steps still open, each with its command", parents=(viewer,))
 
     def lab_help(args):
         lab.print_help()
@@ -1194,7 +1275,10 @@ def run(func, args):
                 _record.check_writable(lab)
                 _record.migrate(lab)          # a receipt an earlier tool left uncommitted (lab record v0.15)
                 before = len(lab.read())
+                _not_a_person(lab, getattr(args, "by", None) or os.environ.get("CLAIMSET_ACTOR"))
         code = func(args)
+        if code == 0 and lab is not None and lab.exists() and len(lab.read()) > before:
+            _print_next(lab, args)
         if lab is not None and lab.exists() and _record.config(lab):
             entry = _record.save(lab, before)
             if entry:

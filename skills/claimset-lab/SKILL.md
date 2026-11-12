@@ -16,6 +16,23 @@ At the end the record is exported to a claimset (a paper for LLM readers) with t
 
 **Where things live: the record and the code are kept apart.** Each study (a piece of research with its own record) lives on its own git branch, `claimset/<study>`, which holds only the record: `lab/` and the papers drawn from it (`<paper>.claimset.json`). It is checked out at `claimset/<study>/` in the code checkout, and the code branches ignore `claimset/`. A study branch is never merged into code, and code is never merged into it; never check it out, merge, rebase, cherry-pick, force-push or delete it yourself: the tool commits and pushes it after every command that changes the record. All code stays on the code branches; code only a study uses goes in `claimset-code/<study>/`. Run every command from the code checkout. Names are lower-case letters, digits and hyphens (`eigen-checker`). Commands find the lab of the only study, or of the one named by `--study NAME` (or `$CLAIMSET_STUDY`). Below, `lab/` means the study's lab folder. `claimset studies` shows every study and its state.
 
+## The path, in order
+
+Follow these steps in order; the sections below give the detail of each. Whenever you are unsure what comes next, or after a pause, run `claimset lab next`: it reads the record and names the next step with its command, and every writing command ends with that step on its last line (`claimset: next: …`). Do not stop before it says there is nothing left but export.
+
+1. **Set up and register** (*Starting*): the study, yourself (`claimset lab actor --kind agent … --record-source self_reported`), then the person who supervises, with their words (`--by` you).
+2. **Fit the brief.** Before any code, list every requirement of the task you were given (the methods and their settings, the data, the measures, what must be counted or reported) and, once the script exists, the line of the script that meets each. A setting the brief fixes is fixed in the code, never left to a default (a library that selects a model form, a trend or a distribution when not told is not running the method the brief names). Record the list as a note (`claimset lab note "Brief requirements: …"`).
+3. **Ask the question** (`claimset lab question "…"`) and **name its terms** (`claimset lab term …`).
+4. **State what you expect before any run informs it** (`claimset lab hypothesis "…" --question Q1`). A hypothesis written after you have seen any result is `--from-exploration`.
+5. **Plan each test before running it** (`claimset lab plan --kind confirmatory --hypotheses H1 … --requires-approval`): the design, the analysis, every analysis choice and the decision rule (*Plans and decision rules*). When the question is how large something is, plan to report the estimate with its uncertainty, and make the rule a statement about it that the estimate can decide; never invent a threshold the brief does not give.
+6. **Ask the supervisor to approve the plan, and wait** (*Approvals*); record their reply with `claimset lab approve PL1 --by <you> --on-behalf-of <them> --words "…"`.
+7. **Check the script on other data first** with exploratory runs (`claimset lab run --exploratory …`), and have it write, as results, the diagnostics a reader needs: the model form actually fitted, whether each optimisation converged, failures and exclusions.
+8. **Run the planned test once** (`claimset lab run --plan PL1 … -- <command>`).
+9. **Record the verdict** (`claimset lab verdict PL1`, then `claimset lab status H1 <verdict> --plan PL1 --evidence … --why "…"`), whatever it is.
+10. **Record what else you found** as notes, and what you did not plan as exploratory runs; a finding worth claiming is a new hypothesis `--from-exploration` with a new plan on new data.
+11. **Finish:** `claimset lab next` says nothing is left; `claimset lab verify` reports OK; anchor if the record is not on a study branch (`claimset lab anchor`).
+12. **Export and complete** the claimset with the claimset-submit skill (`claimset lab export`).
+
 ## Rules you never break
 
 1. **Write to `lab/` only through `claimset lab`.** Never edit, delete, move, truncate or overwrite anything in `lab/`, including `runs/`, by any means: editor tools, shell redirection, scripts, git. Fix mistakes with a correction (`--supersedes`). If a guard hook blocks a command, do not look for another way; use the `claimset lab` command it names.

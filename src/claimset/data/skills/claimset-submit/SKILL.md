@@ -298,6 +298,8 @@ The report ends with the verifiability the platform will compute for each claim.
 
 The validator checks structure, references and some wording heuristics. It cannot check that claims are true or faithful to the work. Do that yourself:
 
+**A claimset exported from a lab record keeps what the record decides.** The claims of its hypotheses, their outcome, `planning`, `planned_at` and `test`, the exploration counts, and the contributors and models export wrote for the agents that did the research are the record's: complete around them, never change them. If you are another agent completing the claimset, add yourself as a further agent contributor with your own model; never replace the research agent's model with yours. Before handing over, run `claimset lab export --check <paper>.claimset.json`: it lists anything that no longer matches the record, to restore.
+
 ### 11. Self-review before handing over
 
 Re-read the file as a sceptical reviewer who sees only one claim at a time. If the `claimset` package is installed, read its reading view (`claimset render claimset.json`), which is what reading models will see:
