@@ -2868,6 +2868,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
 
     # ----- summary (rule 94, warning 45; §3.1) -----
     check_summary(r, paper)
+    check_published_as(r, paper, coll.get("artefacts") or [])
 
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
@@ -2942,6 +2943,43 @@ def check_inline_formulae(r, coll):
                                      "($$…$$), as a model's equations and long expressions are (§8 rule 6); in a "
                                      "sentence it cannot break across lines")
                 break
+
+
+#: Rule 97 (§3.1): the identifier types of a published paper a claimset restates.
+PUBLISHED_ID_TYPES = ("doi", "arxiv", "handle", "pmid", "isbn", "url")
+#: Warning 49: a manuscript artefact's uri that names a published paper (a DOI or an arXiv identifier).
+PUBLISHED_URI = re.compile(r"^(?:doi:|https?://(?:dx\.)?doi\.org/|10\.\d{4,9}/|arxiv:|https?://arxiv\.org/abs/)",
+                           re.I)
+
+
+def check_published_as(r, paper, artefacts):
+    """Rule 97: `paper.published_as`, in native papers only, names a published paper by a known identifier type.
+    Warning 49: a native paper whose manuscript artefact is a published paper does not give `published_as`."""
+    pub = paper.get("published_as")
+    if pub is not None:
+        if paper.get("origin") != "native":
+            r.err("97", "paper.published_as", "only native papers give published_as; a conversion by a third party "
+                                               "gives converted_from (§3.1)")
+        elif not isinstance(pub, dict):
+            r.err("97", "paper.published_as", "an object {id_type, id, version} (§3.1)")
+        else:
+            if pub.get("id_type") not in PUBLISHED_ID_TYPES:
+                r.err("97", "paper.published_as.id_type", f"one of {', '.join(PUBLISHED_ID_TYPES)} (§3.1)")
+            if not isinstance(pub.get("id"), str) or not pub["id"].strip():
+                r.err("97", "paper.published_as.id", "the paper's identifier, as text (§3.1)")
+            if "version" in pub and not isinstance(pub["version"], str):
+                r.err("97", "paper.published_as.version", "the version converted, as text (§3.1)")
+        return
+    if paper.get("origin") != "native":
+        return
+    for a in artefacts:
+        if (isinstance(a, dict) and a.get("kind") == "manuscript" and isinstance(a.get("uri"), str)
+                and PUBLISHED_URI.match(a["uri"].strip())):
+            r.warn("W49", f"artefacts:{a.get('id')}", "this manuscript is a published paper: give paper.published_as "
+                                                      "{id_type, id} with its identifier, so that readers and "
+                                                      "platforms can tell a conversion by its authors from a draft "
+                                                      "(§3.1)")
+            return
 
 
 #: Warning 45 (§3.1): the most words a paper's summary has.

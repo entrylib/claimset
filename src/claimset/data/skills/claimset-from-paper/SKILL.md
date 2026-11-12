@@ -14,7 +14,8 @@ This skill adds to `claimset-submit`, installed with it (`claimset skill install
 ## Non-negotiable rules
 
 - **The format comes from the specification, never from memory.** Write the claimset only from the specification and the skills you have read in this conversation: their structure, their fields, their values. Do not reconstruct the format from what you remember of Claimset or of EntryLib, and do not invent sections or fields. Without a terminal, the structure comes from what you were given: use only the structure of the example and the fields these texts name, and ask the human when you need something they do not give. If you have neither the specification nor `claimset-submit` (no terminal, no web access, nothing pasted), say so and ask the human for them before writing anything.
-- **Only the paper's authors.** Before anything else, ask the human whether they are an author of the paper. If they are not, stop: a paper by others is not prepared this way, and is not submitted by its readers. The guarantor is one of the paper's authors, with an ORCID iD.
+- **Only the paper's authors.** Before anything else, ask the human whether they are an author of the paper. If they are not, stop: a paper by others is not prepared this way, and is not submitted by its readers. The guarantor is one of the paper's authors, with an ORCID iD. A platform may check this against the paper's registered authors, and refuse a guarantor who is not among them.
+- **The published paper's identifier first.** Before building anything, find the paper's persistent identifier: its DOI, or its arXiv ID, Handle or PubMed ID. Without one, stop and ask the human for it. Only a paper published with no identifier at all (an older paper, a report online only at its publisher) may use its stable URL instead; say to the human that a platform then cannot check its authors automatically. A draft that was never published is not converted this way: it is written up with `claimset-submit`.
 - **The paper is the source, and the only one.** Every claim, number, condition and limitation comes from the paper or its supplementary material. Add nothing it does not say: no new results, no stronger wording, no conditions dropped, no reference the paper does not cite. Where the specification asks for something the paper does not record (how a test was planned, how many analyses were tried), use the specification's value for what is not recorded and ask the author; never reconstruct it.
 - **Results that go against the method are claims too.** Where the paper reports that its method did worse, or a hypothesis failed, that is a claim with its evidence, not a limitation to soften.
 - **Distil, do not transcribe.** A claimset is shorter than the paper (spec §1, principle 13). Restate claims in your own exact words; quote the paper only in short phrases.
@@ -23,15 +24,16 @@ This skill adds to `claimset-submit`, installed with it (`claimset skill install
 ## 1. Gather the material
 
 Ask the human for the paper (the accepted or published version), its supplementary material, and the links to its data and code. Find:
-- the published version's identifier (DOI, arXiv ID) and its licence or copyright holder;
-- the full author list with ORCID iDs where the paper gives them, and its contribution statement (CRediT), if any;
+- the published version's identifier (DOI, arXiv ID; see above) and its licence or copyright holder;
+- the full author list, and an ORCID iD for every author who has one: from the paper, from its record at the publisher or at Crossref (`https://api.crossref.org/works/<DOI>` lists the ORCID iDs authors registered), and from the human, who knows their co-authors. An author with no ORCID iD (often in older papers) is listed by name;
+- its contribution statement (CRediT), if any;
 - the funding, competing interests and ethics statements, as printed;
 - any registration of the study (a pre-registration, a registered report, a trial registry entry).
 
 ## 2. Ask the author (one message, before building the file)
 
 Ask, in one message:
-1. Are you an author of this paper? Which author will be the guarantor (normally the corresponding author), and their ORCID iD?
+1. Are you an author of this paper? Which author will be the guarantor (normally the corresponding author), and their ORCID iD? The ORCID iDs of the co-authors that you could not find.
 2. The licence for the claimset (above), and whether the data and code may be linked as public.
 3. Which results matter most: the two to five findings a reader should take first.
 4. Anything the paper got wrong that has since been corrected (an erratum): the claimset records the corrected result, and says so in the claim's limitation or rationale.
@@ -40,9 +42,10 @@ Ask, in one message:
 
 Then follow `claimset-submit` from its step 3, with these:
 - `paper.origin`: `native`. Never `converted`, never a `converter` and no `converted_from`: those are for papers by others.
+- **`paper.published_as`** (spec §3.1): the published paper, `{"id_type": "doi", "id": "10.1016/…"}` (or `arxiv`, `handle`, `pmid`, `isbn`, `url`), with `version` when the identifier names several. Required by this skill: it is what tells readers and platforms that its authors converted a published paper (a platform labels it so, and checks that the paper is published once).
 - `paper.autonomy`: `human_assisted` when people did the research and wrote the paper, which is the usual case.
-- **The paper itself** is an artefact of kind `manuscript` whose `uri` is the published version (`https://doi.org/…`), with a `description` naming it ("The published article, Journal of Forecasting 2025").
-- **Contributors.** The paper's authors are `human` contributors with `positions: ["author"]`, ORCID iDs where known, and their CRediT roles from the paper's contribution statement; the guarantor among them. You are an `author` agent too: you prepared this claimset's content (`label`: `claimset preparation`). `paper.contribution_record`: `partial` unless the paper's contribution statement covers everyone.
+- **The paper itself** is also an artefact of kind `manuscript` whose `uri` is the published version (`https://doi.org/…`), with a `description` naming it ("The published article, Journal of Forecasting 2025").
+- **Contributors** (spec §3.11). Every author of the paper is a `human` contributor, with an ORCID iD where they have one (above) and by name where they have none, and their CRediT roles from the paper's contribution statement. The guarantor has `positions: ["guarantor"]`; each other author `positions: ["contributor"]` (the position `author` is for agents only, rule 15). You are the `author`: an agent that prepared this claimset's content (`label`: `claimset preparation`). `paper.contribution_record`: `partial` unless the paper's contribution statement covers everyone.
 - **Planning.** A test is `confirmatory` only if it was registered before the data were seen (spec §3.3.3, *Tests registered outside a lab record*); otherwise the claim is `exploratory`, whatever the paper's wording.
 - **References.** Give each cited work its DOI or other identifier (look it up); `id_type: reference` is for works without one.
 - **`paper.summary`** (spec §3.1): draft a few sentences of plain language, at most 150 words, from the principal claims, never from the abstract, and ask the author to approve or rewrite it. It is shown first on the paper's page.
