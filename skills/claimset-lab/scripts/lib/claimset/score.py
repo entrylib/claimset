@@ -42,6 +42,16 @@ def _rubric():
     return rubric
 
 
+def _assess(rubric, doc, find, warnings):
+    """rubric.assess, given the validator's warnings when the installed rubric reads them (rubric 0.3: the numbers a
+    statement gives that match no recorded result, warning 17; a limitation that restates the declared competing
+    interest, warning 46)."""
+    import inspect
+    if "warnings" in inspect.signature(rubric.assess).parameters:
+        return rubric.assess(doc, find, warnings=warnings)
+    return rubric.assess(doc, find)
+
+
 def _load(path):
     """(validation report, claimset) of a claimset file or a submission package (zip or folder)."""
     from .validate import validate, validate_package
@@ -71,7 +81,7 @@ def score(path, find=None):
     rep, doc = _load(path)
     out = {"valid": not rep.errors, "errors": rep.errors, "warnings": rep.warnings, "novelty_checked": find is not None}
     if doc is not None and not rep.errors:
-        out["scores"] = rubric.assess(with_verifiability(doc, rep.computed), find)
+        out["scores"] = _assess(rubric, with_verifiability(doc, rep.computed), find, rep.warnings)
     return out
 
 

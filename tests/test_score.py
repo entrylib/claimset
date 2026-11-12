@@ -115,6 +115,21 @@ class TestPreparation(Files):
                 self.assertTrue(sc.score(source)["valid"], source)
             self.assertIn("A9", {a["id"] for a in stub.seen["doc"]["artefacts"]})
 
+    def test_the_validators_warnings_go_to_a_rubric_that_reads_them(self):
+        stub = stub_rubric()
+        plain = stub.assess
+
+        def assess(doc, find=None, warnings=None):
+            stub.seen["warnings"] = warnings
+            return plain(doc, find)
+        stub.assess = assess
+        d = copy.deepcopy(EXAMPLE)
+        c = next(c for c in d["claims"] if c.get("role") == "principal")
+        c["statement"] = c["statement"] + " It reached 0.123456."
+        with mock.patch.dict(sys.modules, {"rubric": stub}):
+            self.assertTrue(sc.score(self.write(d))["valid"])
+        self.assertIn(("W17", f"claims:{c['id']}.statement"), [(w["rule"], w["where"]) for w in stub.seen["warnings"]])
+
     def test_a_file_with_errors_is_not_scored(self):
         bad = copy.deepcopy(EXAMPLE)
         del bad["paper"]["title"]

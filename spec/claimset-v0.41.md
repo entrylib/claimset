@@ -6,6 +6,13 @@ Claimset is the name of both the open format and the platform.
 
 ## Changes since v0.40
 
+Erratum of 2026-11-12 (§10, warnings 13 and 17; every version from the baseline). Warning 13 asked for an exploratory principal claim to be called exploratory in its assessment rationale, but was given without reading the rationale: it is now given only when no assessment's rationale says `exploratory`. Warning 17 read the digits of names as numbers ("claimset-haiku-2", "GPT-4o", "M4"): a word that mixes letters and digits, alone or joined by hyphens, is now a name and is ignored; a number in scientific notation (`1e-5`) is still a number. Neither change makes a valid file invalid.
+
+Amended on 2026-11-12: a competing interest is declared once. A limitation that restated the paper's competing-interest declaration lowered the score of every claim it named, for something the declaration already tells readers, who see it with the paper. §3.9 says where each belongs; new warning 46.
+
+- §3.9: a competing interest is declared in `paper.declarations.competing_interests`, not repeated as a limitation; a limitation records how the interest bears on the claims it names, and what guarded against it.
+- §10: new warning 46.
+
 A planned test's outcome rests on the values its quantities bind. In v0.40 a quantity that bound nothing, or bound several observations, was a warning at most: a claimset whose results were made into tables kept quantities naming result entries that no longer existed, and the outcomes of its planned tests rested on no value, as published.
 
 - §3.3.3, §10: new rule 91. Each quantity of a computed test binds exactly one observation (a result entry or a table cell) of the evidence the claim's support names, with a number at its `field`; only an `inconclusive` outcome may rest on a quantity that binds nothing (warning 41). A quantity may give a `statistic` (from v0.40 as amended on 2026-11-11), which then must be one of §3.4.
@@ -1224,6 +1231,8 @@ For `axiom`, `check` is `untestable`. Claims list the assumptions they rely on i
 
 Limitations are threats to a claim *within its stated scope*. What the work did not cover belongs in `scope`, not here.
 
+A competing interest is declared once, in `paper.declarations.competing_interests` (§3.1), which readers see with the paper; it is not repeated as a limitation. Who did the work, and why, is for readers to weigh, not a threat to a claim. Record a limitation only when the interest bears on how particular claims were obtained (the authors evaluated their own method, and chose its settings), naming those claims and what guarded against it (a blinded evaluation, settings fixed in a plan); warning 46 points to a limitation that only restates the declaration. (Amended on 2026-11-12.)
+
 | Field | Type | Values / notes |
 |---|---|---|
 | `id` | string | `L1` … |
@@ -1662,11 +1671,11 @@ The file records identifier type and venue facts for cited works only. Trust in 
 10. An agent contributor that is not an `author` has the AI task `writing`; agents that produced the paper's content are authors.
 11. A check was made by an agent that runs on the same model as an `author` agent.
 12. A number in a claim's statement cannot be matched to the results the claim cites, at the precision stated (heuristic; a percentage matches a value given as a fraction, 0.767, or in percent, 76.7). Applies to cited result entries; cited tables and rows are not checked.
-13. `planning: exploratory` on a principal claim: exploratory findings can be principal, but readers should be told so in the claim's assessment rationale.
+13. `planning: exploratory` on a principal claim: exploratory findings can be principal, but readers should be told so in the claim's assessment rationale. Given only when no assessment's rationale says `exploratory` (erratum of 2026-11-12).
 14. `id_type: reference` in a native paper: give the cited work's identifier.
 15. A `supporting` claim that no principal claim rests on, directly or through other claims (by `depends_on` or `assumptions`, including the assumptions of the evidence a principal claim cites and the assumptions it inherits from the terms it rests on, §3.2 *Assumptions of a term*): link it to the claim that rests on it, or make it `secondary`. (Revised in v0.32 and v0.33.)
 16. A principal or supporting claim rests on a `secondary` claim (by `depends_on` or `assumptions`): a claim that a contribution rests on is `supporting`.
-17. A number in the statement of a claim with `empirical_quant`, `empirical_obs` (from v0.39) or `simulation` support matches, at the precision stated, no value in: the results (value, interval, uncertainty, conditions) and tables (conditions, cells, row labels) of the evidence the claim cites; that evidence's `estimate`, `interval`, `uncertainty` and `n`; the claim's `test.parameters` and `scope`; the definitions its statement references. Evidence descriptions do not count. Numbers inside LaTeX, `[[D…]]` markers and model notation (`ETS(A,N,A)`, `AR(1)`), and numbers of sections, tables, figures, equations and theorems, are ignored. The reverse of warning 12: a number a statement reports is a recorded result, or a setting in the scope.
+17. A number in the statement of a claim with `empirical_quant`, `empirical_obs` (from v0.39) or `simulation` support matches, at the precision stated, no value in: the results (value, interval, uncertainty, conditions) and tables (conditions, cells, row labels) of the evidence the claim cites; that evidence's `estimate`, `interval`, `uncertainty` and `n`; the claim's `test.parameters` and `scope`; the definitions its statement references. Evidence descriptions do not count. Numbers inside LaTeX, `[[D…]]` markers and model notation (`ETS(A,N,A)`, `AR(1)`), and numbers of sections, tables, figures, equations and theorems, are ignored, as are words that mix letters and digits, alone or joined by hyphens (`M4`, `GPT-4o`, `claimset-haiku-2`; erratum of 2026-11-12); a number in scientific notation (`1e-5`) is a number. The reverse of warning 12: a number a statement reports is a recorded result, or a setting in the scope.
 18. Two evidence objects have the same `execution.code_version` and the same results (quantity, value and conditions): one computation recorded twice. Record it once and cite it from every claim it supports.
 19. `novelty: no_prior_found` on a claim whose only support is `consensus`: if established knowledge already shows the claim, the claim is known (cite it, or relate to it); if it is not, give the support that shows it. (Revised in v0.22.)
 20. In a native paper, a principal claim lists a limitation with `impact: could_reverse` and `mitigation: none`, and its author assessment neither has strength `low` or `very_low` nor names that limitation by ID in its rationale: say how the risk was weighed, or lower the strength.
@@ -1695,6 +1704,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 43. An agent's `name` ends in parentheses ("Claude Code (drafting agent)"): the name is the system's; what the agent did goes in `label` (§3.11).
 44. A formula written in a sentence (`$…$` or `\(…\)`) shows more than 30 symbols (a LaTeX command counts as one; braces, `^`, `_`, spacing and layout commands as none): set it on a line of its own, `$$…$$` (§8 rule 6). In a sentence it cannot break across lines, and runs past a narrow screen.
 45. `paper.summary` has more than 150 words (§3.1): a reader outside the field reads it whole; the claims carry the detail.
+46. A limitation restates the paper's competing-interest declaration: it names a competing or conflicting interest, or at least half of its words (of four letters or more, and at least three) are the declaration's. A competing interest is declared, not listed as a limitation (§3.9). (Amended on 2026-11-12.)
 
 ## 11. Platform dependencies
 
