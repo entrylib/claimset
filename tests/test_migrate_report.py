@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from claimset.cli import main  # noqa: E402
 from claimset.migrate import migrate, report  # noqa: E402
+from claimset.validate import SCHEMA_VERSION as NOW  # noqa: E402
 from claimset.validate import validate  # noqa: E402
 
 COMPAT = ROOT / "tests" / "compat"
@@ -47,7 +48,7 @@ class TestReport(unittest.TestCase):
         c2["test"]["quantities"]["lower"]["variable"] = "a result no evidence has"
         self.assertEqual(rules(validate(d).errors), [])                       # valid under v0.40, with a warning
         rep = self.migrated(d)
-        self.assertEqual((rep["from"], rep["to"]), ("0.40", "0.41"))
+        self.assertEqual((rep["from"], rep["to"]), ("0.40", NOW))
         self.assertEqual(rules(rep["must_change"]), ["91"])
         self.assertTrue(rep["errors"])
         self.assertNotIn("W41", rules(rep["should_change"]))                  # what was a warning is now the error
@@ -106,18 +107,18 @@ class TestCommand(unittest.TestCase):
         next(c for c in d["claims"] if c["id"] == "C2")["test"]["quantities"]["lower"]["variable"] = "gone"
         code, out, _ = run("migrate", self.write(d))
         self.assertEqual(code, 1)
-        self.assertIn("specification 0.40 -> 0.41", out)
-        self.assertIn("must change: 1 error(s) under v0.41 that the file did not have under v0.40", out)
+        self.assertIn(f"specification 0.40 -> {NOW}", out)
+        self.assertIn(f"must change: 1 error(s) under v{NOW} that the file did not have under v0.40", out)
         self.assertIn("The migrated file has errors", out)
         code, out, _ = run("migrate", self.write(d), "--json")
         rep = json.loads(out)
         self.assertEqual((code, rules(rep["must_change"]), rep["changed"]),
-                         (1, ["91"], ["schema_version 0.40 -> 0.41"]))
+                         (1, ["91"], [f"schema_version 0.40 -> {NOW}"]))
 
     def test_a_clean_migration(self):
         code, out, _ = run("migrate", self.write(load("0.40", "submission-native.json")))
         self.assertEqual(code, 0, out)
-        self.assertIn("changed: schema_version 0.40 -> 0.41", out)
+        self.assertIn(f"changed: schema_version 0.40 -> {NOW}", out)
         self.assertIn("The migrated file has no errors.", out)
         code, out, _ = run("migrate", self.write(json.loads((ROOT / "examples" / "submission-native.json").read_text())))
         self.assertEqual(code, 0)

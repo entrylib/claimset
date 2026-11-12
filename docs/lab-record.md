@@ -21,9 +21,20 @@ claimset lab summary         # current state, for whoever picks up the work
 claimset lab verify          # hash chain, rules and run files
 ```
 
-With several studies in a repository, a command names its study with `--study NAME`.
+With several studies in a repository, a command names its study with `--study NAME`. `claimset lab next` names the step still open, with its command; every writing command ends with it.
 
-A confirmatory plan fixes everything that decides the outcome before any run: the test, significance level, sidedness, correction for multiple tests, sample size and stopping rule, the results the decision is made on, and the rules for *supported* and *not supported* (anything else is *inconclusive*). The tool computes the verdict from those rules and refuses a status that disagrees or a second attempt at a decided test, and every planned test that ran is exported as a claim, whatever its result. Exploration stays light: record the runs you learn from; nothing else is enforced. Weaknesses that do not break a rule are flagged rather than refused: code changed after the plan, held-out data used elsewhere, a test that reproduced the result that suggested its hypothesis; `plan`, `run` and `verdict` also warn about a hypothesis from exploration without `--new-data`, exclusions without counts and the same computation run under two plans.
+When the question is how large something is and nothing decides it by a threshold, plan the estimate instead of a hypothesis; it is exported as a claim with `planning: planned_estimate`:
+
+```
+claimset lab plan --kind estimation --question Q1 --design "…" --analysis "…" \
+    --estimand mase='{"variable": "mean MASE", "conditions": {"method": "SES"}}' --diagnostic "convergence failures"
+claimset lab run --plan PL2 -- python3 estimate.py
+claimset lab verdict PL2     # the value each estimand binds; no verdict
+```
+
+A hypothesis written after the first run says where it comes from: `--from-exploration --prompted-by RS3`, or `--independence "…"` (what it rests on instead).
+
+A confirmatory plan fixes everything that decides the outcome before any run: the test, significance level, sidedness, correction for multiple tests, sample size and stopping rule, the results the decision is made on, and the rules for *supported* and *not supported* (anything else is *inconclusive*). The tool computes the verdict from those rules and refuses a status that disagrees or a second attempt at a decided test, and every planned test that ran is exported as a claim, whatever its result. Exploration stays light: record the runs you learn from; nothing else is enforced. Weaknesses that do not break a rule are flagged rather than refused: code changed after the plan, held-out data used elsewhere, a test that reproduced the result that suggested its hypothesis, a run without a diagnostic its plan requires (`--diagnostic`); `plan`, `run` and `verdict` also warn about a hypothesis from exploration without `--new-data`, exclusions without counts and the same computation run under two plans.
 
 `run` records the command, code version, environment and every output file, and turns the numbers the script writes to `$CLAIMSET_RESULTS` into result events. The tool refuses writes that break the rules, such as confirming a hypothesis with the result that suggested it.
 

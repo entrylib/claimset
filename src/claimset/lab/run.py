@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .anchor import anchoring, ensure_covered
 from ..validate import OBSERVATION_MEASURES, measure_problems
-from .core import LabError, file_hash, is_withheld
+from .core import PLANNED_KINDS, LabError, file_hash, is_withheld
 
 RESULTS_FILE = "results.json"
 
@@ -123,7 +123,7 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
         if p is None or p["type"] != "plan":
             raise LabError("L12", f"run: '{plan}' is not a plan")
         latest = st.latest(plan)
-        if not exploratory and not is_withheld(latest) and latest["body"].get("kind") == "confirmatory":
+        if not exploratory and not is_withheld(latest) and latest["body"].get("kind") in PLANNED_KINDS:
             label = "confirmatory"
     if label == "confirmatory" and anchoring(lab):
         try:

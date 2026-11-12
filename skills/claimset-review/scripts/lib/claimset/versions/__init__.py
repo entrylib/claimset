@@ -10,7 +10,7 @@ The baseline is v0.39 (BASELINE_VERSION in claimset.validate), set at the platfo
 import importlib
 
 #: Versions with a frozen validator here, earlier than the current one. Filled by tools/freeze_validator.py.
-FROZEN = ("0.39", "0.40",)
+FROZEN = ("0.39", "0.40", "0.41",)
 
 
 def frozen_validator(version):

@@ -195,7 +195,8 @@ class TestCountCli(TestCli):
         self.assertIn("count: n = 1", out)
         self.assertIn("RN1 (exploratory, success)", err)
         self.run_cli("lab", "question", "Do people ask for arranging?")
-        self.run_cli("lab", "hypothesis", "People ask for arranging.", "--question", "Q1")
+        self.run_cli("lab", "hypothesis", "People ask for arranging.", "--question", "Q1",
+                     "--from-exploration", "--prompted-by", "RN1")
         code, out, err = self.run_cli("lab", "plan", "--kind", "confirmatory", "--hypotheses", "H1", "--design", "d",
                                       "--analysis", "a", "--framework", "qualitative",
                                       "--quantity", 'n={"count": {"codes": ["TM1"]}}',

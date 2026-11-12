@@ -308,13 +308,30 @@ class TestSummary(LabCase):
         self.assertEqual(s["hypotheses"][0]["status"], "testing")
 
 
+def harness_variables():
+    """Every environment variable by which `claimset` recognises an agent harness (claimset.agents)."""
+    from claimset import agents
+    return sorted({var for h in agents.HARNESSES for var, _ in h.env} | {"AI_AGENT"})
+
+
+# The suite drives the command line as a person at their own terminal: the variables of an agent harness that runs
+# the suite (a maintainer's coding agent) are cleared here, once; unittest discovery imports every test module before
+# it runs any test. The tests of the harness guard (lab record §4.6) set them themselves.
+for _var in harness_variables():
+    os.environ.pop(_var, None)
+
+
 class TestCli(unittest.TestCase):
+    """The command line as a person's own terminal: no agent harness in the environment, so a person may write as
+    themselves (lab record §4.6)."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.env = {"CLAIMSET_LAB": str(Path(self.tmp.name) / "lab")}
-        self.old_env = {k: os.environ.get(k) for k in ("CLAIMSET_LAB", "CLAIMSET_ACTOR")}
+        self.old_env = {k: os.environ.get(k) for k in ("CLAIMSET_LAB", "CLAIMSET_ACTOR", *harness_variables())}
         os.environ.update(self.env)
-        os.environ.pop("CLAIMSET_ACTOR", None)
+        for k in ("CLAIMSET_ACTOR", *harness_variables()):
+            os.environ.pop(k, None)
 
     def tearDown(self):
         for k, v in self.old_env.items():
@@ -325,10 +342,13 @@ class TestCli(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_cli(self, *args):
+        """(exit code, stdout, stderr without the next-step hint); the hint is kept in self.hint."""
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = cli.main(list(args))
-        return code, out.getvalue().strip(), err.getvalue().strip()
+        lines = err.getvalue().strip().splitlines()
+        self.hint = "\n".join(x for x in lines if x.startswith("claimset: next: "))
+        return code, out.getvalue().strip(), "\n".join(x for x in lines if not x.startswith("claimset: next: "))
 
     def test_session(self):
         self.assertEqual(self.run_cli("lab", "init", "--title", "Study")[0], 0)

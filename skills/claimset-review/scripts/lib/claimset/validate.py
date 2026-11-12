@@ -25,7 +25,7 @@ import operator
 import re
 import sys
 
-SCHEMA_VERSION = "0.41"
+SCHEMA_VERSION = "0.42"
 #: The first specification version accepted (spec §2.6), set when the platform launches. Files of every version from
 #: it to SCHEMA_VERSION are then valid for good, each checked by its own version's rules (a frozen validator in
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
@@ -75,7 +75,7 @@ ENUM = {
              "unrecorded_model_settings", "unstated_support", "lab_record_withheld",
              "lab_events_withheld", "unanchored_plan", "availability_not_stated"},
     "outcome": {"supported", "not_supported", "inconclusive"},
-    "planning": {"confirmatory", "confirmatory_with_deviations", "exploratory"},
+    "planning": {"confirmatory", "confirmatory_with_deviations", "planned_estimate", "exploratory"},
     "anchor": {"platform", "rfc3161", "registry", "git_remote", "none"},
     "framework": {"frequentist", "equivalence", "bayesian", "deterministic", "formal", "qualitative"},
     "interval_kind": {"confidence", "credible", "prediction"},
@@ -88,7 +88,7 @@ ENUM = {
     "mean_kind": {"arithmetic", "geometric", "harmonic", "trimmed", "winsorised"},
     "verdict": {"computed", "judged"},
     "test_flag": {"code_changed_after_plan", "holdout_used_elsewhere", "reproduces_prompting_result",
-                  "sources_captured_after_plan"},
+                  "sources_captured_after_plan", "diagnostic_missing"},
     "assumption_category": {"theoretical", "statistical", "methodological", "data", "axiom",
                             "theorem_condition", "paradigmatic"},
     "check": {"tested", "sensitivity_analysed", "unchecked", "untestable"},
@@ -993,6 +993,8 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
         if len(g) >= 3:
             r.warn("W6", "claims:" + ",".join(g), "these claims share an identical scope; check that each scope fits its own claim")
 
+    principal_gaps(r, claims, coll)
+
     # depends_on cycles (rule 8)
     graph = {cid: [d for d in as_list(c.get("depends_on")) if d in claims] for cid, c in claims.items()}
     state = {}
@@ -1097,17 +1099,19 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
     # ---------- Computed verifiability (rule 13) ----------
     for cid, c in claims.items():
         exp_v, exp_flags, notes = compute_verifiability(c, by_id, read_from_artefacts(coll))
-        if as_dict(c.get("hypothesis")).get("lab_event") and not is_assumption(c):
+        if (as_dict(c.get("hypothesis")).get("lab_event") or as_dict(c.get("estimate")).get("lab_plan")) \
+                and not is_assumption(c):
             if lab["level"] not in (None, "public"):
                 exp_flags.add("lab_record_withheld")
-            linked = {_h(as_dict(c["hypothesis"]).get("lab_event"))}
+            linked = {_h(as_dict(c.get("hypothesis")).get("lab_event"))} - {None}
             for s_ in as_list(c.get("support")):
                 ev = by_id(as_dict(s_).get("evidence"), "evidence") if as_dict(s_).get("evidence") else None
                 if ev is not None:
                     linked |= {_h(x) for x in as_list(ev.get("lab_runs"))}
             if linked & lab["withheld"]:
                 exp_flags.add("lab_events_withheld")
-            if c.get("planning") in ("confirmatory", "confirmatory_with_deviations") and c.get("planned_at_anchor") == "none":
+            if c.get("planning") in ("confirmatory", "confirmatory_with_deviations", "planned_estimate") \
+                    and c.get("planned_at_anchor") == "none":
                 exp_flags.add("unanchored_plan")
         r.computed[cid] = {"verifiability": exp_v, "verifiability_flags": sorted(exp_flags)}
         for n in notes:
@@ -1492,6 +1496,36 @@ def restates_interest(statement, declaration):
     return len(shared) >= 3 and len(shared) >= len(words) / 2
 
 
+def principal_gaps(r, claims, coll):
+    """Warnings 47 and 48 (v0.41 as amended on 2026-11-12): a principal claim, neither formal nor an assumption, with
+    no scope, or that no limitation affects, neither its own nor one of a claim it rests on (`depends_on`,
+    `assumptions`, followed to the end)."""
+    limited = {cid for li in coll["limitations"] if isinstance(li, dict)
+               for cid in as_list(li.get("affects")) if isinstance(cid, str)}
+
+    def rests_on(cid):
+        seen, stack = set(), [cid]
+        while stack:
+            x = stack.pop()
+            if x in seen or x not in claims:
+                continue
+            seen.add(x)
+            c = claims[x]
+            stack += [i for i in as_list(c.get("depends_on")) + as_list(c.get("assumptions")) if isinstance(i, str)]
+        return seen
+
+    for cid, c in claims.items():
+        kinds = [as_dict(s).get("kind") for s in as_list(c.get("support"))]
+        if c.get("role") != "principal" or c.get("type") == "formal" or (kinds and all(k == "assumption" for k in kinds)):
+            continue
+        if not as_dict(c.get("scope")):
+            r.warn("W47", f"claims:{cid}.scope", "a principal claim with no scope: say where it holds (the data, "
+                                                  "population, setting, period, conditions and exclusions)")
+        if not limited & rests_on(cid):
+            r.warn("W48", f"claims:{cid}", "no limitation affects this principal claim or what it rests on: declare "
+                                            "what could bias, reverse or limit it within its scope (§3.9)")
+
+
 def says_exploratory(c):
     """Whether a claim's assessment rationale says the claim is exploratory (warning 13; erratum of 2026-11-12)."""
     return any("exploratory" in str(a.get("rationale") or "").lower()
@@ -1599,6 +1633,109 @@ def check_plan(r, c, w, by_id):
     if c.get("planned_at_anchor") == "registry" and not reg:
         r.err("81", f"{w}.planned_at_anchor", "registry: the date a registry records for the registration the test "
                                               "names; give test.registration")
+
+
+ESTIMATE_FIELDS = {"estimands", "not_obtained", "runs", "lab_plan", "registration", "flags"}
+
+
+def check_estimate(r, c, w, by_id):
+    """Rule 95: a planned estimate carries the estimands its plan fixed and names the plan, its time and the time's
+    anchor; it has no hypothesis and no test (§3.3.3). Its estimands bind under rule 96 (check_estimate_bindings)."""
+    est = c.get("estimate")
+    for f in ("hypothesis", "test"):
+        if f in c:
+            r.err("95", f"{w}.{f}", "a planned estimate tests no hypothesis: nothing is supported or refuted. A plan "
+                                    "that fixed a rule for deciding was a test, and the claim is confirmatory")
+    if not isinstance(est, dict):
+        r.err("95", f"{w}.estimate", "required for a planned estimate: {estimands, runs, lab_plan or registration}")
+        est = {}
+    for f in sorted(set(est) - ESTIMATE_FIELDS):
+        r.err("95", f"{w}.estimate.{f}", f"not a field of estimate ({', '.join(sorted(ESTIMATE_FIELDS))})")
+    estimands = est.get("estimands")
+    if not isinstance(estimands, dict) or not estimands:
+        r.err("95", f"{w}.estimate.estimands", "a non-empty object {name: {variable, conditions, statistic, field, "
+                                               "run}}: the values the plan fixed")
+        estimands = {}
+    for name, q in estimands.items():
+        if not isinstance(q, dict) or not isinstance(q.get("variable"), str) or not q["variable"].strip():
+            r.err("96", f"{w}.estimate.estimands.{name}", "an object with the variable of the observation it binds, "
+                                                          "and optionally conditions, statistic, field and run")
+            continue
+        for f in sorted(set(q) - {"variable", "conditions", "statistic", "field", "run"}):
+            r.err("96", f"{w}.estimate.estimands.{name}.{f}", "an estimand has variable, conditions, statistic, "
+                                                              "field and run")
+        if q.get("field", "value") not in QUANTITY_FIELDS:
+            r.err("96", f"{w}.estimate.estimands.{name}.field", f"one of {', '.join(QUANTITY_FIELDS)}")
+        if "conditions" in q and not isinstance(q["conditions"], dict):
+            r.err("96", f"{w}.estimate.estimands.{name}.conditions", "an object {key: value}")
+    missing = est.get("not_obtained")
+    if missing is not None and (not isinstance(missing, list) or
+                                not all(isinstance(m, str) and m in estimands for m in missing)):
+        r.err("95", f"{w}.estimate.not_obtained", "a list of names of the estimate's estimands")
+    runs = est.get("runs")
+    if runs is not None and (not isinstance(runs, int) or isinstance(runs, bool) or runs < 1):
+        r.err("95", f"{w}.estimate.runs", "a positive integer: how many runs gave the estimate")
+    if "flags" in est and not isinstance(est["flags"], list):
+        r.err("95", f"{w}.estimate.flags", "a list of test flags (§3.3.3)")
+    for i, f in enumerate(as_list(est.get("flags"))):
+        check_enum(r, "95", f"{w}.estimate.flags[{i}]", f, "test_flag", required=True)
+    reg = est.get("registration")
+    if not est.get("lab_plan") and not reg:
+        r.err("95", f"{w}.estimate", "a planned estimate names the plan that fixed it: lab_plan (a lab-record plan) "
+                                     "or registration (the ID of the registration in references); an estimate with "
+                                     "neither is exploratory")
+    if est.get("lab_plan") is not None and not (isinstance(est["lab_plan"], str) and est["lab_plan"].strip()):
+        r.err("95", f"{w}.estimate.lab_plan", "the plan's lab-record ID")
+    if reg is not None and (not isinstance(reg, str) or by_id(reg, "references") is None):
+        r.err("95", f"{w}.estimate.registration", f"the ID of the registration in references (B1, B2, …), not "
+                                                  f"{reg!r}: list the registration there with its identifier (§3.13)")
+    check_enum(r, "95", f"{w}.planned_at_anchor", c.get("planned_at_anchor"), "anchor", required=True)
+    if c.get("planned_at_anchor") == "registry" and not reg:
+        r.err("95", f"{w}.planned_at_anchor", "registry: the date a registry records for the registration the "
+                                              "estimate names; give estimate.registration")
+    if not c.get("planned_at") and not (c.get("planned_at_anchor") == "registry" and reg):
+        r.err("95", f"{w}.planned_at", "required for planned estimates: when the plan was recorded, unless it names "
+                                       "its registration and the anchor is registry")
+
+
+def check_estimate_bindings(r, claims, evidence_by_id):
+    """Rule 96: each estimand of a planned estimate binds exactly one observation of the evidence the claim's
+    support names, with a number at its field; an estimand listed in not_obtained binds none (§3.3.3)."""
+    for cid, c in claims.items():
+        est = c.get("estimate")
+        if c.get("planning") != "planned_estimate" or not isinstance(est, dict) \
+                or not isinstance(est.get("estimands"), dict):
+            continue
+        w = f"claims:{cid}.estimate.estimands"
+        absent = {m for m in as_list(est.get("not_obtained")) if isinstance(m, str)}
+        evs = [as_dict(evidence_by_id.get(s.get("evidence"))) for s in (as_dict(x) for x in as_list(c.get("support")))
+               if isinstance(s.get("evidence"), str) and s.get("evidence") in evidence_by_id]
+        where = ", ".join(e.get("id", "?") for e in evs) or "no evidence"
+        for name, q in est["estimands"].items():
+            if not isinstance(q, dict) or not isinstance(q.get("variable"), str):
+                continue                                         # malformed: check_estimate says so
+            hits = []
+            for e in evs:
+                hits += bind_quantity(q, bindable(e), [x for x in as_list(e.get("lab_runs")) if isinstance(x, str)])
+            if name in absent:
+                if hits:
+                    r.err("96", f"{w}.{name}", f"listed in not_obtained, but binds {hits[0]['where']}: remove it "
+                                               f"from not_obtained, or correct the estimand")
+                continue
+            if len(hits) > 1:
+                r.err("96", f"{w}.{name}", f"binds {len(hits)} observations "
+                                           f"({', '.join(sorted({h['where'] for h in hits}))}), not exactly one: give "
+                                           f"the conditions that tell them apart")
+            elif not hits:
+                r.err("96", f"{w}.{name}", f"binds no observation of {where}: it names the variable "
+                                           f"{q['variable']!r} with the conditions "
+                                           f"{json.dumps(as_dict(q.get('conditions')), ensure_ascii=False)}, which no "
+                                           f"result or table cell has. Bind it to the result or table cell its value "
+                                           f"is in; if the planned runs did not give it, list it in not_obtained and "
+                                           f"say so in the statement")
+            elif not rule_number(read_field(hits[0]["observation"], q.get("field") or "value")):
+                r.err("96", f"{w}.{name}", f"binds {hits[0]['where']}, which has no number at "
+                                           f"{q.get('field') or 'value'}")
 
 
 def check_test(r, test, w):
@@ -2718,6 +2855,8 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- what a computed test's quantities bind, and the outcome its rules give (rules 91, 92; warnings 41, 42) -----
     check_test_bindings(r, claims, {_h(as_dict(e).get("id")): as_dict(e) for e in coll["evidence"]},
                         strict=schema_version_tuple(SCHEMA_VERSION) >= (0, 41))
+    # ----- what a planned estimate's estimands bind (rule 96) -----
+    check_estimate_bindings(r, claims, {_h(as_dict(e).get("id")): as_dict(e) for e in coll["evidence"]})
 
     # ----- results a table would hold (warning 40; §3.4, Tables are the standard form) -----
     for e in coll["evidence"]:
@@ -3281,6 +3420,9 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
         check_enum(r, "42", f"{w}.hypothesis.outcome", hyp.get("outcome"), "outcome", required=True)
         if not c.get("planning"):
             r.err("42", f"{w}.planning", "required when the claim carries a hypothesis")
+    if "estimate" in c and c.get("planning") != "planned_estimate":
+        r.err("95", f"{w}.estimate", "only a planned estimate has estimate: set planning to planned_estimate, or "
+                                     "remove it (§3.3.3)")
     if c.get("planning") is not None:
         check_enum(r, "42", f"{w}.planning", c.get("planning"), "planning")
         if c.get("planning") in ("confirmatory", "confirmatory_with_deviations"):
@@ -3294,6 +3436,8 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
             check_enum(r, "43", f"{w}.planned_at_anchor", c.get("planned_at_anchor"), "anchor", required=True)
             check_test(r, c.get("test"), f"{w}.test")
             check_plan(r, c, w, by_id)
+        if c.get("planning") == "planned_estimate":
+            check_estimate(r, c, w, by_id)
         if c.get("planning") == "confirmatory_with_deviations" and not any(
                 as_dict(by_id(l, "limitations")).get("category") == "deviation" for l in as_list(c.get("limitations"))):
             r.warn("W34", w, "confirmatory with deviations, but no limitation of category deviation: record each "
@@ -3653,6 +3797,12 @@ def validate_path(path, published=False, revision=False):
                     file_name=Path(path).name)
 
 
+#: The warnings to address before a claimset is handed over, or to explain (the submit skill, *Hand over*): a number no
+#: record holds (17), a risk of reversal not weighed (20), a test quantity bound to nothing (41), a principal claim
+#: without scope (47) or without any limitation (48).
+HANDOVER = ("W17", "W20", "W41", "W47", "W48")
+
+
 def print_report(rep, published=False, as_json=False):
     """Print a validation report as text or JSON."""
     mode = "published file" if published else "submission"
@@ -3666,6 +3816,10 @@ def print_report(rep, published=False, as_json=False):
             print(f"  ERROR   [rule {e['rule']}] {e['where']}: {e['message']}")
         for w in rep.warnings:
             print(f"  WARNING [{w['rule']}] {w['where']}: {w['message']}")
+        first = [w for w in rep.warnings if w["rule"] in HANDOVER]
+        if first:
+            print(f"  Address before hand-over ({len(first)}), or say in the hand-over why each stays: "
+                  + "; ".join(f"[{w['rule']}] {w['where']}" for w in first))
         if rep.computed:
             print("  Verifiability the platform will compute:")
             for cid, v in rep.computed.items():

@@ -293,6 +293,22 @@ def _claim(c, inherited=()):
                 f"anchor {c['planned_at_anchor']}" if c.get("planned_at_anchor") else ""]
         if any(plan):
             lines.append("  plan: " + _join(plan))
+    e = c.get("estimate")
+    if isinstance(e, dict):
+        missing = set(e.get("not_obtained") or [])
+        names = [f"{n} = {q.get('variable')}"
+                 + (f" {_conditions(q.get('conditions'))}" if q.get("conditions") else "")
+                 + (f" {q['field']}" if q.get("field") not in (None, "value") else "")
+                 + (" (not obtained)" if n in missing else "")
+                 for n, q in (e.get("estimands") or {}).items() if isinstance(q, dict)]
+        lines.append("  planned estimate: " + _join(["; ".join(names),
+                                                     ("flags " + ", ".join(e["flags"])) if e.get("flags") else ""]))
+        plan = [f"lab plan {e['lab_plan']}" if e.get("lab_plan") else "",
+                f"registered {e['registration']}" if e.get("registration") else "",
+                f"planned {c['planned_at']}" if c.get("planned_at") else "",
+                f"anchor {c['planned_at_anchor']}" if c.get("planned_at_anchor") else ""]
+        if any(plan):
+            lines.append("  plan: " + _join(plan))
     return lines
 
 

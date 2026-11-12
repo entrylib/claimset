@@ -67,7 +67,7 @@ ENUM = {
     "check_extent": _C["check_extent"],
     "artefact_kind": _C["artefact_kind"],
     "withheld_reason": _C["reason"],
-    "plan_kind": {"confirmatory", "exploratory"},
+    "plan_kind": {"confirmatory", "estimation", "exploratory"},
     "run_label": {"confirmatory", "exploratory"},
     "exit_status": {"success", "failed", "crashed", "cancelled"},
     "status_rule": {"supported", "not_supported", "neither"},
@@ -92,6 +92,10 @@ STRICT_VERSION = (0, 5)
 #: earlier have the qualitative extension from their start and keep the forms they were written in.
 EXTENSIONS_VERSION = (0, 20)
 IMPLICIT_EXTENSIONS = {"qualitative": "0.1"}
+#: The first version with estimation plans, a plan's diagnostics and rule L31 (§5.4, §5.7, §5.7.8).
+ESTIMATION_VERSION = (0, 22)
+#: Plan kinds whose runs carry out a plan fixed in advance: their runs are labelled confirmatory (L5, L16).
+PLANNED_KINDS = ("confirmatory", "estimation")
 
 
 def version_tuple(v):
@@ -235,6 +239,12 @@ class State:
         return [(n, self.lab_extension(n), _ext.module(n, v)) for n, v in self.extensions.items()]
 
     @property
+    def v022(self):
+        """Whether the record was begun under v0.22 or later (or its version is withheld): estimation plans, a plan's
+        diagnostics and rule L31 apply."""
+        return self.spec_version is None or self.spec_version >= ESTIMATION_VERSION
+
+    @property
     def strict(self):
         """Whether rules L15-L18 apply: the record was begun under v0.5 or later (or its version is withheld)."""
         return self.spec_version is None or self.spec_version >= STRICT_VERSION
@@ -259,7 +269,7 @@ class State:
     def deciding_runs(self, plan_id):
         """(rule version, deciding runs) of a decided plan, or None if it is not decided (§5.7.2)."""
         pv = self.plan_rule_version(plan_id)
-        if pv is None or pv["body"].get("kind") != "confirmatory":
+        if pv is None or pv["body"].get("kind") not in PLANNED_KINDS:
             return None
         n = pv["body"].get("runs", 1)
         runs = self.plan_runs.get(self.root(plan_id), [])
@@ -777,6 +787,31 @@ def check_hypothesis(state, body, by, eid):
     if origin == "from_exploration" and not prompted:
         raise LabError("schema", "hypothesis: from_exploration requires prompted_by (the events that suggested it)")
     _refs(state, prompted, "hypothesis", "prompted_by")
+    independence = body.get("independence")
+    if independence is not None and (not isinstance(independence, str) or not independence.strip()):
+        raise LabError("schema", "hypothesis: independence must be non-empty text")
+    if state.v022 and origin != "from_exploration" and independence is None:
+        runs = runs_before_hypothesis(state)
+        if runs:
+            shown = ", ".join(runs[:5]) + (", …" if len(runs) > 5 else "")
+            raise LabError("L31", f"hypothesis: runs were made before it ({shown}). Say where it comes from: "
+                                  f"from them (--from-exploration --prompted-by <the run or result that suggested "
+                                  f"it>), or, if it does not rest on them, why (--independence \"…\": what it "
+                                  f"rests on instead, and why the runs did not shape it)")
+
+
+def runs_before_hypothesis(state):
+    """Rule L31: the runs recorded before the hypothesis being written, when it is new or corrects a hypothesis
+    first written after a run; [] for a correction of a hypothesis first written before any run."""
+    runs = [e for e in state.events if isinstance(e, dict) and e.get("type") == "run"]
+    if not runs:
+        return []
+    sup = state.checking.get("supersedes")
+    if isinstance(sup, str) and state.get(sup) is not None:
+        first = state.pos.get(state.root(sup), -1)
+        if all(state.pos.get(r["id"], 0) > first for r in runs):
+            return []
+    return [r["id"] for r in runs]
 
 
 def check_status(state, body, by, eid):
@@ -827,7 +862,8 @@ def _check_confirmatory_run(state, plan_id, plan):
 COMMENT_ID_RE = re.compile(r"^\S+@v[1-9]\d*/RV[1-9]\d*\.c[1-9]\d*$")
 
 #: The core's test flags, in the order they are reported (their meanings: claimset §3.3.3).
-FLAGS = ("code_changed_after_plan", "holdout_used_elsewhere", "reproduces_prompting_result", "sources_captured_after_plan")
+FLAGS = ("code_changed_after_plan", "holdout_used_elsewhere", "reproduces_prompting_result", "sources_captured_after_plan",
+         "diagnostic_missing")
 assert set(FLAGS) == _C["test_flag"]
 
 
@@ -923,6 +959,8 @@ def plan_flags(state, plan_version, runs, lab=None, notes=None):
         flags.append("reproduces_prompting_result")
     if sources_after_plan(state, plan_version, runs):
         flags.append("sources_captured_after_plan")
+    if missing_diagnostics(state, plan_version, runs):
+        flags.append("diagnostic_missing")
     for _name, impl, _mod in state.declared():
         if impl is not None and hasattr(impl, "plan_flags"):
             flags += impl.plan_flags(state, plan_version, runs)
@@ -1019,7 +1057,7 @@ def plan_warnings(state, body):
         out.append(f"{', '.join(explored)} came from exploration{via}; say with --new-data what "
                    f"this test uses that those runs did not (new data, a new seed that changes the sample, "
                    f"new models), or the confirmatory run may only repeat them")
-    if body.get("kind") == "confirmatory" and not body.get("setup"):
+    if body.get("kind") in PLANNED_KINDS and not body.get("setup"):
         out.append("no setup: name the parts of the test as terms by role (--studied, --cases, --procedure, --lens, "
                    "--context), so that the claim's evidence carries them and a later change of measure or "
                    "comparator shows")
@@ -1281,6 +1319,24 @@ def about_terms(state, about):
 
 def check_plan(state, body, by, eid):
     kind = _enum(body, "kind", "plan_kind", "plan")
+    if not state.v022:
+        for f in ("estimands", "diagnostics", "question"):
+            if body.get(f) is not None:
+                raise LabError("schema", f"plan: {f} is from lab record v0.22; this record was begun under an earlier "
+                                         f"version")
+        if kind == "estimation":
+            raise LabError("schema", "plan: estimation plans are from lab record v0.22; this record was begun under "
+                                     "an earlier version")
+    diagnostics = body.get("diagnostics")
+    if diagnostics is not None:
+        if not isinstance(diagnostics, list) or not diagnostics or not all(
+                isinstance(d, str) and d.strip() for d in diagnostics) or len(set(diagnostics)) != len(diagnostics):
+            raise LabError("schema", "plan: diagnostics is a list of distinct variable names, each a result every "
+                                     "deciding run reports (a convergence check, a residual test, a coverage count)")
+        if kind == "exploratory":
+            raise LabError("schema", "plan: diagnostics are required of deciding runs; an exploratory plan has none")
+    if kind == "estimation":
+        check_estimation_plan(state, body)
     if body.get("setup") is not None:
         check_setup(state, body["setup"])
     _req(body, "design", "plan")
@@ -1320,6 +1376,8 @@ def check_plan(state, body, by, eid):
                                                   f"codebook (a term with --include)")
         else:
             _req(body, "criterion", "plan")
+    if kind != "estimation" and (body.get("estimands") is not None or body.get("question") is not None):
+        raise LabError("schema", f"plan: estimands and question belong to an estimation plan, not a {kind} one")
     for d in body.get("data") or []:
         if not isinstance(d, dict) or not d.get("description"):
             raise LabError("schema", "plan: each data entry needs a description")
@@ -1354,6 +1412,99 @@ def check_plan(state, body, by, eid):
         for d in holdout:
             if not isinstance(d, dict) or not d.get("path") or not HASH_RE.match(str(d.get("hash", ""))):
                 raise LabError("schema", "plan: each holdout entry needs a path and a sha256 hash")
+
+
+def check_estimation_plan(state, body):
+    """Rule L32: an estimation plan fixes what it estimates, for one question, with no hypotheses and no decision
+    rule (§5.7.8)."""
+    if not isinstance(body.get("question"), str) or not body["question"]:
+        raise LabError("L32", "plan: an estimation plan names the question whose values it estimates (--question)")
+    _ref(state, body["question"], "plan", "question", {"question"})
+    if body.get("hypotheses"):
+        raise LabError("L32", "plan: an estimation plan tests no hypothesis; a plan that decides one is confirmatory")
+    if body.get("decision") is not None or body.get("criterion") is not None:
+        raise LabError("L32", "plan: an estimation plan has no decision rule: it fixes what is estimated, how and on "
+                              "what, and reports the values. A rule for deciding makes it a confirmatory plan of a "
+                              "hypothesis")
+    estimands = body.get("estimands")
+    if not isinstance(estimands, dict) or not estimands:
+        raise LabError("L32", "plan: an estimation plan names its estimands (--estimand NAME=\"variable\" or "
+                              "NAME='{\"variable\": …, \"conditions\": {…}}'), fixed before any run")
+    runs = body.get("runs", 1)
+    if not isinstance(runs, int) or isinstance(runs, bool) or runs < 1:
+        raise LabError("L32", "plan: runs must be a positive integer")
+    for name, q in estimands.items():
+        if not isinstance(name, str) or not NAME_TOKEN_RE.match(name):
+            raise LabError("L32", f"plan: estimand name {name!r}: letters, digits and _, starting with a letter")
+        if not isinstance(q, dict) or not isinstance(q.get("variable"), str) or not q["variable"].strip():
+            raise LabError("L32", f"plan: estimand {name} binds a result by its variable: {{\"variable\": …}}")
+        extra = set(q) - {"variable", "conditions", "statistic", "field", "run"}
+        if extra:
+            raise LabError("L32", f"plan: estimand {name} has {', '.join(sorted(extra))}; an estimand has variable, "
+                                  f"conditions, statistic, field and run")
+        if q.get("conditions") is not None and not isinstance(q["conditions"], dict):
+            raise LabError("L32", f"plan: estimand {name}: conditions is an object")
+        if q.get("field", "value") not in _claimset.QUANTITY_FIELDS:
+            raise LabError("L32", f"plan: estimand {name}: field is one of {', '.join(_claimset.QUANTITY_FIELDS)}")
+        r = q.get("run")
+        if r is not None and (not isinstance(r, int) or isinstance(r, bool) or not 1 <= r <= runs):
+            raise LabError("L32", f"plan: estimand {name}: run is a deciding run's number, 1 to {runs}")
+        if runs > 1 and r is None:
+            raise LabError("L32", f"plan: estimand {name}: with {runs} deciding runs, say which run it reads (run)")
+
+
+NAME_TOKEN_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def bind_estimands(state, plan_version, runs):
+    """{name: (result event or None, value or None)} for each estimand of a decided estimation plan (§5.7.8): the one
+    result of the deciding runs it binds, as a decision rule's quantity binds; None when it binds none or several."""
+    out = {}
+    est = plan_version["body"].get("estimands") if isinstance(plan_version["body"].get("estimands"), dict) else {}
+    for name, q in est.items():
+        if not isinstance(q, dict):
+            out[name] = (None, None)
+            continue
+        pool = runs if not isinstance(q.get("run"), int) else runs[q["run"] - 1:q["run"]]
+        hits = [r for run in pool for r in state.results_of.get(run["id"], [])
+                if not is_withheld(r) and _decision.observed(r["body"]) == q.get("variable")
+                and all(_conditions(r["body"]).get(k) == v for k, v in _conditions(q).items())
+                and (q.get("statistic") is None or r["body"].get("statistic") == q.get("statistic"))]
+        if len(hits) != 1:
+            out[name] = (None, None)
+            continue
+        v = _claimset.read_field(hits[0]["body"], q.get("field") or "value")
+        out[name] = (hits[0], v if _claimset.rule_number(v) else None)
+    return out
+
+
+def missing_diagnostics(state, plan_version, runs):
+    """[(run ID, diagnostic)] for each diagnostic the plan requires that a deciding run reports no result of
+    (§5.7.5): a visible result whose variable is the diagnostic's name."""
+    out = []
+    for run in runs:
+        if is_withheld(run):
+            continue
+        reported = {_decision.observed(r["body"]) for r in state.results_of.get(run["id"], []) if not is_withheld(r)}
+        for d in plan_version["body"].get("diagnostics") or []:
+            if isinstance(d, str) and d not in reported:
+                out.append((run["id"], d))
+    return out
+
+
+def first_run_notice(state, run):
+    """The notice for the first run of a record made before any confirmatory or estimation plan (§5.7.6), or None."""
+    if not isinstance(run, dict) or run.get("type") != "run" or run["body"].get("label") != "exploratory":
+        return None
+    if any(e.get("type") == "run" and e["id"] != run["id"] for e in state.events if isinstance(e, dict)):
+        return None
+    if any(not is_withheld(e) and e["body"].get("kind") in PLANNED_KINDS
+           for e in state.events if isinstance(e, dict) and e.get("type") == "plan"):
+        return None
+    return (f"{run['id']} is exploratory, and the record has no planned test yet. Anything it shows can suggest a "
+            f"hypothesis (recorded --from-exploration --prompted-by {run['id']}), never confirm one: a hypothesis or "
+            f"estimate you mean to report as planned is planned before the run that decides it (claimset lab plan "
+            f"--kind confirmatory, or --kind estimation)")
 
 
 def check_approval(state, body, by, eid):
@@ -1425,12 +1576,13 @@ def check_run(state, body, by, eid):
             raise LabError("L12", f"run: {version} is not a version of plan {plan_id}")
     if label == "confirmatory":
         if plan_id is None:
-            raise LabError("L5", "run: a confirmatory run names the confirmatory plan it carries out")
+            raise LabError("L5", "run: a confirmatory run names the confirmatory or estimation plan it carries out")
         plan = state.get(version) if version is not None else state.latest(plan_id)
         if is_withheld(plan):
             return  # the plan's kind is withheld (§8); the run was checked when it was written
-        if plan["body"].get("kind") != "confirmatory":
-            raise LabError("L5", f"run: {plan_id} is not a confirmatory plan, so the run is exploratory")
+        if plan["body"].get("kind") not in PLANNED_KINDS:
+            raise LabError("L5", f"run: {plan_id} is not a confirmatory or estimation plan, so the run is "
+                                 f"exploratory")
         if state.strict:
             _check_confirmatory_run(state, plan_id, plan)
         if plan["body"].get("requires_approval") and not plan_approved(state, plan["id"]):

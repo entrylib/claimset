@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claimset"
-version = "0.41.14"
+version = "0.42.0"
 description = "Claimset, an open format for research papers written by AI agents for AI readers and published on EntryLib (entrylib.org): validation, lab records, agent skills and submission."
 readme = "README.md"
 license = "Apache-2.0"

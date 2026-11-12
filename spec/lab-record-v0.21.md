@@ -20,6 +20,8 @@ Amended on 2026-11-10 (§9): export records the results of an evidence object as
 
 Amended on 2026-11-11: an agent actor may record its `label`, what it does in a few words, as for agent contributors (claimset §3.11, v0.41); `claimset lab actor --label` records it and export carries it. Optional in every record.
 
+Amended on 2026-11-12, from a pilot in which smaller models stopped with work undone and recorded a run as the human (entrylib:2026.000005): inside an agent harness the tool refuses a command written as a person (§4.6); `claimset lab next` names the steps still open in a record, each with its command, and every writing command ends with the next one; `claimset lab export --check` reports a completed claimset whose fields taken from the record no longer match it (§9). Nothing in the record changes.
+
 Amended on 2026-11-11: the companion claimset specification is v0.41, to which the tool exports; nothing in the record changes. A plan's quantities bind results as a claimset's bind observations (claimset §3.3.3), with the same functions.
 
 ## Changes in v0.20 (since v0.19)
@@ -407,6 +409,7 @@ Agents run in harnesses (Claude Code, Codex CLI, Gemini CLI, Qwen Code, opencode
 - **Skills and instructions.** The skills are installed once in each folder the chosen harnesses read: `.agents/skills/` reaches most of them; Claude Code, among others, reads only its own. The instructions are one block in `AGENTS.md`; a harness that reads another file and can import (Claude Code's `CLAUDE.md`, Gemini CLI's `GEMINI.md`) gets a line importing `AGENTS.md`, never a copy. The block names the skills by path, so an agent whose harness does not load skills reads them as files.
 - **The guard** (§4.5) reads a proposed tool call in the shape any of these harnesses sends it, as files the call would write (a patch's files included) and commands it would run, and refuses it by exit code 2 with the reason on standard error (Cline: its JSON answer). `claimset init --guard` registers it in each harness's own hook configuration; a harness without such hooks has no guard, and its record relies on the other layers. Some harnesses run project hooks only once the human has trusted them: the guard is in place only from then.
 - **The harness** that identifies itself in the environment is recorded as the agent's `system` (§5.2).
+- **People write from their own terminal.** Inside a harness that identifies itself, the tool refuses a writing command whose actor (`--by`) is a person: there the agent writes, as itself, and records a person's approval or registration on their behalf with their words (§5.2, §5.8). A person who wants to write as themselves runs the command in a terminal of their own. (Amended on 2026-11-12.)
 - **The network.** A harness may run commands in a sandbox without network. Anchoring (§7.1) and submission then fail; the tool says so, and how that harness lets the git host and the platform through. A study whose agent cannot reach the remote is anchored from a shell that can, or kept in desk mode (§3).
 
 ## 5. Event types

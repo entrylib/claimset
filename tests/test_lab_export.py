@@ -1,5 +1,6 @@
 """Tests for exporting a lab record to a draft claimset (lab record spec v0.4 §9)."""
 
+import copy
 import json
 import os
 import sys
@@ -98,6 +99,10 @@ class TestPreconditions(ExportCase):
         export(self.lab)
 
 
+#: Hypotheses written after runs that did not suggest them (rule L31).
+LATE = "Listed in the study's design before any run; written down late."
+
+
 class TestMapping(ExportCase):
     def setUp(self):
         super().setUp()
@@ -113,10 +118,10 @@ class TestMapping(ExportCase):
         self.status(self.h, "supported", self.rs1, plan=self.pl)
         self.status(self.h2, "not_supported", self.rs2, plan=self.pl2)
         self.status(self.h3, "inconclusive", [self.rn3])
-        self.h4 = self.hyp("X improves Y hourly.")
+        self.h4 = self.hyp("X improves Y hourly.", independence=LATE)
         self.status(self.h4, "abandoned")
-        self.h5 = self.hyp("X improves Y annually.")
-        self.h6 = self.hyp("X improves Y annually, for long series.")
+        self.h5 = self.hyp("X improves Y annually.", independence=LATE)
+        self.h6 = self.hyp("X improves Y annually, for long series.", independence=LATE)
         self.status(self.h5, "revised", why="narrowed", revised_to=self.h6)
         self.status(self.h6, "abandoned")
         self.out = export(self.lab)
@@ -379,7 +384,7 @@ class TestReviewFindings(ExportCase):
                           " open(os.environ['CLAIMSET_RESULTS'], 'w'))\n")
         out = run_command(self.lab, self.agent, [sys.executable, str(script)], echo=False, cwd=self.tmp.name)
         rs1, rs2 = [r["id"] for r in out["results"]]
-        h2 = self.hyp("Second.")
+        h2 = self.hyp("Second.", independence=LATE)
         self.status(self.h, "supported", rs1)
         self.status(h2, "not_supported", rs2)
         exp = export(self.lab)
@@ -528,3 +533,39 @@ class TestExportCli(TestCli):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestExportCheck(TestMapping):
+    """`claimset lab export --check`: what a completed claimset changed of what export takes from the record (lab
+    record §9, as amended on 2026-11-12). From a pilot in which a model completing a claimset replaced the research
+    agent's model with its own (entrylib:2026.000005, C18)."""
+
+    def test_a_claimset_as_exported_matches(self):
+        from claimset.lab.export import check
+        self.assertEqual(check(self.lab, copy.deepcopy(self.out["draft"])), [])
+
+    def test_what_completion_must_not_change(self):
+        from claimset.lab.export import check
+        doc = copy.deepcopy(self.out["draft"])
+        c = next(x for x in doc["claims"] if x.get("hypothesis", {}).get("lab_event") == self.h)
+        c["planning"] = "exploratory"
+        c["test"]["supported"] = "something else"
+        found = check(self.lab, doc)
+        self.assertTrue(any(f.startswith(f"{c['id']}.planning is \"exploratory\"") for f in found), found)
+        self.assertTrue(any(".test.supported is" in f for f in found), found)
+        doc = copy.deepcopy(self.out["draft"])
+        doc["claims"] = [x for x in doc["claims"] if x.get("hypothesis", {}).get("lab_event") != self.h2]
+        self.assertTrue(any(f"hypothesis {self.h2}" in f and "is gone" in f for f in check(self.lab, doc)))
+
+    def test_the_research_agents_model_stays(self):
+        from claimset.lab.export import check
+        doc = copy.deepcopy(self.out["draft"])
+        for m in doc["models"]:
+            m.update(provider="Other", name="Completer", version="9")
+        found = check(self.lab, doc)
+        self.assertTrue(any("is gone from the contributors" in f for f in found), found)
+        doc = copy.deepcopy(self.out["draft"])
+        doc["models"].append({"id": "M9", "provider": "Other", "name": "Completer", "version": "9"})
+        doc["contributors"].append({"id": "P9", "type": "agent", "name": "B", "positions": ["contributor"],
+                                    "models": [{"model": "M9"}]})
+        self.assertEqual(check(self.lab, doc), [])                         # another agent added: fine

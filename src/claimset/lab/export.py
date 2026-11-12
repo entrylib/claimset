@@ -17,8 +17,8 @@ from .anchor import covers, read_anchors
 from . import decision as _decision
 from . import tables as _tables
 from . import record as _record
-from .core import (FLAGS, RENAMED_KINDS, SETUP_ROLES, TERM_ID_RE, TERM_MARK_RE, LabError, State, agent_base, file_hash, final_statuses,
-                   is_withheld, plan_flags, verify)
+from .core import (FLAGS, RENAMED_KINDS, SETUP_ROLES, TERM_ID_RE, TERM_MARK_RE, LabError, State, agent_base,
+                   bind_estimands, file_hash, final_statuses, is_withheld, plan_flags, verify)
 
 FINAL = {"supported", "not_supported", "inconclusive", "revised", "abandoned"}
 OUTCOMES = ("supported", "not_supported", "inconclusive")
@@ -507,10 +507,7 @@ class _Exporter:
                 devs = [(r, deviations[(root, r["id"])]) for r in runs if (root, r["id"]) in deviations]
                 claim["planning"] = "confirmatory_with_deviations" if devs else "confirmatory"
                 claim["planned_at"] = pv["at"]
-                started = runs[0]["body"].get("started_at") or runs[0]["at"]
-                usable = sorted((a for a in self.anchors if isinstance(a, dict) and covers(a, pv)
-                                 and isinstance(a.get("at"), str) and a["at"] <= started), key=lambda a: a["at"])
-                claim["planned_at_anchor"] = usable[0].get("service", "none") if usable else "none"
+                claim["planned_at_anchor"] = self.anchor_before(pv, runs[0])
                 claim["test"] = {k: rule[k] for k in ("framework", "parameters", "quantities", "supported",
                                                       "not_supported") if rule.get(k) is not None}
                 if _decision.per_hypothesis(whole) and isinstance(claim["test"].get("quantities"), dict):
@@ -520,16 +517,7 @@ class _Exporter:
                 claim["test"].update({"verdict": "computed" if _decision.computed(rule) else "judged",
                                       "runs": pv["body"].get("runs", 1), "lab_plan": pv["id"]})
                 self.test_quantities(claim, pv)
-                unclear = []
-                flags = plan_flags(st, pv, runs, lab=self.lab, notes=unclear)
-                for note in unclear:
-                    self.todo(f"claims.{claim['id']}.test.flags", note)
-                core = [f for f in flags if f in FLAGS]
-                if core:
-                    claim["test"]["flags"] = core
-                for f in flags:
-                    if f not in core:                 # an extension's flag goes into its block on the claim
-                        self.ext_block(claim, self.flag_owner(f)).setdefault("test_flags", []).append(f)
+                self.flags_onto(claim, claim["test"], pv, runs, "test")
                 if pv["body"].get("addresses"):
                     claim["test"]["addresses"] = list(pv["body"]["addresses"])
                 for r, dv in devs:
@@ -548,6 +536,94 @@ class _Exporter:
         if self.withheld_deviations:
             self.todo("claims[].planning", f"deviations {', '.join(self.withheld_deviations)} are withheld, so the "
                                            f"planning labels do not take them into account; check them")
+
+    def anchor_before(self, pv, first_run):
+        """The service of the earliest anchor that covers plan version `pv` and was made before the first deciding
+        run started, or none (§9)."""
+        started = first_run["body"].get("started_at") or first_run["at"]
+        usable = sorted((a for a in self.anchors if isinstance(a, dict) and covers(a, pv)
+                         and isinstance(a.get("at"), str) and a["at"] <= started), key=lambda a: a["at"])
+        return usable[0].get("service", "none") if usable else "none"
+
+    def flags_onto(self, claim, block, pv, runs, field):
+        """The flags of a decided plan (§5.7.5): the core's into `block` (the claim's test or estimate), an
+        extension's into its block on the claim."""
+        unclear = []
+        flags = plan_flags(self.st, pv, runs, lab=self.lab, notes=unclear)
+        for note in unclear:
+            self.todo(f"claims.{claim['id']}.{field}.flags", note)
+        core = [f for f in flags if f in FLAGS]
+        if core:
+            block["flags"] = core
+        for f in flags:
+            if f not in core:                 # an extension's flag goes into its block on the claim
+                self.ext_block(claim, self.flag_owner(f)).setdefault("test_flags", []).append(f)
+
+    def export_estimates(self):
+        """A claim for each decided estimation plan of the paper's questions (§5.7.8, §9): planning planned_estimate,
+        the plan's estimands, the evidence of its deciding runs, and a statement drafted from the values."""
+        st = self.st
+        deviations = {}
+        for e in self.roots:
+            cur = st.latest(e["id"]) if e["type"] == "deviation" else None
+            if cur is not None and not is_withheld(cur) and cur["body"].get("plan") and cur["body"].get("run"):
+                deviations[(st.root(cur["body"]["plan"]), cur["body"]["run"])] = cur
+        decided = []
+        for root in st.plan_roots:
+            d = st.deciding_runs(root)
+            if not d or d[0]["body"].get("kind") != "estimation":
+                continue
+            q = d[0]["body"].get("question")
+            if self.questions is not None and st.root(str(q)) not in self.questions:
+                continue
+            decided.append((root, d))
+        for root, (pv, runs) in sorted(decided, key=lambda x: st.pos[x[1][1][0]["id"]]):
+            cid = f"C{len(self.claims) + 1}"
+            self.mapping[cid] = pv["id"]
+            estimands = json.loads(json.dumps(pv["body"].get("estimands") or {}))
+            bound = bind_estimands(st, pv, runs)
+            missing = [n for n, (res, value) in bound.items() if res is None or value is None]
+            parts = []
+            for n, q in estimands.items():
+                res, value = bound.get(n, (None, None))
+                cond = q.get("conditions") or {}
+                where = f" ({', '.join(f'{k} {v}' for k, v in cond.items())})" if cond else ""
+                field = f" {q['field']}" if q.get("field") not in (None, "value") else ""
+                parts.append(f"{q.get('variable')}{field}{where} " + (f"was {value:g}" if value is not None
+                                                                      else "was not obtained"))
+            statement = "Under plan " + pv["id"] + ", " + "; ".join(parts) + "."
+            claim = {"id": cid, "statement": statement, "type": "descriptive", "role": "supporting",
+                     "novelty": "no_prior_found", "support": [], "provenance": "author_stated",
+                     "planning": "planned_estimate", "planned_at": pv["at"],
+                     "planned_at_anchor": self.anchor_before(pv, runs[0])}
+            estimate = {"estimands": estimands, "runs": pv["body"].get("runs", 1), "lab_plan": pv["id"]}
+            if missing:
+                estimate["not_obtained"] = missing
+            self.flags_onto(claim, estimate, pv, runs, "estimate")
+            claim["estimate"] = estimate
+            run_ids = [r["id"] for r in runs]
+            eid, refs, whole = self.make_evidence(run_ids, quantities=estimands)
+            read = [res["id"] for res, _v in bound.values() if res is not None]
+            cited = list(dict.fromkeys(refs[x] for x in read if x in refs))
+            support = {"kind": "empirical_quant", "evidence": eid}
+            if cited or whole:
+                support["results"] = cited or whole
+            claim["support"].append(support)
+            claim["_targets"] = set(self.versions(pv["id"])) | set(run_ids) | {
+                x["id"] for r in run_ids for x in self.results_of.get(r, [])}
+            for r in runs:
+                dv = deviations.get((root, r["id"]))
+                if dv is not None:
+                    self.add_deviation_limitation(claim, r, pv, dv)
+            self.todo(f"claims.{cid}.statement",
+                      f"{cid} reports the planned estimate of {pv['id']}: rewrite its statement as a sentence a "
+                      f"reader understands alone, with each value, its uncertainty and the scope the plan fixed; it "
+                      f"reports values, so it calls them large or small only by a standard the paper states and "
+                      f"cites" + (f"; say that {', '.join(missing)} was not obtained, and why" if missing else ""))
+            self.todo(f"claims.{cid}", f"confirm the type (exported as descriptive) and role of {cid}, and give its "
+                                       f"scope; its novelty is exported as no_prior_found: look for the closest "
+                                       f"earlier estimate and cite it")
+            self.claims.append(claim)
 
     def legacy_planning(self, claim, h, cited_runs, deviations):
         """Planning labels for records begun under v0.4: a confirmatory run in the status's evidence under a plan
@@ -1022,8 +1098,9 @@ class _Exporter:
         def named(var):
             """A variable by its term's definition ID, when a term of kind variable has its name."""
             return by_name.get(var.strip().lower(), var) if isinstance(var, str) else var
-        for c in self.claims:          # a test's quantities bind the observations by the same names (§3.3.3)
-            for q in ((c.get("test") or {}).get("quantities") or {}).values():
+        for c in self.claims:          # a test's quantities and an estimate's estimands bind by the same names
+            for q in list(((c.get("test") or {}).get("quantities") or {}).values()) + list(
+                    ((c.get("estimate") or {}).get("estimands") or {}).values()):
                 if isinstance(q, dict) and isinstance(q.get("variable"), str) and not q["variable"].startswith("count:"):
                     q["variable"] = named(q["variable"])
                     if isinstance(q.get("conditions"), dict):
@@ -1058,6 +1135,7 @@ class _Exporter:
     def run(self):
         self.export_contributors()
         self.export_hypotheses()
+        self.export_estimates()
         self.export_checks()
         self.export_assumptions()
         definitions = self.export_terms()
@@ -1116,7 +1194,8 @@ class _Exporter:
         evidence = {ev["id"]: ev for ev in self.evidence}
         exact = set()
         for c in self.claims:
-            quantities = ((c.get("test") or {}).get("quantities") or {}).values()
+            quantities = list(((c.get("test") or {}).get("quantities") or {}).values()) + list(
+                ((c.get("estimate") or {}).get("estimands") or {}).values())
             for s in c.get("support") or []:
                 ev = evidence.get(s.get("evidence"))
                 if not ev or not quantities:
@@ -1159,3 +1238,66 @@ def export(lab, paper=None, results_path=None):
     to the claimset: text} of the files to write beside it (the CSV of every result, at `results_path`, by default
     files/results.csv)."""
     return _Exporter(lab, paper, results_path).run()
+
+
+#: What a completed claimset keeps exactly as export wrote it from the record (lab record §9): the record decides
+#: them, and completing the claimset never changes them.
+RECORD_FIELDS = ("hypothesis", "planning", "planned_at", "planned_at_anchor")
+TEST_FIELDS = ("framework", "parameters", "supported", "not_supported", "flags", "verdict", "registration")
+ESTIMATE_FIELDS = ("runs", "lab_plan", "flags", "not_obtained")
+
+
+def _model_keys(doc, kind="agent"):
+    """{(provider, name, version)} of the models the claimset's agent contributors name."""
+    models = {m.get("id"): m for m in doc.get("models") or [] if isinstance(m, dict)}
+    out = set()
+    for c in doc.get("contributors") or []:
+        if isinstance(c, dict) and c.get("type") == kind:
+            for ref in c.get("models") or []:
+                m = models.get(ref.get("model") if isinstance(ref, dict) else ref) or {}
+                out.add((m.get("provider"), m.get("name"), m.get("version")))
+    return out
+
+
+def check(lab, doc, paper=None):
+    """What a completed claimset changed of what export takes from the record (lab record §9): the claims of the
+    record's planned tests, hypotheses and planned estimates, their outcome, planning, test and estimate, the
+    exploration counts, and the models of the agents that did the work. [message]; empty when it keeps them all."""
+    fresh = export(lab, paper)["draft"]
+    out = []
+
+    def key(c):
+        if isinstance(c.get("hypothesis"), dict):
+            return ("hypothesis", c["hypothesis"].get("lab_event"), (c.get("test") or {}).get("lab_plan"))
+        if isinstance(c.get("estimate"), dict):
+            return ("estimate", c["estimate"].get("lab_plan"), None)
+        return None
+    mine = {key(c): c for c in doc.get("claims") or [] if isinstance(c, dict) and key(c)}
+    for c in fresh["claims"]:
+        k = key(c)
+        if not k or not k[1]:
+            continue
+        got = mine.get(k)
+        if got is None:
+            what = (f"hypothesis {k[1]}" + (f" under {k[2]}" if k[2] else "") if k[0] == "hypothesis"
+                    else f"the planned estimate of {k[1]}")
+            out.append(f"the claim of {what} ({c['id']} in the export) is gone: a result of the record stays in the "
+                       f"claimset, whatever its outcome")
+            continue
+        for f in RECORD_FIELDS:
+            if got.get(f) != c.get(f):
+                out.append(f"{got.get('id')}.{f} is {json.dumps(got.get(f))}, but the record gives "
+                           f"{json.dumps(c.get(f))}")
+        for block, fields in (("test", TEST_FIELDS), ("estimate", ESTIMATE_FIELDS)):
+            for f in fields:
+                a, b = (got.get(block) or {}).get(f), (c.get(block) or {}).get(f)
+                if a != b:
+                    out.append(f"{got.get('id')}.{block}.{f} is {json.dumps(a)}, but the record gives "
+                               f"{json.dumps(b)}")
+    a, b = (doc.get("paper") or {}).get("exploration"), (fresh.get("paper") or {}).get("exploration")
+    if a != b:
+        out.append(f"paper.exploration is {json.dumps(a)}, but the record gives {json.dumps(b)}")
+    for provider, name, version in sorted(_model_keys(fresh) - _model_keys(doc), key=str):
+        out.append(f"the model {provider} {name} {version} of an agent that did the work is gone from the "
+                   f"contributors: keep the models the record names; add your own as another agent contributor")
+    return out
