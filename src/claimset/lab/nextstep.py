@@ -28,11 +28,17 @@ def steps(events, actor=None, anchored=True):
                     f'verbatim>" --given-at <when> --channel chat {by}'))
     if not s["questions"]:
         out.append(("record the research question", f'claimset lab question "<the question>" {by}'))
-    asked = {h["question"] for h in s["hypotheses"]}
+    asked = {h["question"] for h in s["hypotheses"]} | {p["question"] for p in s["plans"] if p["kind"] == "estimation"}
+    ran = bool(s["runs"]["total"])
     for q in s["questions"]:
         if q["id"] not in asked:
-            out.append((f"state what you expect for {q['id']}, before any run informs it",
-                        f'claimset lab hypothesis "<the statement>" --question {q["id"]} {by}'))
+            out.append((f"state what you expect for {q['id']}" + (
+                            ": runs were made already, so say whether one suggested it (rule L31)" if ran else
+                            ", before any run informs it; or, to report a value rather than decide a hypothesis, "
+                            "plan its estimate (claimset lab plan --kind estimation)"),
+                        f'claimset lab hypothesis "<the statement>" --question {q["id"]} '
+                        + ('--from-exploration --prompted-by <the run or result that suggested it> (or '
+                           '--independence "<what it rests on instead>") ' if ran else "") + by))
     planned = {h for p in s["plans"] if p["kind"] != "exploratory" for h in p["hypotheses"]}
     loose = [h["id"] for h in s["hypotheses"] if h["status"] in ("proposed", "testing") and h["id"] not in planned]
     if loose:

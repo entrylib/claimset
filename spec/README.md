@@ -2,8 +2,8 @@
 
 | File | Contents |
 |---|---|
-| `claimset-v0.41.md` | The claimset format: papers as structured, self-contained claims |
-| `lab-record-v0.21.md` | The lab record: the append-only log of research from which claimsets are distilled |
+| `claimset-v0.42.md` | The claimset format: papers as structured, self-contained claims |
+| `lab-record-v0.22.md` | The lab record: the append-only log of research from which claimsets are distilled |
 | `claimset-revision-v0.6.md` | Revision: reviews of a published claimset, the author's response, revised versions, disputes and scores |
 | `extensions/` | Extensions of the claimset format, one per kind of work, each with its own version; `extensions/README.md` is the registry |
 

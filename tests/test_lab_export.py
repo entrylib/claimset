@@ -99,6 +99,10 @@ class TestPreconditions(ExportCase):
         export(self.lab)
 
 
+#: Hypotheses written after runs that did not suggest them (rule L31).
+LATE = "Listed in the study's design before any run; written down late."
+
+
 class TestMapping(ExportCase):
     def setUp(self):
         super().setUp()
@@ -114,10 +118,10 @@ class TestMapping(ExportCase):
         self.status(self.h, "supported", self.rs1, plan=self.pl)
         self.status(self.h2, "not_supported", self.rs2, plan=self.pl2)
         self.status(self.h3, "inconclusive", [self.rn3])
-        self.h4 = self.hyp("X improves Y hourly.")
+        self.h4 = self.hyp("X improves Y hourly.", independence=LATE)
         self.status(self.h4, "abandoned")
-        self.h5 = self.hyp("X improves Y annually.")
-        self.h6 = self.hyp("X improves Y annually, for long series.")
+        self.h5 = self.hyp("X improves Y annually.", independence=LATE)
+        self.h6 = self.hyp("X improves Y annually, for long series.", independence=LATE)
         self.status(self.h5, "revised", why="narrowed", revised_to=self.h6)
         self.status(self.h6, "abandoned")
         self.out = export(self.lab)
@@ -380,7 +384,7 @@ class TestReviewFindings(ExportCase):
                           " open(os.environ['CLAIMSET_RESULTS'], 'w'))\n")
         out = run_command(self.lab, self.agent, [sys.executable, str(script)], echo=False, cwd=self.tmp.name)
         rs1, rs2 = [r["id"] for r in out["results"]]
-        h2 = self.hyp("Second.")
+        h2 = self.hyp("Second.", independence=LATE)
         self.status(self.h, "supported", rs1)
         self.status(h2, "not_supported", rs2)
         exp = export(self.lab)

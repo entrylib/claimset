@@ -7,8 +7,8 @@ import re
 import sys
 from pathlib import Path
 
-from .core import (Lab, LabError, duplicate_runs, file_hash, plan_flags, plan_warnings, uncounted_exclusions,
-                   verify)
+from .core import (Lab, LabError, bind_estimands, duplicate_runs, file_hash, first_run_notice, missing_diagnostics,
+                   plan_flags, plan_warnings, uncounted_exclusions, verify)
 from . import summary as _summary
 from .run import run_command
 from . import export as _export
@@ -308,6 +308,8 @@ def cmd_hypothesis(args):
     body = {"statement": args.statement, "question": args.question,
             "origin": "from_exploration" if args.from_exploration else "a_priori",
             "prompted_by": args.prompted_by}
+    if args.independence:
+        body["independence"] = args.independence
     about = _about_from_args(args)
     if about is not None:
         body["about"] = about
@@ -517,7 +519,19 @@ def cmd_plan(args):
     commit, dirty = code_version(os.getcwd(), _lab(args).root)
     setup = {role: list(getattr(args, role)) for role in ("studied", "cases", "procedure", "lens", "context")
              if getattr(args, role)}
-    body = {"kind": args.kind, "hypotheses": args.hypotheses, "design": design, "analysis": args.analysis,
+    estimands = {}
+    for q in args.estimand:
+        if "=" not in q:
+            raise LabError("schema", f"--estimand '{q}': use name=\"variable\" or name='{{json}}'")
+        name, spec = q.split("=", 1)
+        spec = _json_or_text(spec)
+        estimands[name.strip()] = spec if isinstance(spec, dict) else {"variable": str(spec)}
+    if estimands and args.kind != "estimation":
+        raise LabError("schema", "--estimand is for estimation plans (--kind estimation); a confirmatory plan binds "
+                                 "results with --quantity")
+    body = {"kind": args.kind, "hypotheses": args.hypotheses or None if args.kind == "estimation" else args.hypotheses,
+            "question": args.question, "estimands": estimands or None, "diagnostics": args.diagnostic or None,
+            "design": design, "analysis": args.analysis,
             "setup": setup or None,
             "new_data": args.new_data, "exclusions": exclusions or None, "addresses": addresses or None,
             "decision": decision, "requires_approval": True if args.requires_approval else None,
@@ -538,6 +552,8 @@ def cmd_verdict(args):
         raise LabError("L12", f"no plan '{args.plan}'")
     d = st.deciding_runs(args.plan)
     pv = st.plan_rule_version(args.plan)
+    if pv is not None and pv["body"].get("kind") == "estimation":
+        return _estimate(args, st, pv, d)
     if pv is None or "decision" not in pv["body"]:
         raise LabError("schema", f"{args.plan} has no decision rule")
     rule = pv["body"]["decision"]
@@ -563,9 +579,7 @@ def cmd_verdict(args):
     if d:
         unclear = []
         out["flags"] = plan_flags(st, d[0], d[1], lab=_lab(args), notes=unclear)
-        out["warnings"] = unclear + [f"exclusion '{x}': no deciding run reports how many units it excluded (a result whose "
-                           f"quantity contains \"excluded\" or the exclusion's name)"
-                           for x in uncounted_exclusions(st, d[0], d[1])]
+        out["warnings"] = unclear + _verdict_warnings(st, d)
     if args.json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
@@ -586,6 +600,45 @@ def cmd_verdict(args):
         for p in x.get("problems") or []:
             print(f"  {lead}problem: {p}")
         print(f"{lead}Verdict: {x['verdict']}" if x.get("verdict") else f"{lead}{x['note']}")
+    for f in out.get("flags") or []:
+        print(f"  flag: {f.replace('_', ' ')}")
+    for w in out.get("warnings") or []:
+        print(f"  warning: {w}")
+    return 0
+
+
+def _verdict_warnings(st, d):
+    return ([f"exclusion '{x}': no deciding run reports how many units it excluded (a result whose quantity contains "
+             f"\"excluded\" or the exclusion's name)" for x in uncounted_exclusions(st, d[0], d[1])]
+            + [f"diagnostic '{name}': {run} reports no result of this variable, which the plan requires"
+               for run, name in missing_diagnostics(st, d[0], d[1])])
+
+
+def _estimate(args, st, pv, d):
+    """`lab verdict` for an estimation plan (§5.7.8): the values its estimands bind, with no verdict."""
+    runs = st.plan_runs.get(st.root(pv["id"]), [])
+    out = {"plan": pv["id"], "kind": "estimation", "decided": bool(d),
+           "deciding_runs": [r["id"] for r in d[1]] if d else [r["id"] for r in runs],
+           "runs_needed": pv["body"].get("runs", 1), "estimands": {}}
+    if d:
+        for name, (res, value) in bind_estimands(st, d[0], d[1]).items():
+            out["estimands"][name] = {"result": res["id"] if res else None, "value": value}
+        unclear = []
+        out["flags"] = plan_flags(st, d[0], d[1], lab=_lab(args), notes=unclear)
+        out["warnings"] = unclear + _verdict_warnings(st, d)
+    if args.json:
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+    print(f"{out['plan']} (estimation): estimates {', '.join(sorted(pv['body'].get('estimands') or {}))}; no "
+          f"decision rule, so no verdict: the values are reported as a planned estimate")
+    if not d:
+        print(f"Not done yet: {len(runs)} of {out['runs_needed']} deciding runs "
+              f"({', '.join(out['deciding_runs']) or 'none'}).")
+        return 0
+    print(f"Deciding runs: {', '.join(out['deciding_runs'])}")
+    for name, x in out["estimands"].items():
+        print(f"  {name} = {x['value']} ({x['result']})" if x["result"] else
+              f"  {name}: not obtained (no single result of the deciding runs holds it)")
     for f in out.get("flags") or []:
         print(f"  flag: {f.replace('_', ' ')}")
     for w in out.get("warnings") or []:
@@ -664,6 +717,9 @@ def cmd_run(args):
     print(msg, file=sys.stderr)
     for p in out["problems"]:
         print(f"claimset: results.json {p}", file=sys.stderr)
+    notice = first_run_notice(lab.view(_actor(args)), run)
+    if notice:
+        print(f"claimset: notice: {notice}", file=sys.stderr)
     dup = duplicate_runs(lab.view(_actor(args)), run) if run["body"]["label"] == "confirmatory" else []
     if dup:
         print(f"claimset: warning: {run['id']} repeats {', '.join(dup)} (same command, code version, seeds and "
@@ -1048,6 +1104,9 @@ def add_parser(subparsers):
     p.add_argument("--from-exploration", action="store_true",
                    help="the hypothesis was suggested by results (give --prompted-by)")
     p.add_argument("--prompted-by", nargs="+", default=[], metavar="ID")
+    p.add_argument("--independence", metavar="TEXT",
+                   help="written after runs but not suggested by them: what it rests on instead, and why the runs "
+                        "did not shape it (rule L31)")
     p.add_argument("--subject", metavar="TM|TEXT", help="about: what the hypothesis is about (a term ID or text)")
     p.add_argument("--relation", metavar="TEXT", help="about: what is asserted of the subject, e.g. \"has lower "
                                                        "error than\"")
@@ -1132,9 +1191,18 @@ def add_parser(subparsers):
     p.add_argument("--hash")
 
     p = cmd("plan", cmd_plan, "record a plan before running it")
-    p.add_argument("--kind", required=True, choices=["confirmatory", "exploratory"])
+    p.add_argument("--kind", required=True, choices=["confirmatory", "estimation", "exploratory"],
+                   help="confirmatory: tests hypotheses by a decision rule; estimation: fixes values to estimate, "
+                        "with no rule; exploratory: anything else")
     p.add_argument("--hypotheses", nargs="+", default=[], metavar="ID",
                    help="hypotheses the plan tests (required for confirmatory)")
+    p.add_argument("--question", metavar="Q", help="estimation: the question whose values it estimates")
+    p.add_argument("--estimand", action="append", default=[], metavar="NAME=VARIABLE",
+                   help="estimation: a value it estimates, the result that will hold it: name=\"variable\", or "
+                        "name='{\"variable\": …, \"conditions\": {…}, \"field\": \"interval.upper\"}'; repeat")
+    p.add_argument("--diagnostic", action="append", default=[], metavar="VARIABLE",
+                   help="a check every deciding run reports as a result of this variable (convergence, residual "
+                        "test, coverage); a run without it flags the test diagnostic_missing; repeat")
     p.add_argument("--design", help="what will be run, on what, with which settings (required, except with "
                                      "--comment: the test's procedure)")
     p.add_argument("--analysis", required=True, help="what will be computed from the outputs")

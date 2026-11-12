@@ -1,6 +1,6 @@
-# Claimset Lab Record — Specification v0.21 (draft)
+# Claimset Lab Record — Specification v0.22 (draft)
 
-Status: working draft · Date: 2026-11-10 · Supersedes v0.20 · Companion to the claimset specification (`spec/claimset-v0.41.md`), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
+Status: working draft · Date: 2026-11-12 · Supersedes v0.21 · Companion to the claimset specification (`spec/claimset-v0.42.md`), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
 
 ## Errata
 
@@ -8,7 +8,18 @@ Bugs are corrected in the text of a version and in the tool, for every record; a
 
 - 2026-11-11. `code_changed_after_plan` was raised whenever a deciding run's commit differed from the plan's. A record kept in the code checkout commits itself when the plan is written, so a run made afterwards had a newer commit with no change of code, and its test was flagged for a change that did not happen. The flag now compares the two commits' files other than the record's own: its folder, and the folders its relocations moved it from (the code moved with it is code). Commits that cannot be compared still raise it. The claimset specification always defined the flag as a change of the analysis code (issue #93).
 
-## Changes since v0.20
+## Changes since v0.21
+
+A pilot ran the same study with agents of three sizes (entrylib:2026.000005). What the tool enforced, every agent did; what only the instructions asked, the smaller agents skipped. Three gaps showed. Hypotheses written after the first runs were recorded `a_priori`, as if no run had informed them. Estimates the study had planned (an accuracy, an effect size) had no form but a hypothesis with an invented threshold, or an exploratory result. And plans that required the runs to check their method (convergence, residuals) had no way to show that a run left a check out.
+
+- §5.4, §6 rule L31 (new): a hypothesis written after a run says where it comes from: `from_exploration`, with the runs or results that suggested it, or `independence`, a text saying what it rests on instead and why the runs did not shape it. Correcting a hypothesis first written before any run needs neither.
+- §5.7, §5.7.8 (new), §6 rule L32 (new): an `estimation` plan fixes, for a question, what will be estimated (`estimands`), how and on what, with no hypothesis and no decision rule. Its runs are labelled `confirmatory` and decide it as a confirmatory plan's do (§5.7.2, L5, L16, L23); `claimset lab verdict` shows the values its estimands bind. Export makes each decided estimation plan a claim with `planning: planned_estimate` (claimset v0.42 §3.3.3).
+- §5.7, §5.7.5: a confirmatory or estimation plan may name `diagnostics`, results every deciding run reports (a convergence check, a residual test, a coverage count). A deciding run without one flags the test `diagnostic_missing`, and `verdict` says which.
+- §5.7.6: the first run of a record, when it is exploratory and no confirmatory or estimation plan exists, gets a notice saying what exploratory runs can and cannot do.
+- §9: export to claimset v0.42.
+- Records begun before v0.22 are read as they were written: rule L31 does not apply to them, and they have no estimation plans and no diagnostics.
+
+## Changes in v0.21 (since v0.20)
 
 A record said which model an agent was, but not which harness ran it: the same model in Claude Code, Codex CLI, Gemini CLI or opencode, with different tools and instructions, is a different agent. And the protections assumed one harness.
 
@@ -447,6 +458,7 @@ The tool cannot prove who typed a command: once a person's ID exists, nothing in
 - `question`: the `Q` it addresses.
 - `origin`: `a_priori` (proposed before looking at results) or `from_exploration` (suggested by results).
 - `prompted_by`: required for `from_exploration`: the result, run or note IDs that suggested it.
+- `independence`: optional text, for an `a_priori` hypothesis written after runs were made: what it rests on instead of them (the study's design, a cited prior result, the supervisor's question) and why the runs did not shape it. Required in that case, in records begun under v0.22 or later (L31): a hypothesis written once results exist was either suggested by them, and says so with `from_exploration`, or says why not. A reader weighs it accordingly; nothing in the record can prove it.
 - `about`: optional, recommended: the atom of the statement, as in claimset §3.3.5: `{subject, relation, object, comparator, conditions}`. Each slot except `relation` names a term (`TM3`) or gives short text; `object` may be a list of terms of kind `variable`; `object` and `comparator` may be `null`; `conditions` is a list. Every term `about` names is marked in the statement (`[[TM3:MASE]]`), and every mark names a term (L21). Recording the atom when the hypothesis is written fixes what it is about before any test: the measure, the comparator, the cases.
 
 A revised hypothesis is a new `H` event; the old one gets a `status` event with `to: revised` and `revised_to` naming the new one.
@@ -473,14 +485,16 @@ A revised hypothesis is a new `H` event; the old one gets a `status` event with 
 
 ### 5.7 `plan` (prefix `PL`)
 
-`{kind, hypotheses, design, analysis, setup, new_data, exclusions, addresses, decision, runs, requires_approval, data, holdout, code_version, dirty}`
+`{kind, hypotheses, question, estimands, design, analysis, setup, new_data, exclusions, diagnostics, addresses, decision, runs, requires_approval, data, holdout, code_version, dirty}`
 
-- `kind`: `confirmatory` or `exploratory`. Required.
+- `kind`: `confirmatory` (tests hypotheses by a decision rule), `estimation` (fixes values to estimate, §5.7.8; from v0.22) or `exploratory`. Required.
 - `hypotheses`: hypothesis IDs the plan tests. Required (at least one) for `confirmatory`. One plan can test several hypotheses: when one computation decides several, they are named in one plan, with a quantity and rules that decide each (a verdict is recorded for each, §5.7.4), and the computation is run once.
 - `design`: what will be run, on what, with which settings. Required.
 - `setup`: optional, recommended for `confirmatory`: the parts of the test as terms by role, `{studied, cases, procedure, lens, context}`, each a non-empty list of term IDs (claimset §3.4): what is studied or compared, on what cases, by what procedure, measured or read through what. Exported as the setup of the evidence its runs give (§9).
 - `analysis`: what will be computed from the outputs. Required.
 - `new_data`: optional text: what the test uses that the runs which suggested its hypotheses did not (new data, a seed that changes the sample, new models or settings). Recommended when a hypothesis it names is `from_exploration` (§5.7.6): a test on what the exploration already saw can only repeat it.
+- `question`, `estimands`: an estimation plan's (§5.7.8), and only its.
+- `diagnostics`: optional, on a confirmatory or estimation plan (from v0.22): a list of distinct variable names, each a result every deciding run reports about the method itself: a convergence check (`convergence failures`), a residual test (`Ljung-Box p-value of residuals`), a count of models that hit a boundary. A deciding run with no result of that variable flags the test `diagnostic_missing` (§5.7.5). Name the diagnostics the analysis would be untrustworthy without; the runs then cannot leave them out unseen.
 - `exclusions`: optional list of `{name, rule}`: each rule that leaves units out of the analysis (models near a boundary, outliers, trimmed observations), with a name and the rule as text. The deciding runs report how many units each excluded, as a result whose `variable` contains `excluded` or the exclusion's name (§5.7.6), so readers see how much of the sample the verdict rests on.
 - `addresses`: optional list of the global IDs of review comments (`doi:…@v1/RV1.c6`) whose resolution test the plan runs (§5.7.7).
 - `decision`: the decision rule (§5.7.1). Required for `confirmatory`.
@@ -565,6 +579,7 @@ Some things weaken a planned test without making it invalid. The tool does not r
 - `code_changed_after_plan`: the code changed between the plan and a deciding run. Files of the repository other than the record's own (its folder, and the folders its relocations moved it from; code moved with it is code) differ between the commit recorded with the plan and the run's, or the code had uncommitted changes when the plan was written or a deciding run was made. Commits that cannot be compared (a commit the repository does not have) count as a change. Commit the analysis code before writing the plan to avoid it. Runs whose code is the tool's (an extension's counter) are not counted.
 - `holdout_used_elsewhere`: a run other than the plan's deciding runs declared a held-out file of the plan (by hash) as input data. Only inputs declared to the tool (`run --data`) can be detected.
 - `reproduces_prompting_result`: a plan names a hypothesis recorded `from_exploration`, and a result of a deciding run has the same `variable`, the same `conditions` and the same `value` as a result of a run that suggested it (a run named in the hypothesis's `prompted_by`, or the run of a result named there). Under a rule with quantities, only the results the quantities bind are compared; under text rules every result is. Results with value 0 are not compared: a count of zero is what a correct method gives on any data.
+- `diagnostic_missing`: the plan names `diagnostics`, and a deciding run reports no result whose `variable` is one of them (from v0.22).
 - `sources_captured_after_plan`: a deciding run declared as input data (`run --data`) a file of a source (§5.20) captured after the plan was written. A plan that samples sources still to be collected ("the next 20 threads that a search returns") says so in its `design` and `new_data`.
 
 An extension may define flags of its own, which the tool reports the same way and export writes into the extension's block on the claim: the qualitative extension's `coded_before_plan` and `codebook_changed_after_plan` (qualitative §2.5).
@@ -572,6 +587,8 @@ An extension may define flags of its own, which the tool reports the same way an
 #### 5.7.6 Warnings
 
 The tool warns, and records nothing, when:
+- the first run of a record is exploratory and no confirmatory or estimation plan exists (at `run`, a notice): what it shows can suggest hypotheses, recorded `from_exploration`, and never confirm one; a test or estimate to be reported as planned is planned before the run that decides it;
+- a decided plan names a diagnostic that a deciding run does not report (at `verdict`);
 - a plan names a hypothesis recorded `from_exploration` and has no `new_data` (at `plan`);
 - a plan has no `exclusions` and a parameter of its decision rule has a name that suggests one: split at `_`, `-` and spaces, it contains `edge`, `band`, `exclude`, `exclusion`, `excluded`, `trim`, `trimmed`, `outlier`, `outliers` or `cutoff` (at `plan`);
 - a decided plan declares an exclusion and no result of its deciding runs has a `variable` containing `excluded` or the exclusion's name (at `verdict`);
@@ -589,6 +606,27 @@ A review comment on a published claimset carries a resolution test: a procedure 
 The verdict then says which rule of the comment's test the evidence met: `supported` means the comment's `withdrawn` rule was met, `not_supported` its `upheld` rule, `inconclusive` neither. All rules of planned tests apply (L15–L17); a test that comes out against the author is reported like any other. A plan may address several comments when one run settles them all. Tests of the framework `documentary` (decided by what a cited source states) and text rules are not run in the record: the author answers them in the response.
 
 The claimset's next version comes with the record of the previous version followed by the events written since (revision §5.4): the record is never restarted or rewritten for a revision, and the work that answers a review is appended to it.
+
+#### 5.7.8 Estimation plans
+
+Not every planned analysis decides a hypothesis. A study may fix in advance what it will estimate (an accuracy, an effect size, a share), how, and on what data, and then report the values. An estimation plan records that, before any run:
+
+```json
+{"kind": "estimation", "question": "Q1",
+ "design": "SES on the 500 held-out series of M4-monthly, horizon 18, origin the last 18 observations",
+ "analysis": "mean MASE over the series, with a 95% bootstrap interval (2,000 resamples, seed 7)",
+ "estimands": {"mase": {"variable": "mean MASE", "conditions": {"method": "SES"}},
+               "mase_upper": {"variable": "mean MASE", "conditions": {"method": "SES"}, "field": "interval.upper"}},
+ "diagnostics": ["convergence failures"],
+ "runs": 1, "requires_approval": true}
+```
+
+- `question`: the question whose values it estimates. Required. It places the estimate in a paper (§5.17).
+- `estimands`: the values it estimates, `{name: {variable, conditions, statistic, field, run}}`, each binding one result of the deciding runs as a decision rule's quantity does (§5.7.1). Required, at least one; names are letters, digits and `_`, starting with a letter. With several deciding runs, each names its `run`.
+- `design`, `analysis`, `setup`, `data`, `holdout`, `exclusions`, `diagnostics`, `runs`, `requires_approval`: as for a confirmatory plan.
+- No `hypotheses` and no `decision`: nothing is supported or refuted. A plan that fixes a rule for deciding (a threshold the value must pass) is a confirmatory plan of a hypothesis.
+
+Its runs are labelled `confirmatory`, since they carry out a plan fixed in advance: the plan is decided by its first `runs` of them (§5.7.2), further ones are refused (L16), and approval and anchoring apply as for a confirmatory plan (L5, L23). `claimset lab verdict` shows the value each estimand binds, the flags and the warnings; no status is recorded. Export makes each decided estimation plan a claim (§9). An estimand that binds no result (a run failed) is reported as not obtained, never dropped.
 
 ### 5.8 `approval` (prefix `AP`)
 
@@ -734,7 +772,7 @@ L1. No line of `lab.jsonl` is modified or removed after it is written.
 L2. `seq` increases by exactly 1; every `prev` matches the previous header; every `content_hash` matches its body (or its withheld body, §8).
 L3. Every executed command started through the tool produces a `run` event, whatever its exit status.
 L4. `result` events are written only by the tool. A result names an earlier `run`, and its `source` is a path listed in that run's `outputs`.
-L5. A run is labelled `confirmatory` only if it names a `confirmatory` plan, that plan was written earlier (lower `seq`) and, when anchoring is in use, anchored before the run started (§7). Otherwise it is `exploratory`. A run labelled `exploratory` may name any plan or none.
+L5. A run is labelled `confirmatory` only if it names a `confirmatory` or `estimation` plan, that plan was written earlier (lower `seq`) and, when anchoring is in use, anchored before the run started (§7). Otherwise it is `exploratory`. A run labelled `exploratory` may name any plan or none.
 L6. A `status` event moving a hypothesis to `supported` must not list as evidence any event in that hypothesis's `prompted_by`, nor results of runs listed there.
 L7. Every `status`, `decision` and `deviation` has a rationale or reason; every `revised` status names `revised_to`.
 L8. Every `by` names an `actor` event with a lower `seq`.
@@ -745,7 +783,7 @@ L12. Every `id` has the prefix of its `type` and is unique in the log; every ref
 L13. The files of a run directory match the hashes in the run's `outputs`. Run directories are never changed after the run.
 L14. Every anchor receipt (committed in `anchors.jsonl`, kept in the checkout's git directory, or derived from the remote-tracking branch, §7.1) names a `seq` present in the log, and its `head_hash` equals the header hash of the event at that `seq`; the same holds for each agent log the entry names. A mismatch means the log was rewritten after it was anchored. Exception, for receipts made by tools before v0.15 while several writers appended to one lab (§7.1, *Heads of a receipt*): when a receipt names a `seq` that the log in its commit does not hold, and a later commit of the same branch holds that `seq` with the same header hash, `verify --remote` reports a warning that names the race instead of an L14 error. A named event that no later commit holds, or holds with another header hash, is an L14 error.
 L15. A confirmatory plan has a complete decision rule (§5.7.1): a framework, the parameters it requires, and both rules; when quantities are given, every quantity is well formed (with `run` when there are several deciding runs) and every rule is a valid expression whose names are defined (§5.7.3); `runs` is a positive integer. A rule with `rules` has one entry for each hypothesis the plan names and none for another, no shared `supported` or `not_supported`, entries with only `framework`, `parameters`, `supported` and `not_supported`, and each entry with the shared parts is complete in this sense. In records begun before v0.20, a count quantity has only `count` and `run`, and its `count` is valid as qualitative §2.4 says; from v0.20, counts are the qualitative extension's (rule qualitative.L3).
-L16. A confirmatory run is not made under a plan that already has its deciding runs (§5.7.2), or, in an agent log, under a plan written outside that log (§3.5).
+L16. A confirmatory run is not made under a plan (confirmatory or estimation) that already has its deciding runs (§5.7.2), or, in an agent log, under a plan written outside that log (§3.5).
 L17. A status that names a plan, or that cites a decided plan's deciding runs or their results for a hypothesis the plan names, is a verdict: the plan is decided and names the hypothesis, the deciding runs or their results are cited, and the outcome is the one the plan's rule gives (§5.5); under `rules`, the rule of that hypothesis (§5.7.1).
 L18. A paper has a valid name, unique among the record's papers, and names at least one question; no question is named by two papers (each correction chain counted once, its latest version in force).
 L19. A lab inside `claimset/<name>/lab` belongs to the study `<name>`: its study (from `init` or the latest relocation that names one) is `<name>`, and records begun under v0.6 or later name a study.
@@ -759,9 +797,11 @@ L26. A source whose `rights.holder` is `third_party` is `public` only with a `li
 L27. In records begun before v0.20: a coding names a captured source and, unless it is withdrawn, at least one code: a term with a `code` part; its `code_versions` name versions of those codes. The codes a plan's counts name are codes of the codebook. (From v0.20, rules qualitative.L1 and qualitative.L3.)
 L28. In records begun under v0.19 or later: an `actor` event of kind `human` written by an agent actor (its `by` is an agent, not the actor registered) has non-empty `words`, the person's own reply; `words` appear only in such events (§5.2).
 L29. A record begun under a version of this specification later than the tool's own (`init.lab_spec_version`) is refused: the tool does not know that version's rules. The record may be valid; read it with a current tool (update the claimset package). Records of every earlier version are checked by the rules of the version they were begun under (§5.1).
+L31. In records begun under v0.22 or later: a hypothesis written after a run (a run event earlier in the log, or in the main log under an agent log) has `origin: from_exploration` or a non-empty `independence`. A correction of a hypothesis first written before any run is exempt.
+L32. In records begun under v0.22 or later: an estimation plan names a question, at least one well-formed estimand (§5.7.8; with several deciding runs, each with its `run`), and no hypotheses, decision rule or criterion; `runs` is a positive integer. `question` and `estimands` appear only on estimation plans, and `diagnostics`, a list of distinct non-empty names, only on confirmatory and estimation plans. Records begun earlier have none of them.
 L30. In records begun under v0.20 or later: an event carries a block (`ext`) only of an extension declared by an earlier `extension` event, on an event type that extension allows, and is of a type an extension defines only when that extension is declared; an extension is declared once, at a version the tool knows (an extension or version it does not know is refused with a message saying so, as claimset rule 80). The extension's own rules apply to its blocks and events.
 
-The tool enforces L1–L5 and L8–L23 mechanically, and refuses L6 and L7 violations. L15–L17 apply to records begun under v0.5 or later, and to records whose `init` is withheld. Where a check depends on withheld content (a withheld run, result or plan), `verify` does not report it as a violation; withholding lowers verifiability instead (§8).
+The tool enforces L1–L5, L8–L23, L31 and L32 mechanically, and refuses L6 and L7 violations. L15–L17 apply to records begun under v0.5 or later, and to records whose `init` is withheld. Where a check depends on withheld content (a withheld run, result or plan), `verify` does not report it as a violation; withholding lowers verifiability instead (§8).
 
 ## 7. Timestamp anchoring
 
@@ -854,6 +894,8 @@ Hypotheses without a final status are counted as open; they are not forced close
 
 **Papers.** With paper events, export makes one paper at a time: `--paper NAME`, or the only paper. It exports the hypotheses of the paper's questions only. `paper.study` is the study's name; the exploration summary counts the paper's questions and hypotheses and its tests, and `covers` gives the questions it reports, the whole lab's counts (`lab`) and the other papers with their questions (`other_papers`), so readers see what the paper does not report (claimset §3.1.1). Runs are not tied to questions and are counted for the whole lab. Assumptions are exported from the whole record, and the completion list asks for those no claim of the paper rests on to be removed. The draft is written to `claimset/<study>/<paper>.claimset.json` unless another file is named.
 
+**Planned estimates.** Each decided estimation plan of the paper's questions becomes a claim, after the claims of verdicts and hypotheses: `planning: planned_estimate`, `planned_at` and `planned_at_anchor` as for a verdict, and `estimate` with the plan's `estimands`, `runs`, `lab_plan`, the core's `flags` (§5.7.5) and `not_obtained` (the estimands that bind no result with a number). Its evidence is that of the deciding runs, its support cites the rows its estimands bind, and the values they bind keep their precision. The statement is drafted from the values ("Under plan PL3, mean MASE (method SES) was 0.912; …"), and the completion list asks for it to be rewritten as a sentence a reader understands alone, with each value, its uncertainty and its scope. A deviation recorded for the plan and a deciding run becomes a limitation, as for a verdict. Records begun before v0.22 have no estimation plans.
+
 **Planning label of an exported claim.** A claim from a verdict is `confirmatory`, or `confirmatory_with_deviations` if a deviation is recorded for the plan and one of its deciding runs. Its `planned_at` is the `at` of the plan version that decides the plan (the one its first deciding run names in `plan_version`), and `planned_at_anchor` is the service of the earliest anchor that covers that plan version and was made before the first deciding run started, or `none`. A claim from a hypothesis named by no decided plan is `exploratory`.
 
 **Exploration summary.** `questions` counts questions, each correction chain once; `hypotheses` counts hypotheses by final status, each correction chain once, with `open` for those without one, and `from_exploration` those whose latest version has `origin: from_exploration`; `tests` counts verdicts, one per decided plan and hypothesis it names; `runs` counts all run events by label, and `failed` those whose exit status is not `success`.
@@ -883,10 +925,13 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | `claimset lab term "arrange for ensemble" --kind concept --definition "…" --include "…" [--exclude "…"] [--example "…"] [--broader TM3]` | records a code of the codebook (qualitative extension §2.1) |
 | `claimset lab code SR1 --codes TM4 [TM7 …] [--excerpt "the words"] [--unit post] [--pass 1] [--memo "…"]` | records a coding (qualitative extension §2.2); `--supersedes CD3` recodes, `--supersedes CD3 --withdraw` withdraws; `claimset lab code SR6 --none` records a source read with no code applying |
 | `claimset lab count --plan PL1` | the deciding run of a plan decided by counts (qualitative extension §2.4); `claimset lab count --codes TM4 [--distinct-by year] [--where pass=1]` counts for exploration |
+| `claimset lab hypothesis "…" --question Q1 --from-exploration --prompted-by RS4`, or `… --independence "…"` | a hypothesis written after runs (L31) |
 | `claimset lab hypothesis "[[TM1:M]] has lower [[TM3:MASE]] than [[TM2:N]]." --question Q1 --subject TM1 --relation "has lower error than" --object TM3 --comparator TM2 --condition TM4` | a hypothesis with its atom (§5.4) |
 | `claimset lab status H3 supported --evidence RS12 RS13 --why "…" [--plan PL2] [--rule supported]` | status change, with L6, L7 and L17 checked |
-| `claimset lab verdict PL2` | the verdict a decided plan's rule gives, with the value bound to each quantity (§5.7.3) |
+| `claimset lab verdict PL2` | the verdict a decided plan's rule gives, with the value bound to each quantity (§5.7.3); for an estimation plan, the value each estimand binds (§5.7.8) |
+| `claimset lab next` | the steps still open, each with its command; every writing command ends with the next one |
 | `claimset lab plan --kind confirmatory --hypotheses H1 --design … --analysis … --framework frequentist --parameter alpha=0.05 … --quantity p="…" --supported "p < alpha" --not-supported "…" [--runs N] [--decision FILE] [--new-data "…"] [--exclusion name="rule"] [--studied TM1 TM2 --cases TM4 --procedure TM5 --lens TM3]` | writes a plan with its decision rule (§5.7.1) and anchors it; warns as in §5.7.6 |
+| `claimset lab plan --kind estimation --question Q1 --design … --analysis … --estimand mase='{"variable": "mean MASE", "conditions": {"method": "SES"}}' [--diagnostic "convergence failures"] [--requires-approval]` | an estimation plan (§5.7.8); `--diagnostic` also on confirmatory plans |
 | `claimset lab plan --kind confirmatory --hypotheses H1 H2 … --quantity s="…" --quantity n="…" --supported "H1: s < threshold" --not-supported "H1: s >= threshold" --supported "H2: n > ui" --not-supported "H2: n <= ui"` | a plan whose hypotheses have rules of their own (§5.7.1): a rule prefixed with a hypothesis ID is that hypothesis's; repeat for each |
 | `claimset lab plan --kind confirmatory --hypotheses H9 --comment doi:…@v1/RV1.c6 --review RV1.json --analysis "…"` | writes a plan that runs a review comment's resolution test: the decision rule is the comment's current test and `addresses` names the comment (§5.7.7); `--design` defaults to the test's procedure |
 | `claimset lab approve PL2 --by AC1` | approval by the human, who runs the command |
@@ -908,6 +953,7 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | `claimset lab protect` | sets the operating system's append-only attribute on the log files, or explains how an administrator can (§4.5) |
 | `claimset lab publish --withhold RN7 --reason personal_data --comment "…"` | prepares the publishable record |
 | `claimset lab export [--paper NAME] [-o FILE]` | writes the draft claimset submission of one paper (default `claimset/<study>/<paper>.claimset.json`) and prints the completion list (§9) |
+| `claimset lab export [--paper NAME] --check FILE` | reports what a completed claimset changed of the fields export takes from the record (§9) |
 | `claimset tag claimset/<study>/<paper>.claimset.json` | marks the committed version of a paper with the git tag `claimset/<study>/<paper>/v<n>` (claimset §2.4) |
 
 ## 11. Open questions

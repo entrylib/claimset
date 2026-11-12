@@ -18,6 +18,7 @@ Only what is mechanical is changed:
 - v0.41: nothing changes but the version; the quantities of computed tests that bind no observation, or several,
   are listed to rebind (rule 91), since restructured evidence (result entries made into tables) leaves them
   naming what is gone;
+- v0.42: nothing changes but the version (planned estimates and the flag diagnostic_missing are new);
 - `schema_version` is set to the current version.
 From v0.33 a claim inherits the assumptions of the methods studied only for its own subject (§3.2): the
 assumptions a claim inherited under v0.32 and no longer does are listed, to be added to its own `assumptions`

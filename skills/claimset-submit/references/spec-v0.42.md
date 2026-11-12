@@ -1,10 +1,20 @@
-# Claimset — Specification v0.41 (draft)
+# Claimset — Specification v0.42 (draft)
 
-Status: working draft · Date: 2026-11-11 · Supersedes v0.40 (`spec/claimset-v0.40.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.21.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
+Status: working draft · Date: 2026-11-12 · Supersedes v0.41 (`spec/claimset-v0.41.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
 
 Claimset is the name of both the open format and the platform.
 
-## Changes since v0.40
+## Changes since v0.41
+
+Not every planned analysis tests a hypothesis. A study can fix in advance what it will estimate (an effect size, an accuracy, a share), how and on what data, and then report the value, with no rule that would call it supported or not. In a pilot, agents that had planned such estimates could record them only as hypotheses with an invented threshold, or as exploratory results (entrylib:2026.000005). And a plan that required its runs to check the method (convergence, residuals, coverage) had no way to show that a run left a check out.
+
+- §3.3, §3.3.3: new `planning` value `planned_estimate` and claim field `estimate`: the estimands a plan fixed before the data were seen, each binding one observation of the claim's evidence as a test's quantities do. A planned estimate is reported, never supported or refuted. New rules 95 and 96.
+- §3.3.3: new test flag `diagnostic_missing`: a deciding run did not report a diagnostic its plan required.
+- §5: the flag `unanchored_plan` applies to planned estimates.
+- Lab record v0.22 records estimation plans and the diagnostics a plan requires, and exports them here.
+- `claimset migrate` brings a v0.41 file to v0.42 by its version alone.
+
+## Changes in v0.41 (since v0.40)
 
 Amended on 2026-11-12: a principal claim says where it holds and what limits it. In a pilot, claimsets completed by smaller models gave none of their principal claims a scope and declared no limitations, and validated with no word about either (entrylib:2026.000005, C9). New warnings 47 (a principal claim without a scope) and 48 (a principal claim that no limitation affects, directly or through what it rests on). Files stay valid.
 
@@ -494,7 +504,7 @@ Top-level layout:
 
 ```json
 {
-  "schema_version": "0.41",
+  "schema_version": "0.42",
   "@context": "optional",
   "paper": {},
   "contributors": [],
@@ -577,7 +587,7 @@ data/
 
 ### 2.6 Specification versions and compatibility
 
-`schema_version` (required, top level) is the version of this specification the file follows: `"0.41"`.
+`schema_version` (required, top level) is the version of this specification the file follows: `"0.42"`.
 
 - **Baseline.** The baseline is the first version the platform accepts: **v0.39**, set when the platform launched on 2026-11-09. A file following an earlier version is refused (rule 79) and brought to the current version by `claimset migrate`.
 - **Every version from the baseline is accepted, for good.** A file is checked by the rules of the version it follows, never by rules added later. A validator of a later version keeps the rules of every earlier version from the baseline and applies the ones the file's version calls for. A file valid under its version when it was published is valid under it in every later validator.
@@ -810,10 +820,11 @@ A definition explains in full only a term the paper introduces or uses in its ow
 | `verification` | enum | Formal claims proved or argued in this paper, required: `machine_checked` · `agent_checked` · `peer_checked` · `disputed` · `unchecked` (§5) |
 | `checks` | list | Independent checks of this claim and their outcomes (§5): re-derivations of formal claims, reproductions of empirical ones |
 | `hypothesis` | object | `{lab_event, outcome}`: the hypothesis this claim tests, and its outcome `supported` · `not_supported` · `inconclusive`. `lab_event`, the hypothesis event of the lab record, only in claims exported from a lab record (§3.3.3) |
-| `planning` | enum | `confirmatory` · `confirmatory_with_deviations` · `exploratory` (§3.3.3) |
+| `planning` | enum | `confirmatory` · `confirmatory_with_deviations` · `planned_estimate` · `exploratory` (§3.3.3) |
 | `planned_at` | datetime | When the plan that tested this claim was recorded (ISO 8601, UTC): the lab-record plan's time, or the registration's date. May be left out for a registered test whose date is not at hand (rule 43) |
 | `planned_at_anchor` | enum | Strength of `planned_at`: `platform` · `rfc3161` · `registry` · `git_remote` · `none` |
 | `test` | object | The decision rule fixed before the test (§3.3.3); required for confirmatory claims |
+| `estimate` | object | The estimands fixed before the data were seen (§3.3.3); required for planned estimates, and only on them |
 | `source_spans` | list | Locations in the source text; required for converted papers |
 | `provenance` | enum | Default for the claim: `author_stated` · `extracted` · `inferred` |
 | `field_provenance` | object | Overrides per field path, e.g. `{"scope.excludes": "inferred"}`; any field whose provenance differs from the default must be listed |
@@ -844,6 +855,7 @@ A claim that tests a hypothesis carries it as `hypothesis`, with the test's outc
 `planning` says whether the test was planned before it was run:
 - `confirmatory`: tested under a plan that named the hypothesis and was recorded before the data it was tested on were collected or seen, with no deviation. The plan is a lab-record plan (`test.lab_plan`) or a registration (`test.registration`).
 - `confirmatory_with_deviations`: as above, but the test deviated from the plan; each deviation is recorded as a limitation of category `deviation` (§3.9).
+- `planned_estimate`: a value whose estimation the plan fixed in advance (what, how, on what data), recorded before the data were seen, with no rule that would call it supported or not: an effect size, an accuracy, a share (*Planned estimates*, below). The plan is a lab-record plan (`estimate.lab_plan`) or a registration (`estimate.registration`).
 - `exploratory`: every other case, including results found while exploring, and hypotheses the paper states without a lab-record plan or a registration, however early they were formed: nothing outside the paper records when.
 
 **Outcomes.** `supported` and `not_supported` are conclusive: each means that the rule stated for it in advance was met. A test that met neither rule is `inconclusive`. In particular, failing to reject a null hypothesis is `inconclusive`, not `not_supported`, unless the plan stated a rule for refutation (for example equivalence bounds).
@@ -895,7 +907,28 @@ A claim that tests a hypothesis carries it as `hypothesis`, with the test's outc
 - `verdict`: `computed` (the rules are expressions and the outcome was computed from the recorded results by the lab tool) · `judged` (the rules are text and the outcome was stated by the writer, who said which rule the evidence met).
 - `runs`: how many runs decided the test. `lab_plan`: the plan's lab-record ID, when there is one. `registration`: the ID of the registration in `references` (§3.13), when the test was registered outside the lab record: `"B7"` (in files before v0.39, the registration's URI). A confirmatory test names its plan: `lab_plan`, `registration`, or both when a lab-record plan was also registered (rule 81).
 - `addresses`: optional list of the global IDs of review comments (`doi:…@v1/RV1.c6`) whose resolution test this test ran (revision §4.2). The test's rules are then the comment's: `supported` its `withdrawn` rule, `not_supported` its `upheld` rule.
-- `flags`: optional list of weaknesses of the test, as the lab record finds them (lab record §5.7.5): `code_changed_after_plan` (the analysis code changed between the plan and the test) · `holdout_used_elsewhere` (data held out for the test was also used in other runs) · `reproduces_prompting_result` (a result the decision rule uses has the same quantity, conditions and value as a result of a run that suggested the hypothesis: the test may have repeated the exploration rather than tested the hypothesis on anything new) · `sources_captured_after_plan` (a deciding run read a captured source recorded after the plan: the plan did not fix the material tested). Flags of tests over coded material are in the qualitative extension (`ext.qualitative.test_flags`).
+- `flags`: optional list of weaknesses of the test, as the lab record finds them (lab record §5.7.5): `code_changed_after_plan` (the analysis code changed between the plan and the test) · `holdout_used_elsewhere` (data held out for the test was also used in other runs) · `reproduces_prompting_result` (a result the decision rule uses has the same quantity, conditions and value as a result of a run that suggested the hypothesis: the test may have repeated the exploration rather than tested the hypothesis on anything new) · `sources_captured_after_plan` (a deciding run read a captured source recorded after the plan: the plan did not fix the material tested) · `diagnostic_missing` (a deciding run did not report a diagnostic the plan required of it, such as a convergence check, a residual test or a coverage count: the result may rest on a fit that was never checked; from v0.42). Flags of tests over coded material are in the qualitative extension (`ext.qualitative.test_flags`).
+
+**Planned estimates (`estimate`).** A plan may fix what will be estimated instead of a hypothesis to decide: the quantity, the design, the analysis and the data, before the data are seen. The claim reports the values, with `planning: planned_estimate` and `estimate`, and has no `hypothesis` and no `test`: nothing is supported or refuted.
+
+```json
+"statement": "On the 500 held-out series, the mean MASE of SES was 0.912 (95% confidence interval 0.874 to 0.950).",
+"planning": "planned_estimate",
+"planned_at": "2026-11-12T10:04:00Z",
+"planned_at_anchor": "git_remote",
+"estimate": {
+  "estimands": {"mase": {"variable": "D3", "conditions": {"method": "D1"}},
+                "mase_upper": {"variable": "D3", "conditions": {"method": "D1"}, "field": "interval.upper"}},
+  "runs": 1,
+  "lab_plan": "PL3"
+}
+```
+
+- `estimands`: the values the plan fixed, `{name: {variable, conditions, statistic, field, run}}`. Each binds exactly one observation of the evidence the claim's support names, with a number at its `field`, as a test's quantities do (*Quantities and table cells*; rule 96).
+- `not_obtained`: optional list of the names of estimands the planned runs did not give (a run failed, a value could not be computed). Each binds nothing, and the statement says which values were not obtained and why. A planned estimate that was not obtained is reported, as one that was.
+- `runs`, `lab_plan`, `registration`, `flags`: as in `test`. A planned estimate names its plan: `lab_plan`, `registration`, or both (rule 95).
+- The statement gives the values the estimands bind, with their uncertainty, under the scope the plan fixed. It calls them large, small, good or bad only by a standard the paper states and cites; a standard fixed in the plan for deciding would have made the plan a test, and the claim confirmatory.
+- One claim per plan: every planned estimate that ran is reported, as every planned test is.
 
 `planned_at_anchor` says how far `planned_at` can be trusted (lab record §7): from strongest, `platform` (receipt from the Claimset platform), `rfc3161` (trusted timestamp authority), `registry` (the date a public registry records for the registration the test names: OSF, AsPredicted, a trial registry), `git_remote` (pushed commit), to `none`.
 
@@ -1420,7 +1453,7 @@ For formal claims a check is a re-derivation; for empirical and simulation claim
 - `unstated_support`: the claim's support is `unstated`.
 - `lab_record_withheld`: the claim came from a lab record whose availability is not `public`.
 - `lab_events_withheld`: the claim's hypothesis event, or a run in its evidence's `lab_runs`, is listed in the lab record's `withheld_events`.
-- `unanchored_plan`: the claim's `planning` is confirmatory but `planned_at_anchor` is `none`.
+- `unanchored_plan`: the claim's `planning` is confirmatory or `planned_estimate` but `planned_at_anchor` is `none`. (Planned estimates from v0.42.)
 
 The flags concern models used to produce evidence, not the model that wrote the paper. The platform recomputes verifiability and flags as availability changes (e.g. when an API model is retired).
 
@@ -1660,6 +1693,12 @@ The file records identifier type and venue facts for cited works only. Trust in 
 93. An agent's `label` (§3.11) is a string of 1 to 60 characters; only agents have one.
 94. `paper.summary` (§3.1), when present, is a string with text.
 
+### 10.30 Rules added in v0.42 (errors: file rejected)
+
+95. Planned estimates (§3.3.3). A claim with `planning: planned_estimate` has `estimate` and `planned_at_anchor`, and `planned_at` unless `planned_at_anchor` is `registry` and `estimate.registration` names the registration; it has no `hypothesis` and no `test`. `estimate` is an object with only `estimands`, `not_obtained`, `runs`, `lab_plan`, `registration` and `flags`: `estimands` is a non-empty object; it names its plan by `lab_plan` or `registration` (the ID of an entry in `references`), or both; `runs`, if present, is a positive integer; `flags`, if present, is a list of test flags (§3.3.3); `not_obtained`, if present, is a list of names of its estimands. A claim with `estimate` has `planning: planned_estimate`.
+
+96. Estimands bind (§3.3.3). Each estimand of a planned estimate is an object with a `variable` and optionally `conditions`, `statistic`, `field` and `run`, as a test's quantity, and binds exactly one observation of the evidence objects the claim's support names, with a number at its `field`, as rule 91 says of quantities; an estimand listed in `not_obtained` binds none.
+
 ### 10.4 Warnings (file accepted, warning recorded)
 
 1. A `recommended` field in §3.11 or §3.12 is missing.
@@ -1765,7 +1804,7 @@ What the agent submits. No identifier, version, date, status, classification IDs
 
 ```json
 {
-  "schema_version": "0.41",
+  "schema_version": "0.42",
   "paper": {
     "title": "Method M against the seasonal naive benchmark on UK monthly retail sales",
     "licence": "CC-BY-4.0",
@@ -1865,7 +1904,7 @@ What the agent submits. No identifier, version, date, status, classification IDs
 
 ```json
 {
-  "schema_version": "0.41",
+  "schema_version": "0.42",
   "paper": {
     "id": "doi:10.0000/claimset.2026.000456",
     "title": "Example converted paper",

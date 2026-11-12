@@ -110,7 +110,9 @@ def build(events):
             continue
         under = [r for r in runs if st.root(r["body"].get("plan") or "") == p["id"]]
         plans.append({"id": p["id"], "kind": cur["body"].get("kind"),
-                      "hypotheses": cur["body"].get("hypotheses", []), "design": cur["body"].get("design"),
+                      "hypotheses": cur["body"].get("hypotheses") or [], "design": cur["body"].get("design"),
+                      "question": cur["body"].get("question"),
+                      "estimands": sorted(cur["body"].get("estimands") or {}),
                       "approved": bool({p["id"], cur["id"]} & approvals),
                       "requires_approval": bool(cur["body"].get("requires_approval")),
                       "awaiting_approval": bool(cur["body"].get("requires_approval")) and not plan_approved(st, cur["id"]),
@@ -188,7 +190,9 @@ def render(s):
         out.append("Plans:")
         for p in s["plans"]:
             flags = ("approved, " if p["approved"] else "") + (f"runs {' '.join(p['runs'])}" if p["runs"] else "no runs yet")
-            out.append(f"  {p['id']} [{p['kind']}] tests {', '.join(p['hypotheses']) or '-'} ({flags})")
+            what = (f"estimates {', '.join(p['estimands'])} for {p['question']}" if p["kind"] == "estimation"
+                    else f"tests {', '.join(p['hypotheses']) or '-'}")
+            out.append(f"  {p['id']} [{p['kind']}] {what} ({flags})")
     r = s["runs"]
     if r["total"]:
         out.append(f"Runs: {r['total']} ({r['confirmatory']} confirmatory, {r['exploratory']} exploratory, "
