@@ -2952,8 +2952,8 @@ def standalone_problems(doc):
     return [{"rule": "70", "where": f"artefacts:{aid}.uri",
              "message": f"{uri} is a file of a package, but the claimset was submitted alone: the file would not "
                         f"reach the platform. Submit the package (`claimset package`, then `claimset submit` of it, "
-                        f"or its https URL as package_url; through the MCP server, an upload_url address or "
-                        f"package_with_consent), or name the file by an https URL where it is deposited (§2.5)"}
+                        f"or as the platform takes packages), or name the file by an https URL where it is deposited "
+                        f"(§2.5)"}
             for aid, uri in named]
 
 
