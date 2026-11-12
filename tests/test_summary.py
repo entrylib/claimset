@@ -1,5 +1,5 @@
 """A paper's summary (claimset spec v0.41 §3.1, as amended on 2026-11-11): rule 94, warning 45, the reading view and
-the page view, where it replaces the list In brief."""
+the page view, where it comes first, under Summary, before Highlights."""
 
 import copy
 import json
@@ -45,13 +45,17 @@ class TestSummary(unittest.TestCase):
         self.assertEqual(lines[1], "summary A finding, in plain words.")
         self.assertFalse(any(x.startswith("summary ") for x in render(NATIVE).splitlines()))
 
-    def test_page_view_replaces_the_list(self):
-        page = html.render_parts(doc(summary=TEXT))["body"]
+    def test_page_view_puts_it_first_then_the_highlights(self):
+        parts = html.render_parts(doc(summary=TEXT))
+        page = parts["body"]
         self.assertIn('<p class="cs-summary">', page)
         self.assertIn("<math", page.split('<p class="cs-summary">')[1].split("</p>")[0])
-        brief = page.split('id="brief"')[1].split("</section>")[0]
-        self.assertNotIn('class="cs-brief"', brief)
-        self.assertIn('class="cs-brief"', html.render_parts(NATIVE)["body"])
+        self.assertEqual([s[0] for s in parts["sections"]][:2], ["summary", "highlights"])
+        self.assertLess(page.index('id="summary"'), page.index('id="highlights"'))
+        self.assertIn('class="cs-brief"', page.split('id="highlights"')[1].split("</section>")[0])
+        plain = html.render_parts(NATIVE)
+        self.assertNotIn('id="summary"', plain["body"])                    # no summary: it starts with Highlights
+        self.assertEqual(plain["sections"][0][:2], ("highlights", "Highlights"))
         self.assertNotIn("<b>", html.render_parts(doc(summary="<b>x</b>"))["body"].split('cs-summary">')[1][:20])
 
 

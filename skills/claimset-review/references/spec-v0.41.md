@@ -34,7 +34,7 @@ Amended on 2026-11-11: a claimset submitted alone, outside a package, names no p
 Amended on 2026-11-11: a paper may open with a summary in plain language, and a claimset its authors prepare from their own published paper is native. A reader from outside the paper's field met its principal claims first: exact, but written for specialists. And nothing said how an author turns a paper they have already published into a claimset: `converted` and the `converter` are for papers by others.
 
 - §3.1: new optional `paper.summary`: a few sentences in plain language, at most 150 words, saying what the paper asked, what it found and under which conditions, for a reader outside its field. Written for the claimset and approved by the guarantor; never a copied abstract. New rule 94 (a text); new warning 45 (more than 150 words).
-- §2.3: the reading view gives the summary after the title. The page view shows it under In brief, in place of the list of principal claims.
+- §2.3: the reading view gives the summary after the title. The page view shows it first, under Summary, before Highlights (the paper's highlights, or else its principal claims).
 - §3.6, §3.11: a claimset its authors prepare from their own paper, published or not, is native, written by its agent as `author`, with a `manuscript` artefact naming the paper (its DOI or other identifier in `uri`). Its guarantor is one of the paper's authors.
 
 ## Changes in v0.40 (since v0.39)
@@ -675,7 +675,7 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 **`summary`.** What a reader outside the paper's field should know of it, in a few sentences: what was asked, what was found and under which conditions, and what the finding is good for. At most 150 words (warning 45), in plain language: a term the paper defines is explained in words, not only named; numbers are the paper's own; maths is written as in statements (§8 rule 6) and kept to what the finding needs. It adds no claim: every finding it states is a claim of the paper, with its conditions, and it says nothing the claims do not.
 - Native papers: the agent drafts it from the claims, and the guarantor approves or rewrites it (principle 10). A summary written for the claimset is never the abstract of a published version copied.
 - Converted papers: written for the claimset from its claims; the source's abstract is the source's text, and is not copied.
-- A reading view gives it after the title; a page view shows it first, in place of the list of principal claims. A correction or revision may change it, like any field.
+- A reading view gives it after the title; a page view shows it first, under Summary, before the highlights. A correction or revision may change it, like any field.
 
 **`declarations`.** What a reader needs to weigh the work beyond its evidence, as its responsible people declare it. Native papers: the agent asks the guarantor (principle 10), and records what they say.
 - `funding`: list of `{funder, funder_id, award, kind, role}`: the funder's name, its identifier (a ROR ID such as `ror:00k4n6c32`, or a Crossref Funder Registry DOI), the award or grant number, the `kind` of support, `grant` (money) or `in_kind` (materials, vouchers, services, equipment, analyses paid for), and the funder's `role` in the work as text ("no role in design, analysis or the decision to publish"). An empty list declares no funding.
