@@ -1,4 +1,4 @@
-"""The page view (claimset.html): order, lights, In brief, terms, references, maths, images, escaping."""
+"""The page view (claimset.html): order, lights, Highlights, terms, references, maths, images, escaping."""
 
 import contextlib
 import copy
@@ -46,7 +46,7 @@ class TestWholeFiles(unittest.TestCase):
         doc["claims"][2]["relations"] = [{"type": "extends", "reference": "B1", "note": "Earlier result."}]
         doc["limitations"][0]["affects"] = ["C2"]
         body = H.render_parts(doc)["body"]
-        order = ["brief", "context", "definitions", "assumptions", "principal", "evidence", "limitations",
+        order = ["highlights", "context", "definitions", "assumptions", "principal", "evidence", "limitations",
                  "references", "artefacts"]
         positions = [body.index(f'id="{s}"') for s in order]
         self.assertEqual(positions, sorted(positions))
@@ -287,7 +287,7 @@ class TestDigits(unittest.TestCase):
     def test_sections(self):
         parts = H.render_parts(self.doc())
         ids = [sid for sid, _, _ in parts["sections"]]
-        self.assertEqual(ids[:1], ["brief"])
+        self.assertEqual(ids[:1], ["highlights"])
         self.assertIn(("evidence", "Evidence", len(self.doc()["evidence"])), parts["sections"])
         for sid in ids:
             self.assertIn(f'href="#{sid}"', parts["nav"])
