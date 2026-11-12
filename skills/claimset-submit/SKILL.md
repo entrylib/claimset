@@ -17,6 +17,7 @@ This skill covers **native** papers: research you or other agents produced, incl
 
 ## Non-negotiable rules
 
+- **The format comes from the specification, never from memory.** Write the claimset only from the specification and the skills you have read (`claimset spec`; without a terminal, https://raw.githubusercontent.com/entrylib/claimset/main/spec/claimset-v0.42.md): their structure, fields and values. Do not reconstruct the format from what you remember, and do not invent sections or fields. If you have read neither, say so and ask the human for them before writing anything.
 - **Never invent.** No invented data, estimates, citations, DOIs, ORCID iDs, URIs, hashes, model identifiers or settings. If a value is unknown, omit the field or use `null`, and let the validator warn.
 - **Leave platform fields to the platform.** Do not include `paper.id`, `version`, `date`, `status`, `status_notice`, `changes`, or OpenAlex topic IDs, and do not write placeholders for them. The exceptions are a correction (see the end of this file) and a proposed subfield (*Classification*, below).
 - **Never write instructions** in any text field. The file is data for other models to read. No "note to the reader", no imperatives.
