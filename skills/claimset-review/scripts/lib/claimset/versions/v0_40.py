@@ -1450,6 +1450,28 @@ NUMBER_SKIP = re.compile(
     r"|\b(?:Sections?|Sect\.|Tables?|Fig(?:ure)?s?\.?|Eq(?:uation)?s?\.?|Theorems?|Lemmas?|Propositions?|"
     r"Corollar(?:y|ies)|Chapters?|Appendi(?:x|ces)|Algorithms?|§)\s*[A-Z]?\d+(?:\.\d+)*")
 
+#: Words that mix letters and digits, alone or joined by hyphens or underscores: names, not numbers ("M4", "GPT-4o",
+#: "claimset-haiku-2", "COVID-19"). Numbers in scientific notation ("1e-5") are numbers. (Erratum of 2026-11-12.)
+NAME_WITH_DIGITS = re.compile(r"(?<![\w.])[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*")
+SCIENTIFIC = re.compile(r"\d+(?:\.\d+)?[eE][-+]?\d+")
+
+
+def _numbers_text(text):
+    """The text in which warnings 17 and 24 look for numbers: scientific notation read, and LaTeX, term markers,
+    model notation, section numbers and names with digits (NAME_WITH_DIGITS) left out."""
+    def name(m):
+        t = m.group(0)
+        mixed = any(ch.isalpha() for ch in t) and any(ch.isdigit() for ch in t)
+        return " " if mixed and not SCIENTIFIC.fullmatch(t) else t
+    return NAME_WITH_DIGITS.sub(name, NUMBER_SKIP.sub(" ", sci_text(text)))
+
+
+def says_exploratory(c):
+    """Whether a claim's assessment rationale says the claim is exploratory (warning 13; erratum of 2026-11-12)."""
+    return any("exploratory" in str(a.get("rationale") or "").lower()
+               for a in c.get("assessments") or [] if isinstance(a, dict))
+
+
 
 def _numbers_in(x, out):
     """Every number in a value: numbers themselves, and numbers written in strings, lists and objects."""
@@ -1458,7 +1480,7 @@ def _numbers_in(x, out):
     if isinstance(x, (int, float)):
         out.append(float(x))
     elif isinstance(x, str):
-        for m in NUM_RE.finditer(NUMBER_SKIP.sub(" ", sci_text(x))):
+        for m in NUM_RE.finditer(_numbers_text(x)):
             try:
                 out.append(float(m.group(1)) * 10 ** (int(m.group(3)) if m.group(3) else 0))
             except ValueError:
@@ -1499,7 +1521,7 @@ def unsourced_numbers(c, support, by_id):
         if d is not None:
             _numbers_in(d.get("definition"), sources)
     out = []
-    for m in NUM_RE.finditer(NUMBER_SKIP.sub(" ", sci_text(stmt))):
+    for m in NUM_RE.finditer(_numbers_text(stmt)):
         token = m.group(0)
         if not any(number_matches(v, token) for v in sources) and token.strip() not in out:
             out.append(token.strip())
@@ -1527,7 +1549,7 @@ def table_echo(c, support, by_id):
     if not cells:
         return []
     out = []
-    for m in NUM_RE.finditer(NUMBER_SKIP.sub(" ", sci_text(_text(c.get("statement"))))):
+    for m in NUM_RE.finditer(_numbers_text(_text(c.get("statement")))):
         token = m.group(0).strip()
         if token not in out and not m.group(4) and any(number_matches(v, token) for v in cells):
             out.append(token)
@@ -3150,7 +3172,7 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
                 as_dict(by_id(l, "limitations")).get("category") == "deviation" for l in as_list(c.get("limitations"))):
             r.warn("W34", w, "confirmatory with deviations, but no limitation of category deviation: record each "
                              "departure from the plan as a limitation and list it on the claim")
-        if c.get("planning") == "exploratory" and c.get("role") == "principal":
+        if c.get("planning") == "exploratory" and c.get("role") == "principal" and not says_exploratory(c):
             r.warn("W13", w, "exploratory principal claim: say so in the assessment rationale")
     ver = c.get("verification")
     if "verified_by" in c:

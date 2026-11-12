@@ -240,6 +240,7 @@ Use `check: "tested"` or `"sensitivity_analysed"` only if the work actually did 
 - **Scope** = what the work covered: population, setting, geography, language, period, data_type, conditions, and `excludes` (where it explicitly does not apply). "English-language data only" is scope.
 - **Write scope claim by claim, never per section.** Claims from the same section often differ: a result about series where every period is observed must not carry the scope "series with unobserved periods". Leave out fields that do not apply. The validator warns when three or more claims share an identical scope; treat that as a prompt to check each one.
 - **Limitation** = a threat to a claim *within* that scope, e.g. "All 1,200 series come from one retailer's store network". Each limitation names the claims it `affects`, its `impact` and its `mitigation`. No paper-wide or generic limitations ("more research is needed" is not a limitation).
+- **A competing interest is declared, not listed as a limitation.** Ask the guarantor and record it in `paper.declarations.competing_interests`; readers see it with the paper. Add a limitation only when the interest bears on how particular claims were obtained (the authors evaluated their own method and chose its settings), naming those claims and what guarded against it (W45, spec §3.9).
 
 ### 8. Assess strength, or verification for formal claims
 

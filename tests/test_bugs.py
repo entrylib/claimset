@@ -1,5 +1,6 @@
 """Bugs fixed in the validator of every version (current and frozen): a value of the wrong type is reported, never a
-crash (rule 86 as the last resort), and a percentage in a statement matches a value recorded in percent."""
+crash (rule 86 as the last resort), a percentage in a statement matches a value recorded in percent, names with
+digits are not numbers (warning 17), and warning 13 reads the assessment rationale (errata of 2026-11-12)."""
 
 import copy
 import json
@@ -83,6 +84,42 @@ class TestPercentages(unittest.TestCase):
     def test_a_different_number_still_warns(self):
         self.assertFalse(current.number_matches(7.67, "by 76.7%"))
         self.assertFalse(current.number_matches(0.77, "by 76.7%"))
+
+
+def principal(d):
+    return next(c for c in d["claims"] if c.get("role") == "principal")
+
+
+def warned(d, rule):
+    return [w for w in validate(d).warnings if w["rule"] == rule]
+
+
+class TestNamesWithDigits(unittest.TestCase):
+    def test_names_with_digits_are_not_numbers(self):
+        for v in VERSIONS:
+            for name in ("claimset-haiku-2", "GPT-4o", "M4", "COVID-19", "run_12"):
+                d = load(v)
+                principal(d)["statement"] = f"[[D2:Method M]] was scored by {name} on the [[D4:UK monthly retail sales]]."
+                self.assertEqual(warned(d, "W17"), [], (v, name))
+
+    def test_a_number_still_warns(self):
+        for v in VERSIONS:
+            for number in ("0.731", "1e-5"):
+                d = load(v)
+                principal(d)["statement"] = f"[[D2:Method M]] reached {number} on the [[D4:UK monthly retail sales]]."
+                self.assertEqual(len(warned(d, "W17")), 1, (v, number))
+
+
+class TestExploratoryRationale(unittest.TestCase):
+    def test_w13_reads_the_rationale(self):
+        for v in VERSIONS:
+            d = load(v)
+            c = principal(d)
+            c["planning"] = "exploratory"
+            c["assessments"] = [{"by": "author", "strength": "moderate", "rationale": "One benchmark collection."}]
+            self.assertEqual(len(warned(d, "W13")), 1, v)
+            c["assessments"][0]["rationale"] = "Exploratory: found while comparing the methods, not planned."
+            self.assertEqual(warned(d, "W13"), [], v)
 
 
 if __name__ == "__main__":
