@@ -16,6 +16,10 @@ Not every planned analysis tests a hypothesis. A study can fix in advance what i
 
 ## Changes in v0.41 (since v0.40)
 
+Amended on 2026-11-12: a claimset its authors convert from their published paper names that paper. Such a claimset is native (§3.6), and the paper was linked only as a `manuscript` artefact, which a draft can be too: a reader, and the platform checking that the guarantor is one of the paper's authors and that the paper is published once, could not tell a conversion from a draft.
+- §3.1: new optional `paper.published_as` `{id_type, id, version}`: the published paper this claimset restates, by its persistent identifier. Native papers only. New rule 97.
+- §3.6, §3.11: a claimset its authors convert from their own published paper gives `published_as`, keeps the `manuscript` artefact, and lists the paper's authors as people, each with an ORCID iD where they have one; the guarantor is one of them. New warning 49 (a native paper whose `manuscript` artefact is a published identifier, without `published_as`).
+
 Amended on 2026-11-12: a principal claim says where it holds and what limits it. In a pilot, claimsets completed by smaller models gave none of their principal claims a scope and declared no limitations, and validated with no word about either (entrylib:2026.000005, C9). New warnings 47 (a principal claim without a scope) and 48 (a principal claim that no limitation affects, directly or through what it rests on). Files stay valid.
 
 Amended on 2026-11-12: the specification and the `claimset` package define the reading view, for models; how a claimset looks to people is a platform's. The page view (`claimset render --html`, the package's HTML) has left the package for the platform that shows it (EntryLib: entrylib/portal), and this version no longer describes it. Nothing about a file's validity changes.
@@ -637,6 +641,7 @@ The core of this specification is what every field shares and what claims are co
 | `contributions` | list of claim IDs | Required. Ordered by priority; principal claims only |
 | `highlights` | list of IDs | Optional. One to five IDs, ordered by priority: principal claims (each in `contributions`) and terms the paper introduces (definitions without `source`), chosen by the guarantor (below; rule 90) |
 | `summary` | string | Optional. The paper in a few sentences of plain language, for a reader outside its field (below; rule 94, warning 45) |
+| `published_as` | object | Native papers only, optional: the published paper this claimset restates, when its authors converted it (below; rule 97) |
 | `autonomy` | enum | Native papers only, required: `autonomous` (agents ran the work end to end) · `human_supervised` (humans oversaw the agents' work and approved it) · `human_assisted` (humans carried out substantial parts of the research) · `unknown` |
 | `contribution_record` | enum | Required. `complete` · `partial` · `unknown`. For converted papers, refers to the conversion |
 | `origin` | enum | Required. `native` · `converted` |
@@ -689,6 +694,13 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 - Native papers: the agent drafts it from the claims, and the guarantor approves or rewrites it (principle 10). A summary written for the claimset is never the abstract of a published version copied.
 - Converted papers: written for the claimset from its claims; the source's abstract is the source's text, and is not copied.
 - The reading view gives it after the title. A correction or revision may change it, like any field.
+
+**`published_as`.** The published paper a claimset restates, when its own authors converted it into a claimset (§3.6): `{id_type, id, version}`.
+- `id_type`: `doi` · `arxiv` · `handle` · `pmid` · `isbn` · `url`, as for cited support (§4). A persistent identifier (`doi`, `arxiv`, `handle`) is used when the paper has one; `url` is for a paper without one, such as an older paper online only at its publisher.
+- `id`: the identifier, without a prefix or resolver address (`10.1016/j.ijforecast.2025.01.001`, `2401.01234`).
+- `version`: optional, the version converted when the identifier names several (`v2` of an arXiv paper).
+- The paper is still native: its authors prepared it from their own work (principle 9). Its guarantor is one of the paper's authors, and the paper's other authors are listed as people (§3.11), each with an ORCID iD where they have one; an author without one is listed by name. A platform may check against the paper's registered metadata that the guarantor is an author, and publish one claimset per paper.
+- A paper by others is not given here: a conversion by a third party is `origin: converted`, with `converted_from` (below).
 
 **`declarations`.** What a reader needs to weigh the work beyond its evidence, as its responsible people declare it. Native papers: the agent asks the guarantor (principle 10), and records what they say.
 - `funding`: list of `{funder, funder_id, award, kind, role}`: the funder's name, its identifier (a ROR ID such as `ror:00k4n6c32`, or a Crossref Funder Registry DOI), the award or grant number, the `kind` of support, `grant` (money) or `in_kind` (materials, vouchers, services, equipment, analyses paid for), and the funder's `role` in the work as text ("no role in design, analysis or the decision to publish"). An empty list declares no funding.
@@ -1228,7 +1240,7 @@ A reading model learns little from an image; it learns from the observations. Im
 
 **Bulk data.** Data larger than the paper reports (results per series or per participant, raw measurements, simulation outputs) are artefacts in tabular files (CSV), with `columns` naming the variable or dimension of each column. Their rows are observations like the file's own, and are cited by RFC 7111 fragment, `A4#row=12` (a row) or `A4#row=12-40` (rows). What the claims rest on is recorded in the file as results and tables; bulk data supports and extends them.
 
-Tables are stored as data (CSV or JSON), not images. Prompts are stored verbatim, including system prompts. A `trace` is the log of an agent's run (prompts, tool calls, outputs) as recorded by the system that ran it; it may contain confidential material and uses the availability levels in §3.10. A `manuscript` is a human-readable version of the same work (e.g. a LaTeX or PDF draft) from which the claimset was prepared. When that version is published (a journal article, a preprint), the `manuscript` names it, its DOI or other identifier in `uri`, and the claimset is still native: its authors prepared it from their own work, and one of them is its guarantor. `converted` is for papers by others (§3.11). An artefact taken from prior work (a public data set, a package the paper's evidence uses) points to its `reference`; its `uri` and `version` are given when the paper gives them.
+Tables are stored as data (CSV or JSON), not images. Prompts are stored verbatim, including system prompts. A `trace` is the log of an agent's run (prompts, tool calls, outputs) as recorded by the system that ran it; it may contain confidential material and uses the availability levels in §3.10. A `manuscript` is a human-readable version of the same work (e.g. a LaTeX or PDF draft) from which the claimset was prepared. When that version is published (a journal article, a preprint), the `manuscript` names it, its DOI or other identifier in `uri`, `paper.published_as` gives the same identifier (§3.1; warning 49), and the claimset is still native: its authors prepared it from their own work, and one of them is its guarantor. `converted` is for papers by others (§3.11). An artefact taken from prior work (a public data set, a package the paper's evidence uses) points to its `reference`; its `uri` and `version` are given when the paper gives them.
 
 A `uri` on a git host (GitHub, GitLab, Bitbucket, Codeberg and the like) names a full commit hash, e.g. `https://github.com/org/repo/tree/<40 hex digits>/path`, not a branch: a branch moves, so the link would later show other content than the evidence used (warning 21). A repository can still be deleted; `archive_uri` keeps a copy that outlives it.
 
@@ -1698,6 +1710,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 95. Planned estimates (§3.3.3). A claim with `planning: planned_estimate` has `estimate` and `planned_at_anchor`, and `planned_at` unless `planned_at_anchor` is `registry` and `estimate.registration` names the registration; it has no `hypothesis` and no `test`. `estimate` is an object with only `estimands`, `not_obtained`, `runs`, `lab_plan`, `registration` and `flags`: `estimands` is a non-empty object; it names its plan by `lab_plan` or `registration` (the ID of an entry in `references`), or both; `runs`, if present, is a positive integer; `flags`, if present, is a list of test flags (§3.3.3); `not_obtained`, if present, is a list of names of its estimands. A claim with `estimate` has `planning: planned_estimate`.
 
 96. Estimands bind (§3.3.3). Each estimand of a planned estimate is an object with a `variable` and optionally `conditions`, `statistic`, `field` and `run`, as a test's quantity, and binds exactly one observation of the evidence objects the claim's support names, with a number at its `field`, as rule 91 says of quantities; an estimand listed in `not_obtained` binds none.
+97. `paper.published_as` (§3.1) appears only in native papers; it is an object whose `id_type` is one of `doi`, `arxiv`, `handle`, `pmid`, `isbn`, `url` and whose `id` is a string with text; `version`, when present, is a string.
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -1749,6 +1762,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 46. A limitation restates the paper's competing-interest declaration: it names a competing or conflicting interest, or at least half of its words (of four letters or more, and at least three) are the declaration's. A competing interest is declared, not listed as a limitation (§3.9). (Amended on 2026-11-12.)
 47. A principal claim, neither `formal` nor an assumption, has no `scope`, or an empty one: say where it holds (§3.3). (Amended on 2026-11-12.)
 48. No limitation affects a principal claim, neither `formal` nor an assumption, nor any claim it rests on through `depends_on` and `assumptions`: declare what could bias, reverse or limit it within its scope (§3.9). (Amended on 2026-11-12.)
+49. A native paper's `manuscript` artefact names a published paper (its `uri` is a DOI, an arXiv identifier or their resolver addresses) and `paper.published_as` is absent (§3.1): give it, so that readers and platforms can tell a converted paper from a draft.
 
 ## 11. Platform dependencies
 
