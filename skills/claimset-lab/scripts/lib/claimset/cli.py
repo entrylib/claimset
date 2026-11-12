@@ -118,6 +118,11 @@ def _cmd_tag(args):
 
 
 def _cmd_render(args):
+    if args.html:
+        print("ERROR: the HTML page view has left the claimset package: how a claimset looks to people is a "
+              "platform's (EntryLib shows it at https://entrylib.org). `claimset render` gives the reading view, "
+              "the plain text written for AI models.", file=sys.stderr)
+        return 2
     try:
         with open(args.file, encoding="utf-8") as fh:
             doc = json.load(fh)
@@ -137,9 +142,6 @@ def _cmd_render(args):
         except KeyError:
             print(f"ERROR: {args.file} has no claim {args.claim}", file=sys.stderr)
             return 1
-    elif args.html:
-        from . import html as _html
-        text = _html.render_html(doc)
     else:
         text = _render.render(doc)
     if args.output:
@@ -313,10 +315,7 @@ def build_parser():
     rv.add_argument("--published", action="store_true", help="the file is a published claimset")
     rv.add_argument("--claim", help="only this claim and what it rests on (a claim bundle): C4")
     rv.add_argument("--bundle", action="store_true", help="with --claim: the claim bundle as JSON, not its reading view")
-    rv.add_argument("--html", action="store_true",
-                    help="the page view for people (HTML), a local preview (a site such as EntryLib shows the same "
-                         "content in its own style); images are shown from the files beside the claimset, so write "
-                         "it into the claimset's folder")
+    rv.add_argument("--html", action="store_true", help=argparse.SUPPRESS)       # removed in 0.41.14: says so
     rv.set_defaults(func=_cmd_render)
 
     rn = sub.add_parser("renumber", help="before the first submission: renumber claims and other objects in "

@@ -27,7 +27,6 @@ claimset validate claimset.json
 claimset validate claimset.json --json        # machine-readable report
 claimset validate claimset.json --published   # check a published file
 claimset render claimset.json -o claimset.txt  # the reading view: plain text for reading models
-claimset render claimset.json --html -o claimset.html  # the page view for people, as EntryLib shows it
 claimset render claimset.json --claim C4       # one claim and what it rests on (a claim bundle)
 claimset renumber claimset.json                # before the first submission: IDs in reading order
 claimset migrate claimset.json                 # bring a file from an earlier version (below)
