@@ -8,7 +8,7 @@
 
 The view is derived mechanically from a valid claimset file, like the reading view (render.py), and adds nothing that
 is not in the file except what is computed from it: the support lights (from verifiability, §5), the selection of
-claims In brief when the authors gave no highlights, and the author-year labels of references.
+claims under Highlights when the authors gave no highlights, and the author-year labels of references.
 
 Everything taken from the file is escaped: the view is safe to publish however the file was written. Links are made
 only to the file's own objects (#C3), to ORCID and doi.org, and to http(s) addresses the file gives. Images (figures,
@@ -19,7 +19,7 @@ A site may also write out references the file gives only by identifier (`ref_tex
 
 Maths in text ($...$) is MathML (mathml.py), which browsers show without a script; `code` in backticks is code.
 
-Order: In brief, Context, Definitions (grouped by kind), Assumptions, Principal claims, Supporting claims, Evidence,
+Order: Summary (when the paper has one), Highlights, Context, Definitions (grouped by kind), Assumptions, Principal claims, Supporting claims, Evidence,
 Limitations, Open questions, References, Artefacts. The classes are stable: a site styles them with claimset.css, or
 its own rules.
 """
@@ -31,7 +31,7 @@ from .mathml import to_mathml
 
 from .render import DIGITS, _interval, _join, _num, _s, _stat_note, _statistic, _uncertainty, _val
 
-#: How many principal claims In brief shows at most.
+#: How many principal claims Highlights shows at most.
 BRIEF_MAX = 5
 
 TERM = re.compile(r"\[\[([^:\]]+):([^\]]+)\]\]")
@@ -411,9 +411,9 @@ class _Paper:
                          for i in ids if isinstance(i, str))
 
 
-# ---------- In brief ----------
+# ---------- Highlights ----------
 def brief(doc):
-    """The IDs shown In brief, and whether they were selected automatically. The authors' highlights when the file
+    """The IDs shown under Highlights, and whether they were selected automatically. The authors' highlights when the file
     has them (principal claims and terms the paper introduces, spec §3.1); otherwise all principal claims when there are at most five; otherwise a computed choice:
     ranked by how many claims, warrants and open questions use them (directly or through other claims), one per claim
     type first, near-duplicates skipped, shown in the file's order."""
@@ -818,7 +818,7 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, pe
                  claim_url=None, byline=None):
     """The page view of a claimset in parts, each HTML: `header` (title, guarantor, authors, source, licence and
     keywords), `nav` (the sections with their counts), `body` (the sections), plus `title`, `origin` (lab, converted,
-    native), `brief` (the IDs shown In brief, and whether they were selected automatically) and `lights` (claims per
+    native), `brief` (the IDs shown under Highlights, and whether they were selected automatically) and `lights` (claims per
     light). `file_url(artefact)` gives the address an image of the claimset is served at, or None when the
     artefact is not an image the site shows; without it, image files are shown from their relative paths (a local
     preview beside the package's files). `ref_text(reference)` writes out a reference the file gives only by
@@ -833,7 +833,7 @@ def render_parts(doc, file_url=None, ref_text=None, digits=None, number=None, pe
     HTML inside one line of people in the header, its label included (`role`: `guarantor`, `authors`,
     `source_authors`; `people`: their contributor objects), or None for the default ("Guarantor: …", "Authors: …",
     "Authors of the source paper: …"). `marker(claim, where)` gives what
-    marks a claim (`where`: `claim`, before its meta line, or `brief`, before its statement In brief): HTML, or a pair
+    marks a claim (`where`: `claim`, before its meta line, or `brief`, before its statement under Highlights): HTML, or a pair
     (before, after the meta line), or None for its support light. `claim_url(id)` gives the address of a claim's own
     page, which its ID then links to, or None. `blocks` holds each section's HTML by its id, for a site that arranges
     the sections itself."""
@@ -940,10 +940,10 @@ def _render_parts(doc, file_url, ref_text, person=None, marker=None, claim_url=N
         return (f'<li id="{esc(a["id"])}"><span class="cs-id">{esc(a["id"])} · {" · ".join(bits)}</span> {name}</li>')
 
     summary = P.paper.get("summary") if isinstance(P.paper.get("summary"), str) and P.paper["summary"].strip() \
-        else None                                       # the authors' summary replaces the list (spec §3.1)
+        else None                                       # the authors' summary, first (spec §3.1)
     sections = [
-        ("brief", "In brief", [f'<p class="cs-summary">{P.text(summary)}</p>'] if summary else
-         [f'<ul class="cs-brief">{"".join(brief_items)}</ul>{note}'] if brief_items else []),
+        ("summary", "Summary", [f'<p class="cs-summary">{P.text(summary)}</p>'] if summary else []),
+        ("highlights", "Highlights", [f'<ul class="cs-brief">{"".join(brief_items)}</ul>{note}'] if brief_items else []),
         ("context", "Context", [f'<dl class="cs-context">{"".join(context)}</dl>'] if context else []),
         ("definitions", "Definitions", None),
         ("assumptions", "Assumptions", assumption_items),
