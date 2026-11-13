@@ -265,7 +265,7 @@ def _cited(entry, references):
     text = " ".join(entry.split())
     for item in items:
         flat = " ".join(item[2:].split())
-        year = re.search(r"\((\d{4})\)", flat)
+        year = re.search(r"\((\d{4}[a-z]?)\)", flat)        # 2022a, 2022b: two papers of one year
         if not year:
             continue
         names = flat[:year.start()].replace(", and ", ", ").replace(" and ", ", ").split(", ")[0::2]
