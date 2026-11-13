@@ -118,7 +118,8 @@ ENUM = {
     "reason": {"personal_data", "commercial", "legal", "ethics", "security", "other"},
     "contributor_type": {"agent", "human", "organisation"},
     "funding_kind": {"grant", "in_kind"},
-    "position": {"author", "supervisor", "guarantor", "conversion_guarantor", "contributor", "converter"},
+    "position": {"author", "supervisor", "guarantor", "conversion_guarantor", "contributor", "converter",
+                 "coauthor"},
     "credit": {"conceptualization", "data_curation", "formal_analysis", "funding_acquisition", "investigation",
                "methodology", "project_administration", "resources", "software", "supervision", "validation",
                "visualization", "writing_original_draft", "writing_review_editing"},
@@ -3699,6 +3700,8 @@ def validate_contributors(r, contributors, paper, ref, converted):
             r.err("15", w, "author and converter positions are held only by agents")
         if "supervisor" in pos and t != "human":
             r.err("15", w, "supervisor is held only by humans")
+        if "coauthor" in pos and t != "human":
+            r.err("15", w, "coauthor is held only by humans: a co-author of the research and its paper")
 
         label = p.get("label")
         if label is not None:                               # rule 93 (v0.41): a short text, on agents only
