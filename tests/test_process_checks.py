@@ -379,7 +379,7 @@ class TestCliWarnings(TestCli):
         self.assertIn("no setup", err)
         self.run_cli("lab", "term", "X", "--kind", "method", "--definition", "Method X as run.", "--by", "AC2")
         code, out, err = self.plan("--new-data", "seeds 100-199", "--exclusion", "edge=within 1e-8 of 1",
-                                   "--studied", "TM1")
+                                   "--studied", "TM1", "--choice", "measure|mean difference|supervisor")
         self.assertEqual((code, out, err), (0, "PL2", ""))
         body = Lab(Path(self.tmp.name) / "lab").state().get("PL2")["body"]
         self.assertEqual(body["new_data"], "seeds 100-199")
@@ -409,7 +409,8 @@ class TestCliWarnings(TestCli):
         code, _, err = self.run_cli(*base, "--studied", "TM1", "TM2", "--cases", "TM5", "--lens", "TM4")
         self.assertEqual(code, 0)
         self.assertIn("TM3", err)                       # the hypothesis is about MASE; the plan measures MSIS
-        code, _, err = self.run_cli(*base, "--studied", "TM1", "TM2", "--cases", "TM5", "--lens", "TM3")
+        code, _, err = self.run_cli(*base, "--studied", "TM1", "TM2", "--cases", "TM5", "--lens", "TM3",
+                                    "--choice", "measure|MASE|supervisor")
         self.assertEqual((code, err), (0, ""))
         # L21: a term named in about must be marked in the statement; setup names only terms
         code, _, err = self.run_cli("lab", "hypothesis", "X beats Y.", "--question", "Q1", "--subject", "TM1",

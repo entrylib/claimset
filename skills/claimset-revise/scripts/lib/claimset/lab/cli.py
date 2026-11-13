@@ -484,6 +484,21 @@ def _record_forms(args, etype, body):
     return body
 
 
+def _choices(given):
+    """--choice "WHAT|CHOICE|SOURCE[|REF]" (§5.7, `choices`): where each choice of the design came from."""
+    out = []
+    for text in given or []:
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) not in (3, 4) or not all(parts[:3]):
+            raise LabError("schema", f"--choice '{text}': use \"WHAT|CHOICE|SOURCE\" or \"WHAT|CHOICE|SOURCE|REF\", "
+                                     f"e.g. \"measure|RMSSE|guide|methods/prediction#mean-forecasts\"")
+        c = {"what": parts[0], "choice": parts[1], "source": parts[2]}
+        if len(parts) == 4 and parts[3]:
+            c["ref"] = parts[3]
+        out.append(c)
+    return out
+
+
 def cmd_plan(args):
     from .run import code_version
 
@@ -534,6 +549,7 @@ def cmd_plan(args):
             "design": design, "analysis": args.analysis,
             "setup": setup or None,
             "new_data": args.new_data, "exclusions": exclusions or None, "addresses": addresses or None,
+            "choices": _choices(args.choice) or None,
             "decision": decision, "requires_approval": True if args.requires_approval else None,
             "runs": args.runs, "criterion": args.criterion, "data": data, "holdout": holdout,
             "code_version": commit, "dirty": dirty if commit is not None else None}
@@ -1207,6 +1223,10 @@ def add_parser(subparsers):
     p.add_argument("--estimand", action="append", default=[], metavar="NAME=VARIABLE",
                    help="estimation: a value it estimates, the result that will hold it: name=\"variable\", or "
                         "name='{\"variable\": …, \"conditions\": {…}, \"field\": \"interval.upper\"}'; repeat")
+    p.add_argument("--choice", action="append", default=[], metavar="WHAT|CHOICE|SOURCE|REF",
+                   help="where a choice that can change the conclusion came from: source brief, supervisor, guide, "
+                        "literature or agent (not yet agreed); REF names the guide entry, paper or claim; repeat, "
+                        "e.g. \"measure|RMSSE|guide|methods/prediction#mean-forecasts\"")
     p.add_argument("--diagnostic", action="append", default=[], metavar="VARIABLE",
                    help="a check every deciding run reports as a result of this variable (convergence, residual "
                         "test, coverage); a run without it flags the test diagnostic_missing; repeat")

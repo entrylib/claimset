@@ -38,7 +38,7 @@ class TestSteps(unittest.TestCase):
         self.assertIn(f"state what you expect for {q}", first(self.lab.read()))
         h = self.add("hypothesis", {"statement": "X helps.", "question": q, "origin": "a_priori"})
         step, command = nextstep.steps(self.lab.read())[0]
-        self.assertIn(f"plan the test of {h} before running it", step)
+        self.assertIn(f"agree the design of the test of {h} with the supervisor", step)
         self.assertIn(f"--hypotheses {h}", command)
         pl = self.add("plan", {"kind": "confirmatory", "hypotheses": [h], "design": "d", "analysis": "a",
                                "decision": DECISION, "requires_approval": True})
