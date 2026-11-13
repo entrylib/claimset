@@ -163,6 +163,13 @@ class TestRulesEveryFile(Base):
         self.d["contributors"][0]["positions"].append("supervisor")
         self.assertRule(self.d, "15")
 
+    def test_15_coauthor_is_a_person(self):
+        self.d["contributors"].append({"id": "P9", "type": "human", "name": "Co Author", "positions": ["coauthor"],
+                                       "credit_roles": ["methodology"]})
+        self.assertNotIn("15", [e["rule"] for e in validate(self.d).errors])
+        self.d["contributors"][0]["positions"].append("coauthor")              # P1 is an agent
+        self.assertRule(self.d, "15")
+
     def test_16_native_without_guarantor(self):
         self.d["contributors"][1]["positions"] = ["supervisor"]
         self.assertRule(self.d, "16")

@@ -16,6 +16,9 @@ Not every planned analysis tests a hypothesis. A study can fix in advance what i
 
 ## Changes in v0.41 (since v0.40)
 
+Amended on 2026-11-13: a co-author is recorded as one. A person who did the research with the guarantor and wrote the paper with them had no position of their own: `supervisor` oversees agents, and `contributor` did not produce the paper's content. Converted by its authors, a paper's co-authors were listed as supervisors.
+- §3.11: new position `coauthor`, humans only: an author of the research and of the paper reporting it, other than the guarantor; for a claimset its authors converted, an author of the published paper. Rule 15 names it.
+
 Amended on 2026-11-13: the reading view gives the exploration counts in words. It gave the `exploration` object as JSON, which a model reads less reliably than the rest of the view, written as text.
 - §2.3: the reading view's `exploration` line says the counts in words, leaving out those that are zero: `exploration 5 questions; hypotheses 11: 6 supported, 3 not supported, 2 inconclusive, 8 from exploration; tests 12: 6 supported, 3 not supported, 3 inconclusive; lab record A7`. With `covers`, it adds the questions the paper covers, the whole lab's counts and the other papers drawn from the lab.
 
@@ -1356,6 +1359,7 @@ A paper may pass through several agents without its history being kept. At minim
 - `supervisor`: oversaw the agents' work and approved the final version. Humans only. Whether the supervisor also set the research question is recorded by the CRediT role `conceptualization`; steering the work is `supervision`.
 - `guarantor`: the main author: answers for the research, whether the claims are true and the work was done properly, and is the person to contact about the paper. Submits the claimset and confirms it on the platform, responds to queries and correction requests, holds ethics approvals and data-protection responsibilities, and agrees to the licence. A person with an ORCID iD, never an organisation. Native papers: exactly one, the supervisor or another responsible researcher. Converted papers: at most one, a source author who has claimed the conversion. Co-authors are listed as supervisors or contributors.
 - `conversion_guarantor`: answers for the fidelity of a conversion: whether the claimset faithfully represents the source. Does not answer for the research itself, and is a party separate from the guarantor. Exactly one per converted paper: a person with an ORCID iD or an organisation, typically the organisation operating the conversion service. Converted papers only.
+- `coauthor`: an author of the research and of the paper reporting it, other than the guarantor: did part of the research and wrote or approved the paper. For a claimset its authors converted from their published paper (§3.1, `published_as`), each author of that paper other than the guarantor. Humans only. What each did is recorded by their CRediT roles; one who also oversaw the agents is a `supervisor` too.
 - `contributor`: carried out part of the research without producing the paper's content (e.g. conducted interviews, ran laboratory work, collected data, ran a computation whose results the authors report, checked a proof). Humans or agents.
 - `converter`: produced a claimset from a third-party published source (`origin: converted`). Agents only. Not used when a team turns its own draft into a claimset; that agent is an `author`.
 
@@ -1537,7 +1541,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 12. `availability.level` other than `public` and `not_stated` ⇒ `reason` present; `audit`/`author_only`/`platform` ⇒ `content_hash` present. (Revised in v0.34: `not_stated`.)
 13. `verifiability` and `verifiability_flags`, where present, match the platform's computation (§5).
 14. The `guarantor` is a human with an `orcid`. The `conversion_guarantor` is a human with an `orcid` or an organisation. An organisation holds no position other than `conversion_guarantor`. (Revised in v0.36.)
-15. `author` and `converter` positions are held only by agents; `supervisor` only by humans.
+15. `author` and `converter` positions are held only by agents; `supervisor` and `coauthor` only by humans.
 16. `paper.origin: native` ⇒ at least one `author`, exactly one `guarantor`, no `conversion_guarantor`, and `autonomy` present. (Revised in v0.36.)
 17. `paper.origin: converted` ⇒ exactly one `converter`, exactly one `conversion_guarantor`, all `converted_from` fields present, no `autonomy`; at most one `guarantor`, a person listed in `converted_from.source_authors` (matched by ORCID). (Revised in v0.36.)
 18. Every agent contributor lists at least one model in `models`; every model referenced anywhere is defined in `models`.
