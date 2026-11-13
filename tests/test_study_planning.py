@@ -102,6 +102,10 @@ class TestReading(unittest.TestCase):
         self.assertEqual(names("Four, Five and Six 2003; Four et al. 2003"), ["Four"])
         self.assertEqual(names("Seven et al. 2004"), ["Seven"])
         self.assertEqual(names("One 2002; Three 2002; Five et al. 2003"), [])
+        two = ("## References\n\n- Same, A., One, B., and Two, C. (2022a). First.\n"
+               "- Same, A., One, B., Two, C., and Three, D. (2022b). Second.\n")
+        self.assertEqual([i.split(". ")[-1] for i in bundle._cited("Same et al. 2022b", two)], ["Second."])
+        self.assertEqual([i.split(". ")[-1] for i in bundle._cited("Same, One and Two 2022a", two)], ["First."])
 
 
 class TestCommand(unittest.TestCase):
