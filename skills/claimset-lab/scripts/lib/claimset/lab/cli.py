@@ -717,6 +717,13 @@ def cmd_run(args):
     print(msg, file=sys.stderr)
     for p in out["problems"]:
         print(f"claimset: results.json {p}", file=sys.stderr)
+    if out.get("compressed"):
+        print(f"claimset: compressed {', '.join(out['compressed'])} (over 1 MB of text) to .gz in "
+              f"runs/{run['id']}/; read them with zcat, or pandas and R as they are", file=sys.stderr)
+    for path in out.get("large") or []:
+        print(f"claimset: warning: runs/{run['id']}/{path} is over 50 MB even compressed: more than a package "
+              f"carries, and heavy for the study branch; have the script write less (fewer rows or columns, or "
+              f"Parquet) and run it again", file=sys.stderr)
     notice = first_run_notice(lab.view(_actor(args)), run)
     if notice:
         print(f"claimset: notice: {notice}", file=sys.stderr)

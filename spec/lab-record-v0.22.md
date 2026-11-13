@@ -19,6 +19,8 @@ A pilot ran the same study with agents of three sizes (entrylib:2026.000005). Wh
 - §9: export to claimset v0.42.
 - Records begun before v0.22 are read as they were written: rule L31 does not apply to them, and they have no estimation plans and no diagnostics.
 
+Amended on 2026-11-13 (§5.9.1, step 4): when a run ends, the tool compresses its text outputs larger than 1 MB to `.gz` before hashing them. A run's tables of 40 MB of text were committed to a study branch and pushed, though they are rarely read. The compressed files are written the same way every time, so a hash depends on the content only. `results.json` stays as it is. Records of every version are written this way from now on; runs already recorded are not changed.
+
 ## Changes in v0.21 (since v0.20)
 
 A record said which model an agent was, but not which harness ran it: the same model in Claude Code, Codex CLI, Gemini CLI or opencode, with different tools and instructions, is a different agent. And the protections assumed one harness.
@@ -660,7 +662,7 @@ An agent never approves on its own judgement. It does not treat silence, a gener
 1. It checks rule L5 before starting. A run is confirmatory only when it names a confirmatory plan; otherwise, or when asked, it is exploratory.
 2. It creates a pending run directory under `runs/` and starts the command with two environment variables: `CLAIMSET_RUN_DIR` (the directory, for any output files) and `CLAIMSET_RESULTS` (the path of `results.json` inside it). An extension the record declares may add files and variables of its own, recorded in its block on the run: when the record has codings, the qualitative extension writes them to `codings.json` and names it in `CLAIMSET_CODINGS` (qualitative §2.3).
 3. It writes the command's standard output and standard error to `stdout.txt` and `stderr.txt` in that directory, and shows them as the command runs.
-4. When the command ends, however it ends, it hashes every file in the directory, writes the `run` event, and renames the directory to `runs/<run id>/`.
+4. When the command ends, however it ends, it compresses each text output larger than 1 MB (by its extension: `.csv`, `.tsv`, `.txt`, `.log`, `.out`, `.json`, `.jsonl`, `.ndjson`, `.md`, `.xml`, `.yaml`, `.yml`, `.dat`, `.tex`; `stdout.txt` and `stderr.txt` too) to `<name>.gz`, with no file name or time in its header, so that the same content always gives the same hash; `results.json` and the files an extension writes for itself stay as they are. Then it hashes every file in the directory, writes the `run` event, and renames the directory to `runs/<run id>/`. Run outputs are kept for the record and rarely read, and are committed on the study branch: a script's tables of tens of megabytes become a few. An output larger than 50 MB even compressed is more than a package carries (claimset §2.5); the tool warns, and the script should write less (fewer rows or columns, or Parquet). A script never compresses or changes its outputs after the run (L13).
 5. If `results.json` exists, it writes one `result` event per entry (§5.10.1).
 6. It exits with the command's exit code.
 
