@@ -19,6 +19,7 @@ import importlib
 KNOWN = {
     "linguistics": {"0.1": "linguistics_v0_1"},
     "qualitative": {"0.1": "qualitative_v0_1"},
+    "review": {"0.1": "review_v0_1"},
 }
 
 

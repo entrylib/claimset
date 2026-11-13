@@ -47,6 +47,18 @@ def _text(event):
             return f"{b.get('source')}: no code applies"
         quote = f' "{b["quote"].get("exact")}"' if isinstance(b.get("quote"), dict) else " (whole source)"
         return f"{b.get('source')} {', '.join(b.get('codes') or [])}:{quote}"
+    if event["type"] == "protocol":
+        return f"sources {', '.join(b.get('sources') or [])}; include: {'; '.join(b.get('include') or [])}"
+    if event["type"] == "search":
+        return f"{b.get('source')}: {b.get('query')} ({b.get('results')} records)"
+    if event["type"] in ("screening", "extract"):
+        w = b.get("work") if isinstance(b.get("work"), dict) else {}
+        name = f"{w.get('id_type')}:{w.get('target')}"
+        if event["type"] == "screening":
+            return f"{name} {b.get('stage')}: {b.get('decision')}" + (f", read {b['read']}" if b.get("read") else "") \
+                + (f" ({b['reason']})" if b.get("reason") else "")
+        passage = (b.get("quote") or {}).get("exact") if isinstance(b.get("quote"), dict) else b.get("text")
+        return f"{name} {b.get('locator') or ''} for {', '.join(b.get('for') or [])}: \"{passage}\""
     return ""
 
 

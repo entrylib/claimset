@@ -304,6 +304,51 @@ def cmd_code(args):
     return _write(args, "coding", body, by=by)
 
 
+# ---------------------------------------------------------------- the review extension (review-v0.1.md §2)
+
+def cmd_protocol(args):
+    _extension(args, "review")
+    body = {"question": args.question, "sources": args.source or None, "include": args.include or None,
+            "exclude": args.exclude or None, "period": args.period, "guideline": args.guideline}
+    return _write(args, "protocol", body)
+
+
+def cmd_search(args):
+    _extension(args, "review")
+    body = {"source": args.in_, "query": args.query, "results": args.results, "at": args.at,
+            "protocol": args.protocol}
+    return _write(args, "search", body)
+
+
+def cmd_screen(args):
+    from .review import parse_work
+    _extension(args, "review")
+    body = {"work": parse_work(args.work), "title": args.title, "stage": args.stage, "decision": args.decision,
+            "reason": args.reason, "read": args.read, "version": args.version, "source": args.source,
+            "searches": args.from_ or None}
+    return _write(args, "screening", body)
+
+
+def cmd_extract(args):
+    from . import sources as _sources
+    from .review import parse_work
+    st = _extension(args, "review")
+    body = {"work": parse_work(args.work), "for": args.for_, "locator": args.locator, "source": args.source,
+            "text": args.text}
+    if args.quote is not None:
+        lab = _lab(args)
+        src = st.latest(args.source) if args.source and st.get(args.source) else None
+        if src is None or src["type"] != "source":
+            raise LabError("review.L4", "extract --quote: give the captured copy it is quoted from (--source SR…)")
+        sel = _sources.quote(lab, src, args.quote)
+        if sel["occurrences"] > 1:
+            raise LabError("review.L4", f"extract: the words occur {sel['occurrences']} times in {src['id']}; quote "
+                                        f"enough to tell them apart")
+        body["quote"] = {k: sel[k] for k in ("exact", "prefix", "suffix", "start", "end")}
+        body["source"] = src["id"]
+    return _write(args, "extract", body)
+
+
 def cmd_hypothesis(args):
     body = {"statement": args.statement, "question": args.question,
             "origin": "from_exploration" if args.from_exploration else "a_priori",
@@ -1177,6 +1222,46 @@ def add_parser(subparsers):
     p.add_argument("--author-as-given", dest="author_as_given", action="store_true",
                    help="record --author as given (an organisation, a public author), not as a pseudonym")
     p.add_argument("--description")
+
+    p = cmd("protocol", cmd_protocol, "record a review's protocol (review extension): the sources it searches and "
+                                      "what a work must meet to be included, before the first search")
+    p.add_argument("--question", metavar="Q", help="the question the review answers (Q1)")
+    p.add_argument("--source", action="append", metavar="NAME", help="a database, journal or engine searched; repeat")
+    p.add_argument("--include", action="append", metavar="CRITERION", help="what a work must meet; repeat")
+    p.add_argument("--exclude", action="append", metavar="CRITERION", help="what excludes a work; repeat")
+    p.add_argument("--period", help="the publication period covered, e.g. 1950-2026")
+    p.add_argument("--guideline", help="the reporting guideline followed, e.g. PRISMA 2020")
+
+    p = cmd("search", cmd_search, "record a search run for a review (review extension): where, the query, how many "
+                                  "records it returned")
+    p.add_argument("--in", dest="in_", required=True, metavar="SOURCE", help="the database, journal or engine")
+    p.add_argument("--query", required=True, help="the query as run")
+    p.add_argument("--results", required=True, type=int, help="the number of records it returned")
+    p.add_argument("--at", metavar="TIME", help="when it was run, UTC (default now)")
+    p.add_argument("--protocol", metavar="PT", help="the protocol it follows")
+
+    p = cmd("screen", cmd_screen, "record a screening decision on a work (review extension): include or exclude, at "
+                                  "title and abstract or at full text, and how far it was read")
+    p.add_argument("work", help="the work: doi:10.…, arxiv:…, isbn:…, pmid:…, handle:…, a URL, or reference:\"…\"")
+    p.add_argument("--stage", required=True, choices=["title_abstract", "full_text"])
+    p.add_argument("--decision", required=True, choices=["include", "exclude"])
+    p.add_argument("--reason", help="why; required when excluding")
+    p.add_argument("--read", choices=["full_text", "abstract", "secondary"],
+                   help="how far it was read; required when including")
+    p.add_argument("--version", choices=["published", "preprint", "author_copy", "working_paper", "other"],
+                   help="the version read, which locators follow")
+    p.add_argument("--source", metavar="SR", help="the captured copy that was read")
+    p.add_argument("--from", dest="from_", nargs="+", metavar="SE", help="the searches that found it")
+    p.add_argument("--title", help="the work as cited")
+
+    p = cmd("extract", cmd_extract, "record a passage of an included work that hypotheses rest on (review "
+                                    "extension): quoted from its captured copy, with where it is")
+    p.add_argument("work", help="the work, as screened (doi:10.…, a URL, …)")
+    p.add_argument("--for", dest="for_", required=True, nargs="+", metavar="H", help="the hypotheses it bears on")
+    p.add_argument("--locator", help="where in the work, in the version read (Section 5; Theorem 3.1)")
+    p.add_argument("--source", metavar="SR", help="the captured copy the quote is from")
+    p.add_argument("--quote", help="the passage, as it appears in the captured copy's text")
+    p.add_argument("--text", help="the passage as read, where no copy was captured (an abstract)")
 
     p = cmd("quote", cmd_quote, "check that words are in a captured source and print their locator",
             parents=(viewer,))

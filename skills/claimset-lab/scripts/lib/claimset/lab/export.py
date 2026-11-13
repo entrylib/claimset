@@ -433,6 +433,53 @@ class _Exporter:
                                    f"claim a replication or extension of it")
         return claim, cited_runs
 
+    # -- for the lab parts of extensions (their `export(exporter)`, called once the paper is drafted)
+    def paper_object(self):
+        """The draft's paper object."""
+        return self._paper
+
+    def reference(self, rid):
+        """The references entry with ID `rid`."""
+        return next(r for r in self.references if r["id"] == rid)
+
+    def reference_for(self, work):
+        """The ID of the references entry for a work {target, id_type}, added if the draft has none (a DOI is
+        compared case-insensitively)."""
+        def key(t, k):
+            return (k, str(t).strip().lower() if k == "doi" else str(t).strip())
+        want = key(work["target"], work["id_type"])
+        for r in self.references:
+            if key(r.get("target"), r.get("id_type")) == want:
+                return r["id"]
+        rid = f"B{max([int(r['id'][1:]) for r in self.references if r['id'][1:].isdigit()] + [0]) + 1}"
+        self.references.append({"id": rid, "target": work["target"], "id_type": work["id_type"]})
+        return rid
+
+    def mapping_back(self, eid):
+        """The ID of the claimset object exported from lab event `eid` (any version of it), or None."""
+        root = self.st.root(eid) if self.st.get(eid) else eid
+        for oid, ev in self.mapping.items():
+            if isinstance(ev, str) and self.st.get(ev) is not None and self.st.root(ev) == root:
+                return oid
+        return None
+
+    def retarget_artefact(self, aid, rid):
+        """Point artefact `aid` at the cited work `rid`; a reference only it pointed to (a captured page's URL)
+        is dropped, with what the completion list asked about it."""
+        art = next((a for a in self.artefacts if a["id"] == aid), None)
+        if art is None or art.get("reference") == rid:
+            return
+        old, art["reference"] = art.get("reference"), rid
+        if old and not any(a.get("reference") == old for a in self.artefacts) and \
+                old not in json.dumps([self.claims, self.evidence]):
+            self.references = [r for r in self.references if r["id"] != old]
+            self.completion = [c for c in self.completion if not c["where"].startswith(f"references.{old}.")]
+
+    def done_support(self, claim):
+        """An extension gave the claim its support: what the completion list asked about its support is done."""
+        where = f"claims.{claim['id']}.support"
+        self.completion = [c for c in self.completion if c["where"] != where]
+
     def ext_block(self, obj, name):
         """The block of extension `name` on a claimset object, created if needed."""
         return obj.setdefault("ext", {}).setdefault(name, {})
@@ -1144,6 +1191,10 @@ class _Exporter:
         lab_aid = self.export_artefacts()
         self.round_values()
         paper = self.export_paper(lab_aid)
+        self._paper = paper
+        for _name, impl, _mod in self.st.declared():       # the lab parts of extensions (§2.1)
+            if impl is not None and hasattr(impl, "export"):
+                impl.export(self)
         draft = {"schema_version": SPEC_VERSION, "paper": paper, "contributors": self.contributors,
                  "models": self.models, "definitions": definitions, "claims": self.claims, "evidence": self.evidence,
                  "warrants": [], "limitations": self.limitations, "artefacts": self.artefacts}
