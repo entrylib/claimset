@@ -280,5 +280,10 @@ class TestLab(LabCase):
         self.assertFalse([e for e in report.errors if e["rule"].startswith("review.")], report.errors)
 
 
+    def test_flow_without_searches(self):
+        self.screen()
+        block = export(self.lab)["draft"]["paper"]["ext"]["review"]
+        self.assertEqual(block["flow"], {"assessed": 1, "included": 1, "other_sources": 1})   # nothing identified by a search
+
 if __name__ == "__main__":
     unittest.main()
