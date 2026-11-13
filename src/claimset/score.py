@@ -22,7 +22,8 @@ from pathlib import Path
 
 from .submit import SubmitError, _request, portal_url
 
-INSTALL = "pip install git+https://github.com/entrylib/rubric"
+INSTALL = "pip install entrylib-rubric"
+UPGRADE = "pip install --upgrade entrylib-rubric"
 RUBRIC_URL = "https://github.com/entrylib/rubric/blob/main/RUBRIC.md"
 
 
@@ -38,7 +39,7 @@ def _rubric():
         raise ScoreError(f"scoring needs EntryLib's rubric, which is not installed: {INSTALL}") from None
     if not hasattr(rubric, "assess") or not hasattr(rubric, "report"):
         raise ScoreError(f"the installed rubric ({getattr(rubric, 'VERSION', '?')}) is too old to score here; "
-                         f"update it: {INSTALL} --upgrade")
+                         f"update it: {UPGRADE}")
     return rubric
 
 
