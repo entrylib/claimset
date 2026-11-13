@@ -8,6 +8,7 @@ An extension is registered here before it is used. A validator knows the extensi
 |---|---|---|---|---|
 | `linguistics` | 0.1 (`linguistics-v0.1.md`) | Interlinear glosses of linguistic examples, their segmentation into morphemes, acceptability judgements | result entries with an excerpt value | from v0.38 |
 | `qualitative` | 0.1 (`qualitative-v0.1.md`) | Codebooks, codings and counts of coded material | claimset: definitions (codes), claims (test flags, counts); lab record: terms, plans, runs, and the event type `coding` | from v0.38; lab record from v0.20 |
+| `review` | 0.1 (`review-v0.1.md`) | Literature reviews: the protocol, searches and screening flow; how far each cited work was read; the passages claims rest on; works that disagree | claimset: paper, references, claims; lab record: the event types `protocol`, `search`, `screening` and `extract` | from v0.42; lab record from v0.22 |
 
 `candidates.md` surveys the extensions the format may need, by kind of work, and the needs found to belong in the core instead (informative).
 

@@ -171,7 +171,7 @@ def cmd_skill(args):
                 stale += 1
                 print(f"{name}: out of date with claimset {__version__} (spec {SPEC_VERSION}); "
                       f"run `claimset skill install --dir {args.dir}`")
-                for rel, what in diff[:20]:
+                for rel, what in sorted(diff, key=lambda d: d[1] != "not part of this version")[:20]:
                     print(f"  {rel}: {what}")
             return 1 if stale else 0
         for name in names:
