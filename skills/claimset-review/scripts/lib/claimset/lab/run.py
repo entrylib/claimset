@@ -1,7 +1,9 @@
 """Running a command under the lab record (lab record spec §5.9.1)."""
 
+import gzip
 import json
 import math
+import shutil
 import os
 import platform
 import subprocess
@@ -15,6 +17,15 @@ from ..validate import OBSERVATION_MEASURES, measure_problems
 from .core import PLANNED_KINDS, LabError, file_hash, is_withheld
 
 RESULTS_FILE = "results.json"
+#: Text outputs larger than this are compressed when the run ends, before they are hashed (§5.9.1, step 4): they are
+#: kept for the record, rarely read, and would otherwise fill the study branch.
+COMPRESS_ABOVE = 1_000_000
+#: The text outputs compressed: tables, logs and data as text. Images, binary formats and archives are left as they are.
+TEXT_SUFFIXES = {".csv", ".tsv", ".txt", ".log", ".out", ".json", ".jsonl", ".ndjson", ".md", ".xml", ".yaml", ".yml",
+                 ".dat", ".tex"}
+#: An output larger than this, even compressed, is more than a package carries (claimset §2.5) and than a git host
+#: takes without complaint.
+LARGE_OUTPUT = 50 * 1024 * 1024
 
 
 def _git(args, cwd):
@@ -63,6 +74,28 @@ def _tee(src, dest_file, echo_stream):
             else:
                 echo_stream.write(chunk.decode("utf-8", "replace"))
                 echo_stream.flush()
+
+
+def compress_outputs(rdir, keep=()):
+    """Compress each text output of a run larger than COMPRESS_ABOVE to `<name>.gz` in place (§5.9.1, step 4), the
+    same bytes every time (no name or time in the header), so its hash depends on its content only. The tool's own
+    files (`keep`: results.json, an extension's snapshot) stay as they are, since the tool reads them. Returns the
+    paths compressed, relative to `rdir`."""
+    done = []
+    for p in sorted(rdir.rglob("*")):
+        rel = str(p.relative_to(rdir)).replace(os.sep, "/")
+        if not p.is_file() or p.is_symlink() or rel in keep or p.suffix.lower() not in TEXT_SUFFIXES \
+                or p.stat().st_size <= COMPRESS_ABOVE:
+            continue
+        target = p.with_name(p.name + ".gz")
+        if target.exists():
+            continue
+        with open(p, "rb") as src, open(target, "wb") as raw, \
+                gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9) as out:
+            shutil.copyfileobj(src, out, 1024 * 1024)
+        p.unlink()
+        done.append(rel)
+    return done
 
 
 def _outputs(rdir):
@@ -186,6 +219,9 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
         proc.stdout.close()
         proc.stderr.close()
     ended = lab.clock()
+    keep = {RESULTS_FILE} | {str(b.get(k, {}).get("path")) for b in blocks.values() for k in b
+                             if isinstance(b.get(k), dict) and b[k].get("path")}
+    compressed = compress_outputs(rdir, keep)
 
     body = {"plan": plan, "plan_version": plan_version, "label": label, "command": list(argv), "code_version": commit, "dirty": dirty,
             "parameters": parameters or None, "seeds": seeds or None, "data": data_entries or None,
@@ -211,7 +247,9 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
         for r in entries:
             r = dict(r, run=run_event["id"], source=RESULTS_FILE)
             results.append(lab.append("result", r, by=by))
-    return {"run": run_event, "results": results, "exit_code": exit_code, "problems": problems}
+    large = [o["path"] for o in run_event["body"]["outputs"] if (final / o["path"]).stat().st_size > LARGE_OUTPUT]
+    return {"run": run_event, "results": results, "exit_code": exit_code, "problems": problems,
+            "compressed": compressed, "large": large}
 
 
 def count_run(lab, by, plan=None, counts=None, echo=False):
