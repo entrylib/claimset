@@ -17,9 +17,9 @@ claimset lab plan … --choice "measure|RMSSE|good-practice|study-planning/predi
 
 | Guide | Kinds of study | Status |
 |---|---|---|
-| [prediction.md](prediction.md) | forecasting, regression, classification: any study that evaluates predictions | draft, v0.1 |
-| [experiments.md](experiments.md) | comparisons, effects, simulation studies, causal and inferential questions | draft, v0.1 |
-| [qualitative.md](qualitative.md) | qualitative studies: interviews, documents, observation | draft, v0.1 |
+| [prediction.md](prediction.md) | forecasting, regression, classification: any study that evaluates predictions | draft, v0.2 |
+| [experiments.md](experiments.md) | comparisons, effects, simulation studies, causal and inferential questions | draft, v0.2 |
+| [qualitative.md](qualitative.md) | qualitative studies: interviews, documents, observation | draft, v0.2 |
 | reviews.md | literature and systematic reviews | wanted |
 
 ## What a guide holds
