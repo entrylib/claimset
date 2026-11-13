@@ -189,7 +189,8 @@ def flow(state):
     sc = latest_screenings(state)
     ta = [st["title_abstract"] for st in sc.values() if "title_abstract" in st]
     ft = [st["full_text"] for st in sc.values() if "full_text" in st]
-    out = {"identified": sum(s["body"].get("results", 0) for s in current(state, "search")),
+    searches = current(state, "search")
+    out = {"identified": sum(s["body"].get("results", 0) for s in searches) if searches else None,
            "screened": len(ta), "excluded_screening": sum(1 for s in ta if s["body"]["decision"] == "exclude"),
            "assessed": len(ft)}
     reasons = {}
@@ -204,7 +205,8 @@ def flow(state):
                 and not any(x["body"].get("searches") for x in sc[work_key(s["body"]["work"])].values()))
     if other:
         out["other_sources"] = other
-    return {k: v for k, v in out.items() if v or k in ("identified", "included")}
+    # identified counts what the searches found: with no search, nothing was identified by one, and the count is left out
+    return {k: v for k, v in out.items() if v or (k == "included") or (k == "identified" and v is not None)}
 
 
 def verify(lab, events):

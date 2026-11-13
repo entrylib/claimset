@@ -122,7 +122,7 @@ The tool reports, and export writes to the paper's block (§1.3): `searched_befo
 |---|---|
 | a protocol (its latest version) | `ext.review.protocol` on the paper |
 | searches | `ext.review.searches` on the paper, in the order run, with `date` the day of `at` |
-| screenings | `ext.review.flow` on the paper, counted from the latest screening of each work at each stage: `screened`, `excluded_screening`, `assessed`, `excluded_full_text` by reason, `included`, `other_sources` (included works no search found); `identified` is the sum of the searches' results |
+| screenings | `ext.review.flow` on the paper, counted from the latest screening of each work at each stage: `screened`, `excluded_screening`, `assessed`, `excluded_full_text` by reason, `included`, `other_sources` (included works no search found); `identified` is the sum of the searches' results, left out when no search was recorded |
 | an included work | a reference, with `ext.review` `{read, version, checked_on, artefact, lab_event}` from its latest screening |
 | an extract | a `cited` support entry (the work's reference, with the extract's locator) and an entry of `ext.review.extracts`, on the claim of each hypothesis in `for`; the claim's `ext.review.kind` is `recommendation` when its statement recommends (should, use, avoid) and `summary` otherwise, to be checked |
 | the flags of §2.6 | `ext.review.flags` on the paper |
