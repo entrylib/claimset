@@ -201,6 +201,43 @@ class TestMapping(ExportCase):
         self.assertEqual(rep.errors, [])
 
 
+class TestPremises(ExportCase):
+    """§9 (amended 2026-11-13): a status that cites hypotheses rests on them; the earlier work a claim relies on."""
+
+    def setUp(self):
+        super().setUp()
+        self.premise = self.hyp("Method X's point forecasts are conditional means.")
+        self.rec = self.hyp("Method X's forecasts should be evaluated with squared error.")
+        self.alone = self.hyp("X improves Y weekly.")
+        note = self.add("note", {"text": "Hyndman and Khandakar (2008), Section 2: the point forecasts are means."})
+        self.status(self.premise, "supported", [note], why="Read in Hyndman and Khandakar (2008).")
+        rn, rs = self.run_(0.08, "monthly", exploratory=True)
+        rn2, rs2 = self.run_(0.05, "weekly", exploratory=True)
+        self.status(self.h, "supported", [rs[0], self.premise])
+        self.status(self.rec, "supported", [self.premise], why="Squared error is consistent for the mean.")
+        self.status(self.alone, "supported", [rs2[0]])
+        self.out = export(self.lab)
+
+    def test_a_claim_with_runs_depends_on_its_premise(self):
+        c, p = self.claim(self.out, self.h), self.claim(self.out, self.premise)
+        self.assertEqual(c["depends_on"], [p["id"]])
+        self.assertEqual([s["kind"] for s in c["support"]], ["empirical_quant"])     # its own support stays
+        self.assertNotIn("_premises", c)
+
+    def test_a_claim_without_runs_is_an_argument_from_its_premises(self):
+        c, p = self.claim(self.out, self.rec), self.claim(self.out, self.premise)
+        self.assertEqual(c["depends_on"], [p["id"]])
+        w = next(w for w in self.out["draft"]["warrants"] if w["id"] == c["support"][0]["warrant"])
+        self.assertEqual((w["premises"], w["text"]), ([p["id"]], "Squared error is consistent for the mean."))
+        self.assertNotIn(f"claims.{c['id']}.support", [t["where"] for t in self.out["completion"]])
+        self.assertIn(f"warrants.{w['id']}", [t["where"] for t in self.out["completion"]])
+
+    def test_the_earlier_work_is_asked_for(self):
+        where = [t["where"] for t in self.out["completion"]]
+        self.assertIn(f"claims.{self.claim(self.out, self.alone)['id']}.depends_on", where)
+        self.assertNotIn(f"claims.{self.claim(self.out, self.h)['id']}.depends_on", where)
+
+
 class TestTerms(ExportCase):
     """Lab record v0.12: terms become definitions; a hypothesis's about and a plan's setup become the claim's
     about and its evidence's setup, with term IDs replaced by definition IDs (§9)."""

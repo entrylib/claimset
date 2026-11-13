@@ -2,10 +2,15 @@
 the scores it would have once published and its biggest issues, so the human can decide whether to submit it as it is
 or amend it first. Optional: nothing requires it.
 
-    score(path, find=None) -> {valid, errors, warnings, scores, novelty_checked}: the file validated, given the
-                              verifiability the platform sets at publication, and scored by rubric.assess()
+    score(path, find=None, cited=None)
+                           -> {valid, errors, warnings, scores, novelty_checked, cited_checked}: the file validated,
+                              given the verifiability the platform sets at publication, and scored by rubric.assess()
     search_finder(portal)  -> find(statement): the published claims EntryLib's public search returns for a statement,
                               for the novelty check (`claimset score --novelty`)
+    cited_claims(doc)      -> the global IDs of the published claims the file's `cited` support names
+    published_scores(portal) or published_scores(folder=…)
+                           -> score_of(global claim ID): that claim's score on EntryLib, from the score file EntryLib
+                              publishes for its version (`claimset score --cited`; the portal reads its own folder)
     describe(out, top=3, by=None)
                            -> what `claimset score` prints: rubric.report() between what was scored and the choice
 
@@ -43,14 +48,18 @@ def _rubric():
     return rubric
 
 
-def _assess(rubric, doc, find, warnings):
+def _assess(rubric, doc, find, warnings, cited=None):
     """rubric.assess, given the validator's warnings when the installed rubric reads them (rubric 0.3: the numbers a
     statement gives that match no recorded result, warning 17; a limitation that restates the declared competing
-    interest, warning 46)."""
+    interest, warning 46), and the scores of the cited published claims when it reads those (rubric 0.5)."""
     import inspect
-    if "warnings" in inspect.signature(rubric.assess).parameters:
-        return rubric.assess(doc, find, warnings=warnings)
-    return rubric.assess(doc, find)
+    params = inspect.signature(rubric.assess).parameters
+    kw = {}
+    if "warnings" in params:
+        kw["warnings"] = warnings
+    if "cited" in params and cited is not None:
+        kw["cited"] = cited
+    return rubric.assess(doc, find, **kw)
 
 
 def _load(path):
@@ -73,17 +82,71 @@ def _load(path):
     return validate(doc), doc
 
 
-def score(path, find=None):
+def score(path, find=None, cited=None):
     """The scores the claimset at `path` would have once published. A file with errors is not scored (`scores` is
     absent); its packaged files are not needed, so a claimset file is scored without its package. `find` supplies
-    the published claims to compare principal claims with (rubric.assess); without it novelty is not checked."""
+    the published claims to compare principal claims with (rubric.assess); without it novelty is not checked.
+    `cited` is score_of(global claim ID), the scores on EntryLib of the published claims the file cites (rubric 0.5);
+    without it they cost as any cited work."""
     from .validate import with_verifiability
     rubric = _rubric()
     rep, doc = _load(path)
-    out = {"valid": not rep.errors, "errors": rep.errors, "warnings": rep.warnings, "novelty_checked": find is not None}
+    out = {"valid": not rep.errors, "errors": rep.errors, "warnings": rep.warnings, "novelty_checked": find is not None,
+           "cited_checked": cited is not None}
     if doc is not None and not rep.errors:
-        out["scores"] = _assess(rubric, with_verifiability(doc, rep.computed), find, rep.warnings)
+        known = None
+        if cited is not None:
+            known = {t: v for t in cited_claims(doc) for v in [cited(t)] if v is not None}
+        out["scores"] = _assess(rubric, with_verifiability(doc, rep.computed), find, rep.warnings, known)
     return out
+
+
+_CLAIM_ID = re.compile(r"^(?P<concept>(?:entrylib:|doi:10\.\d{4,9}/claimset\.)(?P<key>\d{4}\.\d{6,}))"
+                       r"(?:@v(?P<v>[1-9]\d*))?#(?P<claim>C\d+)$")
+
+
+def cited_claims(doc):
+    """The global IDs of the published claims the file's `cited` support names (`id_type: claimset`, with a claim),
+    directly or through its references, as the file writes them."""
+    refs = {r.get("id"): r for r in doc.get("references") or [] if isinstance(r, dict)}
+    out = []
+    for c in doc.get("claims") or []:
+        for s in (c.get("support") or []) if isinstance(c, dict) else []:
+            if not isinstance(s, dict) or s.get("kind") != "cited":
+                continue
+            src = refs.get(s.get("reference")) if isinstance(s.get("reference"), str) else s
+            src = src if isinstance(src, dict) else {}
+            t = src.get("target")
+            if src.get("id_type") == "claimset" and isinstance(t, str) and _CLAIM_ID.match(t) and t not in out:
+                out.append(t)
+    return out
+
+
+def published_scores(portal=None, folder=None):
+    """score_of(global claim ID) -> that claim's score on EntryLib, or None: read from the score file EntryLib
+    publishes for the version (`/p/<year>.<number>@v<n>.score.json`, the current version's without @v), over HTTPS
+    from `portal`, or from `folder`, the portal's own published folder. Only the claimsets' identifiers are sent."""
+    base = None if folder is not None else portal_url(portal)
+    cache = {}
+
+    def score_of(target):
+        m = _CLAIM_ID.match(target or "")
+        if not m:
+            return None
+        name = f"{m['key']}@v{m['v']}.score.json" if m["v"] else f"{m['key']}.score.json"
+        if name not in cache:
+            try:
+                if folder is not None:
+                    p = Path(folder) / "p" / name
+                    cache[name] = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else None
+                else:
+                    cache[name] = _request("GET", f"{base}/p/{name}")
+            except (OSError, ValueError, SubmitError):
+                cache[name] = None                   # not published, or not reachable: cited as any work
+        item = ((cache[name] or {}).get("claims") or {}).get(m["claim"])
+        value = item.get("score") if isinstance(item, dict) else None
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
+    return score_of
 
 
 def _words(statement):
@@ -133,9 +196,12 @@ def describe(out, top=3, by=None, name=None):
     novelty = ("Novelty: principal claims compared with the claims published on EntryLib now." if out.get(
         "novelty_checked") else "Novelty: not checked (`--novelty` compares the principal claims with those "
                                 "published on EntryLib, sending their statements' words to its search).")
+    if out.get("cited_checked"):
+        novelty += "\nCited claims published on EntryLib: scored by their scores there."
     if by is None:
-        by = ("computed on this machine; nothing was sent" + (" but the search words" if out.get("novelty_checked")
-                                                              else ""))
+        sent = [w for w, on in (("the search words", out.get("novelty_checked")),
+                                 ("the identifiers of the cited claims", out.get("cited_checked"))) if on]
+        by = "computed on this machine; nothing was sent" + (" but " + " and ".join(sent) if sent else "")
     head = [f"Scores by the EntryLib rubric {sc['rubric']}, as EntryLib would score this claimset once published "
             f"({by}). They check the record, not the science: {RUBRIC_URL}", novelty, ""]
     tail = ["Scoring is optional. Submit the claimset as it is (`claimset submit`), or amend it and score it again; "

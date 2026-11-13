@@ -44,7 +44,10 @@ def steps(events, actor=None, anchored=True):
     if loose:
         out.append((f"agree the design of the test of {', '.join(loose)} with the supervisor, one topic at a time "
                     f"(what is compared, the data, the measures, the test and its level, what counts as supported), "
-                    f"then plan it before running it, with where each choice came from",
+                    f"then plan it before running it, with where each choice came from; record the earlier work it "
+                    f"relies on as premises (a hypothesis stating each, supported by the passage of the work: "
+                    f"claimset lab screen <work>, claimset lab extract <work> --for <premise>), and cite them in its "
+                    f"status",
                     f'claimset lab plan --kind confirmatory --hypotheses {" ".join(loose)} --design "…" '
                     f'--analysis "…" --framework … --quantity NAME=… --supported "…" --not-supported "…" '
                     f'--choice "measure|…|supervisor" --requires-approval {by}'))

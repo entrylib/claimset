@@ -143,6 +143,19 @@ class TestClaimsetRules(unittest.TestCase):
         del d["paper"]["ext"]["review"]["searches"]
         self.assertIn("review.w3", warnings(validate(d)))
 
+    def test_no_warning_3_for_background_in_a_study(self):
+        """A study that quotes the background its findings rest on is not a review: no searches are asked of it."""
+        d = reviewed()
+        del d["paper"]["ext"]["review"]["searches"]
+        premise = target(d)
+        principal = copy.deepcopy(premise)                # a finding of the study, resting on the quoted premise
+        principal.pop("ext", None)
+        principal.update(id="C90", support=[s for s in premise["support"] if s.get("kind") != "cited"],
+                         depends_on=[premise["id"]])
+        premise["role"] = "supporting"
+        d["claims"].append(principal)
+        self.assertNotIn("review.w3", warnings(validate(d)))
+
     def test_warning_4_read_not_said(self):
         d = reviewed()
         d["references"].append({"id": "B91", "target": "10.1/x", "id_type": "doi"})

@@ -141,6 +141,41 @@ class TestPreparation(Files):
             self.assertTrue(sc.score(self.write(d))["valid"])
         self.assertIn(("W17", f"claims:{c['id']}.statement"), [(w["rule"], w["where"]) for w in stub.seen["warnings"]])
 
+    def test_cited_claims_and_their_scores_on_entrylib(self):
+        """rubric 0.5: a cited claim published on EntryLib costs by its score there, which `--cited` fetches."""
+        target, other = "entrylib:2026.000014@v2#C3", "entrylib:2026.000015#C1"
+        d = {"references": [{"id": "B1", "target": other, "id_type": "claimset"}],
+             "claims": [{"id": "C1", "support": [{"kind": "cited", "target": target, "id_type": "claimset"},
+                                                 {"kind": "cited", "reference": "B1"},
+                                                 {"kind": "cited", "target": "10.1/x", "id_type": "doi"}]}]}
+        self.assertEqual(sc.cited_claims(d), [target, other])
+        folder = Path(self.tmp.name) / "published"
+        (folder / "p").mkdir(parents=True)
+        (folder / "p" / "2026.000014@v2.score.json").write_text(json.dumps({"claims": {"C3": {"score": 92}}}))
+        score_of = sc.published_scores(folder=folder)
+        self.assertEqual((score_of(target), score_of(other), score_of("10.1/x")), (92, None, None))
+
+    def test_cited_scores_go_to_a_rubric_that_reads_them(self):
+        stub = stub_rubric()
+        plain = stub.assess
+
+        def assess(doc, find=None, warnings=None, cited=None):
+            stub.seen["cited"] = cited
+            return plain(doc, find)
+        stub.assess = assess
+        d = copy.deepcopy(EXAMPLE)
+        target = "entrylib:2026.000014@v2#C3"
+        d.setdefault("references", []).append({"id": "B77", "target": target, "id_type": "claimset"})
+        c = next(c for c in d["claims"] if c.get("role") == "principal")
+        c["support"].append({"kind": "cited", "reference": "B77"})
+        with mock.patch.dict(sys.modules, {"rubric": stub}):
+            out = sc.score(self.write(d), cited=lambda t: 92 if t == target else None)
+            self.assertTrue(out["valid"], out["errors"])
+            self.assertEqual(stub.seen["cited"], {target: 92})
+            self.assertIn("identifiers of the cited claims", sc.describe(out))
+            sc.score(self.write(d))
+            self.assertIsNone(stub.seen["cited"])                   # without --cited nothing is fetched
+
     def test_a_file_with_errors_is_not_scored(self):
         bad = copy.deepcopy(EXAMPLE)
         del bad["paper"]["title"]

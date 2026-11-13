@@ -254,7 +254,8 @@ def _cmd_score(args):
     from .submit import SubmitError
     try:
         find = _score.search_finder(args.portal) if args.novelty else None
-        out = _score.score(args.file, find)
+        cited = _score.published_scores(args.portal) if args.cited else None
+        out = _score.score(args.file, find, cited)
         text = None if args.json else _score.describe(out, args.top)
     except (_score.ScoreError, SubmitError) as exc:
         print(json.dumps({"error": str(exc)}, indent=1) if args.json else f"ERROR: {exc}",
@@ -338,8 +339,11 @@ def build_parser():
     sc.add_argument("--novelty", action="store_true",
                     help="also compare the principal claims with those published on EntryLib (sends the words of "
                          "their statements to its public search; nothing else leaves this machine)")
+    sc.add_argument("--cited", action="store_true",
+                    help="score the claims the file cites that are published on EntryLib (id_type claimset) by "
+                         "their scores there (sends those claims' identifiers; nothing else leaves this machine)")
     sc.add_argument("--top", type=int, default=3, help="how many of the biggest issues to put first (default 3)")
-    sc.add_argument("--portal", help="the platform searched by --novelty (default: $CLAIMSET_PORTAL, else "
+    sc.add_argument("--portal", help="the platform asked by --novelty and --cited (default: $CLAIMSET_PORTAL, else "
                                      "https://entrylib.org)")
     sc.add_argument("--json", action="store_true", help="the scores as JSON")
     sc.set_defaults(func=_cmd_score)

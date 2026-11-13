@@ -205,7 +205,9 @@ def _warnings(doc, refs, used, searches, r):
         unsaid += [x for x, rd in zip(cited, reads) if rd is None and x not in unsaid]
     for x in unsaid:
         r.warn("review.w4", f"references:{x}", "how this cited work was read is not said (ext.review.read)")
-    if not searches:
+    reviewed = any(isinstance(c, dict) and c.get("role") == "principal" and isinstance(_dict(c.get("ext")).get(NAME), dict)
+                   for c in _list(doc.get("claims")))
+    if reviewed and not searches:                     # a review's own claims; background quoted in a study is not one
         r.warn("review.w3", "paper.ext.review.searches", "no searches recorded: the claims were confirmed against works "
                                                          "the authors knew, not searched for; say so in their "
                                                          "limitations")
