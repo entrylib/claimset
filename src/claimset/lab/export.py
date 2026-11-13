@@ -148,6 +148,7 @@ class _Exporter:
                 self.bases[a] = agent_base(self.events, agent)
         self.completion, self.mapping = [], {}
         self.contributors, self.models, self.claims, self.evidence = [], [], [], []
+        self.warrants = []
         self.limitations, self.artefacts, self.references = [], [], []
         self.person, self.evidence_of_run = {}, {}
         self.results_of = {}
@@ -386,10 +387,13 @@ class _Exporter:
             if isinstance(version["body"].get("about"), dict):
                 claim = dict({k: claim[k] for k in ("id", "statement")}, about=dict(version["body"]["about"]),
                              **{k: v for k, v in claim.items() if k not in ("id", "statement")})
-        cited_runs, cited_results, other = [], [], []
+        cited_runs, cited_results, other, premises = [], [], [], []
         for ref in list(status["body"].get("evidence") or []):
             ev = st.get(ref)
-            if ev is not None and ev["type"] == "run":
+            if ev is not None and ev["type"] == "hypothesis":     # a premise: linked once every claim exists (§9)
+                if st.root(ev["id"]) not in premises:
+                    premises.append(st.root(ev["id"]))
+            elif ev is not None and ev["type"] == "run":
                 if ev["id"] not in cited_runs:
                     cited_runs.append(ev["id"])
             elif ev is not None and ev["type"] == "result" and not is_withheld(ev):
@@ -419,8 +423,10 @@ class _Exporter:
             if cited or whole:
                 support["results"] = cited or whole
             claim["support"].append(support)
-        else:
+        elif not premises:
             self.todo(f"claims.{cid}.support", f"no run lies behind status {status['id']}; give {cid} its support")
+        if premises:
+            claim["_premises"] = (premises, status)
         claim["_targets"] = set(self.versions(version["id"])) | set(self.versions(status["id"])) | set(cited_runs) | {
             x["id"] for r in cited_runs for x in self.results_of.get(r, [])}
         if outcome == "not_supported":
@@ -432,6 +438,47 @@ class _Exporter:
                                    f"result and cite it (a relation with a note on the difference), or relabel the "
                                    f"claim a replication or extension of it")
         return claim, cited_runs
+
+    def ask_background(self):
+        """A claim resting on runs and on no premise: ask what earlier work it relies on (§9)."""
+        for c in self.claims:
+            if c.pop("_linked", False) or c.get("depends_on"):
+                continue
+            if any(s.get("kind") in ("empirical_quant", "empirical_qual") for s in c["support"]):
+                self.todo(f"claims.{c['id']}.depends_on",
+                          f"say what earlier work {c['id']} relies on (a method's conditions, an instrument's "
+                          f"calibration, a result it builds on): state each premise as a hypothesis supported by the "
+                          f"passage of the work (claimset lab screen, extract, status), "
+                          + (f"cite the hypotheses in the status of {c['hypothesis']['lab_event']}, and export again"
+                             if c.get("hypothesis") else f"and name their claims in the depends_on of {c['id']}")
+                          + "; or leave it if it relies on none")
+
+    def link_premises(self):
+        """A status whose evidence names hypotheses (§9): the claim depends on their claims; with no run behind it,
+        its support is an argument from them, the status's rationale its warrant."""
+        by_root = {self.st.root(c["hypothesis"]["lab_event"]): c["id"] for c in self.claims if c.get("hypothesis")}
+        for c in self.claims:
+            premises, status = c.get("_premises") or ((), None)
+            if not premises:
+                continue
+            ids = [by_root[h] for h in premises if h in by_root and by_root[h] != c["id"]]
+            missing = [h for h in premises if h not in by_root]
+            if missing:
+                self.todo(f"claims.{c['id']}.depends_on", f"status {status['id']} cites {', '.join(missing)}, "
+                                                          f"which have no claim (no final status); give them one or "
+                                                          f"drop them")
+            if not ids:
+                continue
+            c["depends_on"] = list(dict.fromkeys(list(c.get("depends_on") or []) + ids))
+            c["_linked"] = True
+            if not any(s.get("kind") != "argument" for s in c["support"]):
+                wid = f"W{len(self.warrants) + 1}"
+                self.warrants.append({"id": wid, "reasoning": "deductive", "premises": ids,
+                                      "text": status["body"].get("rationale") or ""})
+                c["support"].append({"kind": "argument", "warrant": wid})
+                self.todo(f"warrants.{wid}", f"check the reasoning of {wid} ({c['id']} from {', '.join(ids)}): "
+                                             f"exported as deductive, with the rationale of {status['id']} as its text")
+                self.done_support(c)
 
     # -- for the lab parts of extensions (their `export(exporter)`, called once the paper is drafted)
     def paper_object(self):
@@ -1185,9 +1232,13 @@ class _Exporter:
         self.export_estimates()
         self.export_checks()
         self.export_assumptions()
+        self.link_premises()
+        self.ask_background()
         definitions = self.export_terms()
         for c in self.claims:
             c.pop("_targets", None)
+            c.pop("_premises", None)
+            c.pop("_linked", None)
         lab_aid = self.export_artefacts()
         self.round_values()
         paper = self.export_paper(lab_aid)
@@ -1197,7 +1248,7 @@ class _Exporter:
                 impl.export(self)
         draft = {"schema_version": SPEC_VERSION, "paper": paper, "contributors": self.contributors,
                  "models": self.models, "definitions": definitions, "claims": self.claims, "evidence": self.evidence,
-                 "warrants": [], "limitations": self.limitations, "artefacts": self.artefacts}
+                 "warrants": self.warrants, "limitations": self.limitations, "artefacts": self.artefacts}
         if self.references:
             draft["references"] = self.references
         used = self.extensions_used(draft)

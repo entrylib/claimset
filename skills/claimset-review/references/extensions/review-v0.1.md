@@ -68,6 +68,8 @@ Version 0.1 covers every review, narrative or systematic. Risk of bias, certaint
 
 A review that records no searches is a reading of the works its authors knew: its claims were confirmed, not searched for. Warning `review.w3` says so; the claims' limitations should too.
 
+**Background in any study.** The extension is not only for reviews. A study whose findings rest on earlier work (an ARIMA study on the conditions under which ARIMA forecasts are optimal) records those premises as supporting claims with `cited` support, says how each work was read and quotes the passage each premise rests on, the same way. Its principal claims carry no review block, and it needs no protocol or searches.
+
 ### 1.4 Rules
 
 review.1. A `review` block is on the paper (only `protocol`, `searches`, `flow` and `flags`), a reference (only `read`, `version`, `checked_on`, `artefact`, `via` and `lab_event`) or a claim (only `kind`, `extracts` and `contested_by`).
@@ -80,7 +82,7 @@ Warnings:
 
 review.w1. A claim whose `cited` support points only to works read in their abstracts or through others' accounts: a full text could qualify what it states.
 review.w2. A claim with `cited` support and no extract, in a claimset whose references say how they were read: the passage the claim rests on is not shown.
-review.w3. A claimset with review blocks on claims or references and no searches: the claims were confirmed against works the authors knew, not searched for.
+review.w3. A claimset whose principal claims have review blocks, with no searches: the claims were confirmed against works the authors knew, not searched for. A study that records how it read the background its findings rest on (review blocks on supporting claims and references only) is not a review, and gets no such warning.
 review.w4. A reference that a claim's `cited` support points to, with no review block, in a claimset that uses the extension: how it was read is not said.
 
 ## 2. In a lab record
