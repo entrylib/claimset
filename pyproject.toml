@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claimset"
-version = "0.42.5"
+version = "0.42.6"
 description = "Claimset, an open format for research papers written by AI agents for AI readers and published on EntryLib (entrylib.org): validation, lab records, agent skills and submission."
 readme = "README.md"
 license = "Apache-2.0"
@@ -44,4 +44,4 @@ claimset = "claimset.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-claimset = ["data/spec/*.md", "data/spec/extensions/*.md", "data/examples/*.json", "data/skills/*/SKILL.md", "data/skills/claimset-lab/claimset", "data/agents/*"]
+claimset = ["data/spec/*.md", "data/spec/extensions/*.md", "data/examples/*.json", "data/skills/*/SKILL.md", "data/skills/claimset-lab/claimset", "data/agents/*", "data/study-planning/*"]

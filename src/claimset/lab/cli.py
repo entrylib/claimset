@@ -491,7 +491,7 @@ def _choices(given):
         parts = [p.strip() for p in text.split("|")]
         if len(parts) not in (3, 4) or not all(parts[:3]):
             raise LabError("schema", f"--choice '{text}': use \"WHAT|CHOICE|SOURCE\" or \"WHAT|CHOICE|SOURCE|REF\", "
-                                     f"e.g. \"measure|RMSSE|guide|methods/prediction#mean-forecasts\"")
+                                     f"e.g. \"measure|RMSSE|good-practice|study-planning/prediction#mean-forecasts\"")
         c = {"what": parts[0], "choice": parts[1], "source": parts[2]}
         if len(parts) == 4 and parts[3]:
             c["ref"] = parts[3]
@@ -1224,9 +1224,9 @@ def add_parser(subparsers):
                    help="estimation: a value it estimates, the result that will hold it: name=\"variable\", or "
                         "name='{\"variable\": …, \"conditions\": {…}, \"field\": \"interval.upper\"}'; repeat")
     p.add_argument("--choice", action="append", default=[], metavar="WHAT|CHOICE|SOURCE|REF",
-                   help="where a choice that can change the conclusion came from: source brief, supervisor, guide, "
-                        "literature or agent (not yet agreed); REF names the guide entry, paper or claim; repeat, "
-                        "e.g. \"measure|RMSSE|guide|methods/prediction#mean-forecasts\"")
+                   help="where a choice that can change the conclusion came from: source brief, supervisor, good-practice, "
+                        "literature or agent (not yet agreed); REF names the entry, paper or claim; repeat, "
+                        "e.g. \"measure|RMSSE|good-practice|study-planning/prediction#mean-forecasts\"")
     p.add_argument("--diagnostic", action="append", default=[], metavar="VARIABLE",
                    help="a check every deciding run reports as a result of this variable (convergence, residual "
                         "test, coverage); a run without it flags the test diagnostic_missing; repeat")

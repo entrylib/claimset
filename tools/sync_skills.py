@@ -97,21 +97,32 @@ def _sources(src):
     return [src]
 
 
+DATA = ROOT / "src" / "claimset" / "data"
+# EntryLib's good practice for planning a study: copied into the package from its own repository by
+# tools/sync_study_planning.py (never by this script), and from the package into the lab skill by this one.
+PLANNING = DATA / "study-planning"
+PLANNING_IN_SKILL = ROOT / "skills" / "claimset-lab" / "references" / "study-planning"
+
+
 def pairs():
     for items in COPIES.values():
         for src, dst in items:
             src, dst = ROOT / src, ROOT / dst
             for f in _sources(src):
                 yield f, (dst / f.relative_to(src)) if src.is_dir() else dst
-
-
-DATA = ROOT / "src" / "claimset" / "data"
+    if PLANNING.is_dir():
+        for f in sorted(PLANNING.iterdir()):
+            if f.is_file():
+                yield f, PLANNING_IN_SKILL / f.name
 
 
 def stale():
     """Files in a copied package directory, or in the package's data, that no longer have a source."""
     expected = {dst for _, dst in pairs()}
-    out = [f for f in sorted(DATA.rglob("*")) if f.is_file() and f not in expected] if DATA.exists() else []
+    out = [f for f in sorted(DATA.rglob("*")) if f.is_file() and f not in expected
+           and PLANNING not in f.parents] if DATA.exists() else []
+    if PLANNING_IN_SKILL.is_dir():
+        out += [f for f in sorted(PLANNING_IN_SKILL.iterdir()) if f.is_file() and f not in expected]
     for items in COPIES.values():
         for src, dst in items:
             if (ROOT / src).is_dir() and (ROOT / dst).is_dir():

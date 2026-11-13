@@ -95,8 +95,8 @@ IMPLICIT_EXTENSIONS = {"qualitative": "0.1"}
 #: The first version with estimation plans, a plan's diagnostics and rule L31 (§5.4, §5.7, §5.7.8).
 ESTIMATION_VERSION = (0, 22)
 #: Where a choice of a plan came from (§5.7, `choices`): the task the agent was given, the person who supervises,
-#: a method guide, the literature, or the agent alone (not yet agreed with anyone).
-CHOICE_SOURCES = ("brief", "supervisor", "guide", "literature", "agent")
+#: good practice for planning a study, the literature, or the agent alone (not yet agreed with anyone).
+CHOICE_SOURCES = ("brief", "supervisor", "good-practice", "literature", "agent")
 #: Plan kinds whose runs carry out a plan fixed in advance: their runs are labelled confirmatory (L5, L16).
 PLANNED_KINDS = ("confirmatory", "estimation")
 
@@ -1432,7 +1432,7 @@ def check_plan(state, body, by, eid):
                 raise LabError("schema", f"plan: a choice's source is one of {', '.join(CHOICE_SOURCES)}, not "
                                          f"{c['source']!r}")
             if c.get("ref") is not None and (not isinstance(c["ref"], str) or not c["ref"].strip()):
-                raise LabError("schema", "plan: a choice's ref is non-empty text (a guide entry, a DOI, a claim)")
+                raise LabError("schema", "plan: a choice's ref is non-empty text (an entry of good practice, a DOI, a claim)")
             if set(c) - {"what", "choice", "source", "ref"}:
                 raise LabError("schema", "plan: a choice has only what, choice, source and ref")
             if c["what"].strip().lower() in seen:

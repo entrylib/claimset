@@ -68,6 +68,10 @@ def files(name):
         if name in ("claimset-revise", "claimset-review"):
             out[f"references/{spec.name.replace('claimset-v', 'spec-v')}"] = spec
         out.update(_extension_specs())
+        if name == "claimset-lab" and (DATA / PLANNING / "SOURCE.json").is_file():
+            for f in sorted((DATA / PLANNING).iterdir()):
+                if f.is_file():
+                    out[f"references/{PLANNING}/{f.name}"] = f
         for rel in _package_modules():
             out[f"scripts/lib/claimset/{rel.as_posix()}"] = PACKAGE / rel
         return out
@@ -193,9 +197,107 @@ def guide(name=None):
     return note + (DATA / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
 
 
+PLANNING = "study-planning"
+PLANNING_URL = "https://github.com/entrylib/study-planning"
+
+
+def _planning_dir():
+    """The copy of the study-planning guides: in the package's data, or beside an installed lab skill's scripts."""
+    for d in (DATA / PLANNING, PACKAGE.parents[2] / "references" / PLANNING):
+        if (d / "SOURCE.json").is_file():
+            return d
+    raise FileNotFoundError(f"this installation carries no copy of the study-planning guides; read them at "
+                            f"{PLANNING_URL}")
+
+
+def study_planning_guides():
+    """The names of the guides this package carries (prediction, experiments, …)."""
+    return [f.stem for f in sorted(_planning_dir().glob("*.md")) if f.name != "README.md"]
+
+
+def study_planning(ref=None):
+    """EntryLib's good practice for planning a study (https://github.com/entrylib/study-planning), from the copy
+    this package carries, as text: the list of guides (`ref` None or 'study-planning'), one guide
+    ('study-planning/prediction'), or one entry ('study-planning/prediction#mean-forecasts'): the references a plan
+    cites with source good-practice. ValueError names the guides or entries when `ref` matches none."""
+    import json
+    folder = _planning_dir()
+    source = json.loads((folder / "SOURCE.json").read_text(encoding="utf-8"))
+    rest = (ref or PLANNING).strip()
+    if rest != PLANNING and not rest.startswith((PLANNING + "/", PLANNING + "#")):
+        raise ValueError(f"'{ref}' is not a study-planning reference: write study-planning, "
+                         f"study-planning/GUIDE or study-planning/GUIDE#ENTRY")
+    rest = rest[len(PLANNING):].lstrip("/")
+    name, _, entry = rest.partition("#")
+    where = f"{PLANNING_URL}/blob/main/{name + '.md' if name else 'README.md'}"
+    note = (f"<!-- EntryLib's good practice for planning a study, as {PLANNING_URL} was at commit "
+            f"{source['commit'][:7]} ({source['date']}), carried by claimset {__version__}. The newest: {where} -->\n\n")
+    if not name:
+        if entry:
+            raise ValueError(f"'{ref}': name a guide before an entry, e.g. study-planning/prediction#{entry}")
+        return note + (folder / "README.md").read_text(encoding="utf-8")
+    guides = study_planning_guides()
+    if name not in guides:
+        raise ValueError(f"no guide '{name}' in study-planning: the guides are {', '.join(guides)}")
+    text = (folder / f"{name}.md").read_text(encoding="utf-8")
+    if not entry:
+        return note + text
+    sections = _sections(text)
+    if entry not in sections:
+        raise ValueError(f"no entry '{entry}' in study-planning/{name}: the entries are "
+                         f"{', '.join(k for k in sections if k not in ('Principle', 'References', 'Versions'))}")
+    head = [line for line in text.split("\n")[:4] if line.startswith(("# ", "Version "))]
+    cited = _cited(sections[entry], sections.get("References", ""))
+    refs = ["## References\n\n" + "\n".join(cited)] if cited else []
+    return note + "\n\n".join(head + [sections[entry].rstrip()] + refs) + "\n"
+
+
+def _cited(entry, references):
+    """The items of a guide's reference list that an entry cites as the guides do: "Gneiting 2011", "Gneiting and
+    Raftery 2007", "Morris, White and Crowther 2019", "Nosek et al. 2018"."""
+    import re
+    items, out = [], []
+    for line in references.split("\n")[1:]:
+        if line.startswith("- "):
+            items.append(line)
+        elif line.startswith("  ") and items:
+            items[-1] += "\n" + line
+    text = " ".join(entry.split())
+    for item in items:
+        flat = " ".join(item[2:].split())
+        year = re.search(r"\((\d{4})\)", flat)
+        if not year:
+            continue
+        names = flat[:year.start()].replace(", and ", ", ").replace(" and ", ", ").split(", ")[0::2]
+        if len(names) == 1:
+            forms = [names[0]]
+        elif len(names) == 2:
+            forms = [f"{names[0]} and {names[1]}"]
+        else:
+            forms = [f"{names[0]} et al.", ", ".join(names[:-1]) + f" and {names[-1]}"]
+        if any(re.search(rf"(?<![\w,] ){re.escape(f)} {year[1]}\b", text) for f in forms):
+            out.append(item)
+    return out
+
+
+def _sections(text):
+    """{heading: the section's text from its `## ` heading to the next one} of a guide."""
+    out, current = {}, None
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            current = line[3:].strip()
+            out[current] = []
+        if current is not None:
+            out[current].append(line)
+    return {k: "\n".join(v) for k, v in out.items()}
+
+
 def cmd_guide(args):
     try:
-        text = guide(args.skill)
+        if args.skill and args.skill.split("/")[0].split("#")[0] == PLANNING:
+            text = study_planning(args.skill)
+        else:
+            text = guide(args.skill)
     except (ValueError, FileNotFoundError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -211,7 +313,9 @@ def argparse_copy(args, **changes):
 def add_parsers(sub):
     g = sub.add_parser("guide", help="start here: what to do, by situation, and the rules; or one skill's "
                                      "instructions (claimset guide claimset-submit)")
-    g.add_argument("skill", nargs="?", help=f"print this skill's instructions: {', '.join(SKILLS)}")
+    g.add_argument("skill", nargs="?", help=f"print this skill's instructions: {', '.join(SKILLS)}; or "
+                   f"study-planning, study-planning/GUIDE or study-planning/GUIDE#ENTRY: EntryLib's good practice "
+                   f"for planning a study, the list, one guide or one entry")
     g.set_defaults(func=cmd_guide)
 
     s = sub.add_parser("spec", help="print the specification this package validates against")

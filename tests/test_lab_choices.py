@@ -5,7 +5,7 @@ from claimset.lab.core import plan_warnings
 
 from test_lab import DECISION, PlanRunCase, TestCli
 
-CHOICES = [{"what": "measure", "choice": "RMSSE", "source": "guide", "ref": "methods/prediction#mean-forecasts"},
+CHOICES = [{"what": "measure", "choice": "RMSSE", "source": "good-practice", "ref": "study-planning/prediction#mean-forecasts"},
            {"what": "significance level", "choice": "0.05", "source": "supervisor"}]
 
 
@@ -47,7 +47,7 @@ class TestChoiceOption(TestCli):
         code, out, err = self.run_cli("lab", "plan", "--kind", "confirmatory", "--hypotheses", "H1", "--design", "d",
                                       "--analysis", "a", "--framework", "deterministic", "--quantity", "q=q",
                                       "--supported", "q > 0", "--not-supported", "q < 0",
-                                      "--choice", "measure|RMSSE|guide|methods/prediction#mean-forecasts",
+                                      "--choice", "measure|RMSSE|good-practice|study-planning/prediction#mean-forecasts",
                                       "--choice", "test|Wilcoxon|agent")
         assert (code, out) == (0, "PL1"), err
         assert "chosen by you alone, not yet agreed: test" in err

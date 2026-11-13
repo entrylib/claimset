@@ -21,5 +21,6 @@ To give the agents of a project the skills as files, with the references and scr
 ## More
 
 - `claimset spec`, `claimset spec --lab`, `claimset spec --revision`: the specifications this version follows.
+- `claimset guide study-planning`: EntryLib's good practice for planning a study (which measure, test or design fits a kind of study, and why), the defaults the lab proposes; one guide or entry by the reference a plan cites, such as `claimset guide study-planning/prediction#mean-forecasts`.
 - `claimset validate FILE`: check a claimset. `claimset --help`: every command.
 - Documentation: https://github.com/entrylib/claimset/tree/main/docs
