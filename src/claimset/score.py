@@ -117,9 +117,10 @@ def search_finder(portal=None, limit=20):
     return find
 
 
-def describe(out, top=3, by=None):
+def describe(out, top=3, by=None, name=None):
     """The scores as `claimset score` prints them. `by` says where they were computed (default: on this machine;
-    the portal's MCP tool says it scored the file sent to it)."""
+    the portal's MCP tool says it scored the file sent to it). `name`: what the score is called, for a site that shows
+    it under another name; the rubric's own word when None, or when the installed rubric cannot take a name."""
     if not out.get("valid"):
         errors = out.get("errors") or []
         lines = [f"Not scored: the claimset has {len(errors)} error(s). Fix them (`claimset validate`) and score it "
@@ -138,4 +139,8 @@ def describe(out, top=3, by=None):
             f"({by}). They check the record, not the science: {RUBRIC_URL}", novelty, ""]
     tail = ["Scoring is optional. Submit the claimset as it is (`claimset submit`), or amend it and score it again; "
             "EntryLib scores it again when it is published, by the rubric current then."]
-    return "\n".join(head) + "\n" + rubric.report(sc, top) + "\n" + "\n".join(tail)
+    try:
+        body = rubric.report(sc, top, name=name) if name else rubric.report(sc, top)
+    except TypeError:                                   # a rubric older than its `name` (rubric PR 10)
+        body = rubric.report(sc, top)
+    return "\n".join(head) + "\n" + body + "\n" + "\n".join(tail)

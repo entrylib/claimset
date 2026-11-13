@@ -98,6 +98,17 @@ class TestPreparation(Files):
         with mock.patch.dict(sys.modules, {"rubric": stub}):
             self.assertIn("(by EntryLib; nothing was kept)", sc.describe(out, by="by EntryLib; nothing was kept"))
 
+    def test_a_site_may_name_the_score(self):
+        stub = stub_rubric()
+        with mock.patch.dict(sys.modules, {"rubric": stub}):
+            out = sc.score(self.write(EXAMPLE))
+            old = stub.report                                       # a rubric that takes no name: its own word
+            self.assertIn("REPORT 77", sc.describe(out, name="Support"))
+            stub.report = lambda scores, top=0, name="reliability": f"{name} REPORT"
+            self.assertIn("Support REPORT", sc.describe(out, name="Support"))
+            self.assertIn("reliability REPORT", sc.describe(out))
+            stub.report = old
+
     def test_a_claimset_with_packaged_files_is_scored_alone_or_as_its_package(self):
         folder = Path(self.tmp.name) / "study"
         (folder / "files").mkdir(parents=True)

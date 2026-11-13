@@ -387,6 +387,48 @@ def _without_evidence(c):
     return bool(kinds) and kinds <= {"argument", "unstated"}
 
 
+#: The counts of `exploration` (spec §3.1.1) in the order and words the reading view gives them.
+_COUNTS = {"hypotheses": ("supported", "not_supported", "inconclusive", "revised", "abandoned", "open",
+                          "from_exploration"),
+           "tests": ("supported", "not_supported", "inconclusive"),
+           "runs": ("confirmatory", "exploratory", "failed")}
+
+
+def _counted(name, counts):
+    """`hypotheses 11: 6 supported, 3 not supported` from the counts of one kind; zero counts are left out."""
+    if not isinstance(counts, dict):
+        return None
+    parts = [f"{counts[k]} {k.replace('_', ' ')}" for k in _COUNTS[name]
+             if isinstance(counts.get(k), int) and not isinstance(counts.get(k), bool) and counts[k]]
+    total = counts.get("total")
+    head = f"{name} {total}" if isinstance(total, int) and not isinstance(total, bool) else name
+    return head + (": " + ", ".join(parts) if parts else "")
+
+
+def exploration_words(e):
+    """The reading view's exploration line, in words (spec §2.3): questions, hypotheses, tests and runs counted,
+    the lab record, and what the paper covers of its lab."""
+    out = []
+    q = e.get("questions")
+    if isinstance(q, int) and not isinstance(q, bool):
+        out.append(f"{q} question{'s' if q != 1 else ''}")
+    out += [x for x in (_counted(k, e.get(k)) for k in _COUNTS) if x]
+    if e.get("lab_record"):
+        out.append(f"lab record {e['lab_record']}")
+    cov = e.get("covers")
+    if isinstance(cov, dict):
+        mine = ", ".join(str(x) for x in cov.get("questions") or [])
+        lab = cov.get("lab") if isinstance(cov.get("lab"), dict) else {}
+        whole = [f"{lab['questions']} questions"] if isinstance(lab.get("questions"), int) else []
+        whole += [x for x in (_counted(k, lab.get(k)) for k in ("hypotheses", "tests")) if x]
+        others = "; ".join(f"{o.get('name')} ({', '.join(str(x) for x in o.get('questions') or [])})"
+                           for o in cov.get("other_papers") or [] if isinstance(o, dict))
+        out.append("covers " + (mine or "part of its lab")
+                   + (f" (the whole lab: {', '.join(whole)})" if whole else "")
+                   + (f"; other papers from the lab: {others}" if others else ""))
+    return "; ".join(out)
+
+
 def render(doc):
     """The reading view of a claimset, as a string."""
     p = doc.get("paper") or {}
@@ -413,7 +455,7 @@ def render(doc):
     if isinstance(doc.get("extensions"), dict) and doc["extensions"]:
         out.append("extensions " + ", ".join(f"{k} {v}" for k, v in doc["extensions"].items()) + _ext(p))
     if isinstance(p.get("exploration"), dict):
-        out.append("exploration " + json.dumps(p["exploration"], ensure_ascii=False, separators=(", ", ": ")))
+        out.append("exploration " + exploration_words(p["exploration"]))
 
     claims = [c for c in doc.get("claims") or [] if isinstance(c, dict)]
     defs = {d.get("id"): d for d in doc.get("definitions") or [] if isinstance(d, dict)}

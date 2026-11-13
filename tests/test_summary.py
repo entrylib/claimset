@@ -46,3 +46,16 @@ class TestSummary(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestExplorationInWords(unittest.TestCase):
+    def test_the_reading_view_counts_in_words(self):
+        d = copy.deepcopy(NATIVE)
+        d["paper"]["exploration"] = {"lab_record": "A10", "questions": 2,
+                                     "hypotheses": {"total": 3, "supported": 2, "not_supported": 1, "revised": 0},
+                                     "tests": {"total": 1, "supported": 1},
+                                     "runs": {"total": 9, "confirmatory": 2, "exploratory": 7, "failed": 0}}
+        line = next(x for x in render(d).splitlines() if x.startswith("exploration "))
+        self.assertEqual(line, "exploration 2 questions; hypotheses 3: 2 supported, 1 not supported; tests 1: 1 "
+                               "supported; runs 9: 2 confirmatory, 7 exploratory; lab record A10")
+        self.assertNotIn("{", line)
