@@ -94,6 +94,9 @@ EXTENSIONS_VERSION = (0, 20)
 IMPLICIT_EXTENSIONS = {"qualitative": "0.1"}
 #: The first version with estimation plans, a plan's diagnostics and rule L31 (§5.4, §5.7, §5.7.8).
 ESTIMATION_VERSION = (0, 22)
+#: Where a choice of a plan came from (§5.7, `choices`): the task the agent was given, the person who supervises,
+#: a method guide, the literature, or the agent alone (not yet agreed with anyone).
+CHOICE_SOURCES = ("brief", "supervisor", "guide", "literature", "agent")
 #: Plan kinds whose runs carry out a plan fixed in advance: their runs are labelled confirmatory (L5, L16).
 PLANNED_KINDS = ("confirmatory", "estimation")
 
@@ -1057,6 +1060,17 @@ def plan_warnings(state, body):
         out.append(f"{', '.join(explored)} came from exploration{via}; say with --new-data what "
                    f"this test uses that those runs did not (new data, a new seed that changes the sample, "
                    f"new models), or the confirmatory run may only repeat them")
+    if body.get("kind") in PLANNED_KINDS:
+        choices = [c for c in body.get("choices") or [] if isinstance(c, dict)]
+        if not choices:
+            out.append("no choices recorded: for each choice that can change the conclusion (what is compared, the "
+                       "data and what is held out, the measures, the test and its level, what counts as supported), "
+                       "say where it came from with --choice \"WHAT|CHOICE|SOURCE|REF\" (source: "
+                       + ", ".join(CHOICE_SOURCES) + ")")
+        mine = [c.get("what") for c in choices if c.get("source") == "agent"]
+        if mine:
+            out.append(f"chosen by you alone, not yet agreed: {', '.join(map(str, mine))}. Ask the supervisor about "
+                       f"each before the plan is approved, and record their answer as the source (supervisor)")
     if body.get("kind") in PLANNED_KINDS and not body.get("setup"):
         out.append("no setup: name the parts of the test as terms by role (--studied, --cases, --procedure, --lens, "
                    "--context), so that the claim's evidence carries them and a later change of measure or "
@@ -1405,6 +1419,25 @@ def check_plan(state, body, by, eid):
             names.append(ex["name"])
         if len(set(names)) != len(names):
             raise LabError("schema", "plan: exclusion names must be distinct")
+    choices = body.get("choices")
+    if choices is not None:
+        if not isinstance(choices, list) or not choices:
+            raise LabError("schema", "plan: choices is a list of {what, choice, source, ref}")
+        seen = set()
+        for c in choices:
+            if not isinstance(c, dict) or not all(isinstance(c.get(k), str) and c[k].strip()
+                                                  for k in ("what", "choice", "source")):
+                raise LabError("schema", "plan: each choice has what (the part of the design), choice and source")
+            if c["source"] not in CHOICE_SOURCES:
+                raise LabError("schema", f"plan: a choice's source is one of {', '.join(CHOICE_SOURCES)}, not "
+                                         f"{c['source']!r}")
+            if c.get("ref") is not None and (not isinstance(c["ref"], str) or not c["ref"].strip()):
+                raise LabError("schema", "plan: a choice's ref is non-empty text (a guide entry, a DOI, a claim)")
+            if set(c) - {"what", "choice", "source", "ref"}:
+                raise LabError("schema", "plan: a choice has only what, choice, source and ref")
+            if c["what"].strip().lower() in seen:
+                raise LabError("schema", f"plan: the choice of {c['what']!r} is given twice")
+            seen.add(c["what"].strip().lower())
     holdout = body.get("holdout")
     if holdout is not None:
         if not isinstance(holdout, list):

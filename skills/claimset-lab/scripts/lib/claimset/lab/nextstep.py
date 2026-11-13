@@ -42,11 +42,12 @@ def steps(events, actor=None, anchored=True):
     planned = {h for p in s["plans"] if p["kind"] != "exploratory" for h in p["hypotheses"]}
     loose = [h["id"] for h in s["hypotheses"] if h["status"] in ("proposed", "testing") and h["id"] not in planned]
     if loose:
-        out.append((f"plan the test of {', '.join(loose)} before running it: the quantities, the decision rule, the "
-                    f"design and every analysis choice",
+        out.append((f"agree the design of the test of {', '.join(loose)} with the supervisor, one topic at a time "
+                    f"(what is compared, the data, the measures, the test and its level, what counts as supported), "
+                    f"then plan it before running it, with where each choice came from",
                     f'claimset lab plan --kind confirmatory --hypotheses {" ".join(loose)} --design "…" '
                     f'--analysis "…" --framework … --quantity NAME=… --supported "…" --not-supported "…" '
-                    f'--requires-approval {by}'))
+                    f'--choice "measure|…|supervisor" --requires-approval {by}'))
     for p in s["plans"]:
         if p["awaiting_approval"]:
             out.append((f"show {p['id']} to {human} and ask whether they approve it as written; do not run it before "

@@ -19,6 +19,8 @@ A pilot ran the same study with agents of three sizes (entrylib:2026.000005). Wh
 - §9: export to claimset v0.42.
 - Records begun before v0.22 are read as they were written: rule L31 does not apply to them, and they have no estimation plans and no diagnostics.
 
+Amended on 2026-11-13 (§5.7, §5.7.6): a plan may record where each choice that can change the conclusion came from (`choices`: the brief, the supervisor, a method guide, the literature, or the agent alone), and the tool warns when a planned test records none, or records choices only the agent made. An agent evaluating forecasts chose its error measures from a well-known competition's precedent, without asking, and chose wrongly for the forecasts it compared. Optional in every record.
+
 Amended on 2026-11-13 (§5.9.1, step 4): when a run ends, the tool compresses its text outputs larger than 1 MB to `.gz` before hashing them. A run's tables of 40 MB of text were committed to a study branch and pushed, though they are rarely read. The compressed files are written the same way every time, so a hash depends on the content only. `results.json` stays as it is. Records of every version are written this way from now on; runs already recorded are not changed.
 
 ## Changes in v0.21 (since v0.20)
@@ -487,7 +489,7 @@ A revised hypothesis is a new `H` event; the old one gets a `status` event with 
 
 ### 5.7 `plan` (prefix `PL`)
 
-`{kind, hypotheses, question, estimands, design, analysis, setup, new_data, exclusions, diagnostics, addresses, decision, runs, requires_approval, data, holdout, code_version, dirty}`
+`{kind, hypotheses, question, estimands, design, analysis, setup, new_data, exclusions, diagnostics, choices, addresses, decision, runs, requires_approval, data, holdout, code_version, dirty}`
 
 - `kind`: `confirmatory` (tests hypotheses by a decision rule), `estimation` (fixes values to estimate, §5.7.8; from v0.22) or `exploratory`. Required.
 - `hypotheses`: hypothesis IDs the plan tests. Required (at least one) for `confirmatory`. One plan can test several hypotheses: when one computation decides several, they are named in one plan, with a quantity and rules that decide each (a verdict is recorded for each, §5.7.4), and the computation is run once.
@@ -497,6 +499,7 @@ A revised hypothesis is a new `H` event; the old one gets a `status` event with 
 - `new_data`: optional text: what the test uses that the runs which suggested its hypotheses did not (new data, a seed that changes the sample, new models or settings). Recommended when a hypothesis it names is `from_exploration` (§5.7.6): a test on what the exploration already saw can only repeat it.
 - `question`, `estimands`: an estimation plan's (§5.7.8), and only its.
 - `diagnostics`: optional, on a confirmatory or estimation plan (from v0.22): a list of distinct variable names, each a result every deciding run reports about the method itself: a convergence check (`convergence failures`), a residual test (`Ljung-Box p-value of residuals`), a count of models that hit a boundary. A deciding run with no result of that variable flags the test `diagnostic_missing` (§5.7.5). Name the diagnostics the analysis would be untrustworthy without; the runs then cannot leave them out unseen.
+- `choices`: optional, recommended for confirmatory and estimation plans (from v0.22 as amended on 2026-11-13): where each choice that can change the conclusion came from, a list of `{what, choice, source, ref}`, one per part of the design (`what`, distinct: `measure`, `test`, `significance level`, `data`, `holdout`, `comparator`, `threshold`, …). `source` is `brief` (the task the agent was given), `supervisor` (agreed with the person who supervises), `guide` (a method guide's default), `literature` (a methodological source the agent found) or `agent` (the agent's own, not yet agreed with anyone); `ref`, optional text, names the guide entry, paper or claim (`methods/prediction#mean-forecasts`, a DOI, `entrylib:2026.000001@v2#C4`). A precedent is not a source: that earlier studies used a measure says what they did, not why it fits this one. A plan whose choices are marked `agent` was not agreed (§5.7.6).
 - `exclusions`: optional list of `{name, rule}`: each rule that leaves units out of the analysis (models near a boundary, outliers, trimmed observations), with a name and the rule as text. The deciding runs report how many units each excluded, as a result whose `variable` contains `excluded` or the exclusion's name (§5.7.6), so readers see how much of the sample the verdict rests on.
 - `addresses`: optional list of the global IDs of review comments (`doi:…@v1/RV1.c6`) whose resolution test the plan runs (§5.7.7).
 - `decision`: the decision rule (§5.7.1). Required for `confirmatory`.
@@ -595,6 +598,7 @@ The tool warns, and records nothing, when:
 - a plan has no `exclusions` and a parameter of its decision rule has a name that suggests one: split at `_`, `-` and spaces, it contains `edge`, `band`, `exclude`, `exclusion`, `excluded`, `trim`, `trimmed`, `outlier`, `outliers` or `cutoff` (at `plan`);
 - a decided plan declares an exclusion and no result of its deciding runs has a `variable` containing `excluded` or the exclusion's name (at `verdict`);
 - a confirmatory run has the same `command`, `code_version`, `seeds` and `parameters` as a successful confirmatory run of another plan (at `run`, and as a note of `verify`): one computation recorded twice; one plan naming both hypotheses would have needed one run;
+- a confirmatory or estimation plan records no `choices`, or records choices whose source is `agent`, not yet agreed with the supervisor (at `plan`; from v0.22 as amended on 2026-11-13);
 - a confirmatory plan has no `setup` (at `plan`);
 - a plan's `setup` does not name a term that the `about` of a hypothesis it tests names, when the term's kind is `method`, `intervention`, `population`, `data`, `design` or `variable` (at `plan`): the test would decide a hypothesis about something it does not study or measure. A hypothesis about MASE tested by a plan that measures MSIS is a switched outcome; one about a comparison with N tested by a plan that runs only M and P is a switched comparator. Revise the hypothesis, or add the part to the setup.
 
@@ -933,6 +937,7 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | `claimset lab verdict PL2` | the verdict a decided plan's rule gives, with the value bound to each quantity (§5.7.3); for an estimation plan, the value each estimand binds (§5.7.8) |
 | `claimset lab next` | the steps still open, each with its command; every writing command ends with the next one |
 | `claimset lab plan --kind confirmatory --hypotheses H1 --design … --analysis … --framework frequentist --parameter alpha=0.05 … --quantity p="…" --supported "p < alpha" --not-supported "…" [--runs N] [--decision FILE] [--new-data "…"] [--exclusion name="rule"] [--studied TM1 TM2 --cases TM4 --procedure TM5 --lens TM3]` | writes a plan with its decision rule (§5.7.1) and anchors it; warns as in §5.7.6 |
+| `claimset lab plan … --choice "measure|RMSSE|guide|methods/prediction#mean-forecasts" --choice "significance level|0.05|supervisor"` | records where each choice of the design came from (§5.7, `choices`) |
 | `claimset lab plan --kind estimation --question Q1 --design … --analysis … --estimand mase='{"variable": "mean MASE", "conditions": {"method": "SES"}}' [--diagnostic "convergence failures"] [--requires-approval]` | an estimation plan (§5.7.8); `--diagnostic` also on confirmatory plans |
 | `claimset lab plan --kind confirmatory --hypotheses H1 H2 … --quantity s="…" --quantity n="…" --supported "H1: s < threshold" --not-supported "H1: s >= threshold" --supported "H2: n > ui" --not-supported "H2: n <= ui"` | a plan whose hypotheses have rules of their own (§5.7.1): a rule prefixed with a hypothesis ID is that hypothesis's; repeat for each |
 | `claimset lab plan --kind confirmatory --hypotheses H9 --comment doi:…@v1/RV1.c6 --review RV1.json --analysis "…"` | writes a plan that runs a review comment's resolution test: the decision rule is the comment's current test and `addresses` names the comment (§5.7.7); `--design` defaults to the test's procedure |
