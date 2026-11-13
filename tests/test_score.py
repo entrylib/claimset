@@ -157,11 +157,11 @@ class TestPreparation(Files):
             with self.assertRaises(sc.ScoreError):
                 sc.score(self.write(EXAMPLE))
         self.assertEqual(code, 2)
-        self.assertIn("pip install git+https://github.com/entrylib/rubric", err)
+        self.assertIn("pip install entrylib-rubric", err)
         old = types.ModuleType("rubric")
         old.VERSION, old.score = "0.1", lambda d: {}
         with mock.patch.dict(sys.modules, {"rubric": old}):
-            with self.assertRaisesRegex(sc.ScoreError, "too old"):
+            with self.assertRaisesRegex(sc.ScoreError, "too old.*pip install --upgrade entrylib-rubric"):
                 sc.score(self.write(EXAMPLE))
 
     def test_json(self):
