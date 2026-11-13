@@ -1389,6 +1389,12 @@ COMPOUND_CUES = [
     ("parenthesis", re.compile(r"\([^()]*\b(and|also|is|are)\b[^()]*\)", re.I)),
     ("recommendation", re.compile(r"\b(should|recommends?|recommended)\b", re.I)),
 ]
+# A recommendation is a sign only when it is added to a finding (§8 rule 1): the statement shows another sign, a
+# colon after the recommending word introduces its reason ("X should not be used: it rewards …"), or ", so" joins a
+# finding to it ("M is faster, so practitioners should use it"). A recommendation alone is one claim (erratum of
+# 2026-11-13).
+REASON_AFTER = re.compile(r":\s+\S")
+SO_JOIN = re.compile(r",\s*so\b", re.I)
 
 
 def compound_cues(text):
@@ -1399,6 +1405,9 @@ def compound_cues(text):
     out = []
     for kind, rx in COMPOUND_CUES:
         m = rx.search(plain)
+        if (m and kind == "recommendation" and not out and not REASON_AFTER.search(plain, m.end())
+                and not SO_JOIN.search(plain)):
+            continue
         if m:
             out.append(kind if kind in ("semicolon", "parenthesis", "side clause") else f"{kind} '{m.group(1).lower()}'")
     return out

@@ -1,6 +1,7 @@
 """Bugs fixed in the validator of every version (current and frozen): a value of the wrong type is reported, never a
 crash (rule 86 as the last resort), a percentage in a statement matches a value recorded in percent, names with
-digits are not numbers (warning 17), and warning 13 reads the assessment rationale (errata of 2026-11-12)."""
+digits are not numbers (warning 17), and warning 13 reads the assessment rationale (errata of 2026-11-12); a
+recommendation alone is not a sign of more than one claim (warning 22, erratum of 2026-11-13)."""
 
 import copy
 import json
@@ -120,6 +121,32 @@ class TestExploratoryRationale(unittest.TestCase):
             self.assertEqual(len(warned(d, "W13")), 1, v)
             c["assessments"][0]["rationale"] = "Exploratory: found while comparing the methods, not planned."
             self.assertEqual(warned(d, "W13"), [], v)
+
+
+class TestRecommendationSign(unittest.TestCase):
+    def statement_warnings(self, v, text):
+        d = load(v)
+        c = principal(d)
+        c["statement"] = text
+        return [w for w in warned(d, "W22") if w["where"].endswith(f"{c['id']}.statement")]
+
+    def test_a_recommendation_alone_is_one_claim(self):
+        for v in VERSIONS:
+            for text in ("[[D2:Method M]] should be evaluated with the pinball loss.",
+                         "For monthly series: [[D2:Method M]] is recommended."):
+                self.assertEqual(self.statement_warnings(v, text), [], (v, text))
+
+    def test_a_recommendation_with_its_reason_is_a_sign(self):
+        for v in VERSIONS:
+            for text, cue in (("[[D2:Method M]] should not be used: it rewards forecasts that are too high.",
+                               "recommendation 'should'"),
+                              ("[[D2:Method M]] should be used because it is consistent for the mean.",
+                               "recommendation 'should'"),
+                              ("[[D2:Method M]] is faster to fit, so practitioners should use it.",
+                               "recommendation 'should'")):
+                ws = self.statement_warnings(v, text)
+                self.assertEqual(len(ws), 1, (v, text))
+                self.assertIn(cue, ws[0]["message"], (v, text))
 
 
 if __name__ == "__main__":
