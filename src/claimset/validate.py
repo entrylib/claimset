@@ -25,7 +25,7 @@ import operator
 import re
 import sys
 
-SCHEMA_VERSION = "0.42"
+SCHEMA_VERSION = "0.43"
 #: The first specification version accepted (spec §2.6), set when the platform launches. Files of every version from
 #: it to SCHEMA_VERSION are then valid for good, each checked by its own version's rules (a frozen validator in
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
@@ -65,7 +65,7 @@ ENUM = {
     "claim_type": {"descriptive", "associational", "causal", "mechanistic", "predictive", "interpretive", "formal",
                    "methodological"},
     "role": {"principal", "supporting", "secondary"},
-    "novelty": {"no_prior_found", "replication", "extension", "refutation", "not_applicable"},
+    "novelty": {"no_prior_found", "replication", "extension", "refutation", "synthesis", "not_applicable"},
     "provenance": {"author_stated", "extracted", "inferred"},
     "verification": {"machine_checked", "agent_checked", "peer_checked", "disputed", "unchecked"},
     "check_outcome": {"confirmed", "disputed", "inconclusive"},
@@ -1161,6 +1161,18 @@ def text_checks(r, where, text, ids):
         r.err("1", where, f"a defined-term marker holds plain text, not another marker: '{m.group(0)}…' (§8 rule 5)")
     if INSTRUCTION_RE.search(text):
         r.err("safe-ingest", where, "text looks like an instruction addressed to a reader or model; remove it")
+
+
+def _synthesised(c, kinds, by_id):
+    """Rule 98 (v0.43): a synthesis rests on cited work, its own `cited` support or that of a claim it depends on."""
+    if "cited" in kinds:
+        return True
+    for d in as_list(c.get("depends_on")):
+        p = by_id(d, "claims")
+        if isinstance(p, dict) and (p.get("novelty") == "synthesis" or any(
+                isinstance(s, dict) and s.get("kind") == "cited" for s in as_list(p.get("support")))):
+            return True
+    return False
 
 
 def statement_checks(r, where, text):
@@ -3308,7 +3320,7 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
             check_enum(r, "1", f"{w}.novelty", c.get("novelty"), "novelty", required=True)
             if c.get("novelty") == "not_applicable" and c.get("role") == "principal":
                 r.err("84", f"{w}.novelty", "a principal claim is a finding of the paper: say whether it is new "
-                                            "(no_prior_found, replication, extension or refutation); not_applicable is "
+                                            "(no_prior_found, replication, extension, refutation or synthesis); not_applicable is "
                                             "for secondary and supporting claims that are not findings (a control, a "
                                             "routine check)")
     if c.get("provenance") is not None:
@@ -3566,6 +3578,9 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
     if c.get("novelty") == "no_prior_found" and kinds == {"consensus"}:
         r.warn("W19", w, "novelty no_prior_found, but the only support is established knowledge (consensus): if the claim is "
                          "itself known, cite it or relate to it; if it is new, give the support that shows it")
+    if c.get("novelty") == "synthesis" and not _synthesised(c, kinds, by_id):
+        r.err("98", f"{w}.novelty", "synthesis states what earlier work establishes: give the claim cited support, or "
+                                    "rest it (depends_on) on claims that cite that work (§3.7)")
     if ver == "machine_checked":
         fe = [by_id(s.get("evidence"), "evidence") for s in support if s.get("kind") == "formal_proof"]
         if not any(e is not None and e.get("proof_artefact") and e.get("checker") for e in fe):

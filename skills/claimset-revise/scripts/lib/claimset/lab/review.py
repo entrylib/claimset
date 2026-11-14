@@ -303,6 +303,10 @@ def export(exp):
             cb.setdefault("extracts", []).append({k: v for k, v in ex.items() if v is not None})
             cb.setdefault("kind", "recommendation" if RECOMMENDS.search(claim.get("statement") or "") else "summary")
             exp.done_support(claim)
+            if hasattr(exp, "mark_synthesis") and not any(
+                    s.get("kind") in ("empirical_quant", "empirical_qual") for s in claim["support"]):
+                exp.mark_synthesis(claim, "it states what the works its extracts quote establish, which are its "
+                                          "evidence; it extends them only if it goes beyond what they state")
     if block:
         exp.ext_block(exp.paper_object(), NAME).update(block)
     used = bool(block or refs or any(NAME in (c.get("ext") or {}) for c in exp.claims))

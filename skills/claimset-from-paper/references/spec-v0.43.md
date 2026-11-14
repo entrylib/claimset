@@ -1,10 +1,20 @@
-# Claimset — Specification v0.42 (draft)
+# Claimset — Specification v0.43 (draft)
 
-Status: working draft · Date: 2026-11-12 · Supersedes v0.41 (`spec/claimset-v0.41.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
+Status: working draft · Date: 2026-11-14 · Supersedes v0.42 (`spec/claimset-v0.42.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
 
 Claimset is the name of both the open format and the platform.
 
-## Changes since v0.41
+## Changes since v0.42
+
+A review states what earlier work establishes and draws rules from it; a study states the earlier results its findings rest on. Neither had a label for such a claim. The first review written as a claimset (a summary of the literature on evaluating predictions) had to label each of its findings and recommendations `extension`, with an `extends` relation to the very work it cites as its evidence: the page then said that the claims extend the papers they rely on, which is not what they do.
+
+- §3.7, §3.3: new `novelty` value `synthesis`: the claim states what earlier work establishes, as this paper reads and combines it. Its support is that work, cited (or it rests on claims that cite it); it needs no `extends` relation. New rule 98.
+- §3.3.4: a paper whose contribution is reading the literature (a review, guidance for practice) states what that literature establishes as its own claims, labelled `synthesis`; and a study may state an earlier result its argument rests on as a supporting claim labelled `synthesis`, with the passage it rests on, instead of only citing it.
+- Rule 4: unchanged in what it forbids (`restatement`, `background`): a synthesis is the paper's own reading of what it cites, with that work as support.
+- `claimset migrate` lists the claims labelled `extension` that extend the work they cite as support, for the authors to relabel.
+- Files of v0.42 and earlier are read as they were written.
+
+## Changes in v0.42 (since v0.41)
 
 Not every planned analysis tests a hypothesis. A study can fix in advance what it will estimate (an effect size, an accuracy, a share), how and on what data, and then report the value, with no rule that would call it supported or not. In a pilot, agents that had planned such estimates could record them only as hypotheses with an invented threshold, or as exploratory results (entrylib:2026.000005). And a plan that required its runs to check the method (convergence, residuals, coverage) had no way to show that a run left a check out.
 
@@ -516,7 +526,7 @@ Top-level layout:
 
 ```json
 {
-  "schema_version": "0.42",
+  "schema_version": "0.43",
   "@context": "optional",
   "paper": {},
   "contributors": [],
@@ -600,7 +610,7 @@ data/
 
 ### 2.6 Specification versions and compatibility
 
-`schema_version` (required, top level) is the version of this specification the file follows: `"0.42"`.
+`schema_version` (required, top level) is the version of this specification the file follows: `"0.43"`.
 
 - **Baseline.** The baseline is the first version the platform accepts: **v0.39**, set when the platform launched on 2026-11-09. A file following an earlier version is refused (rule 79) and brought to the current version by `claimset migrate`.
 - **Every version from the baseline is accepted, for good.** A file is checked by the rules of the version it follows, never by rules added later. A validator of a later version keeps the rules of every earlier version from the baseline and applies the ones the file's version calls for. A file valid under its version when it was published is valid under it in every later validator.
@@ -827,7 +837,7 @@ A definition explains in full only a term the paper introduces or uses in its ow
 | `about` | object | The claim's atom as fields: `subject`, `relation`, `object`, `comparator`, `conditions` (§3.3.5). Required for principal claims; recommended for supporting and secondary claims; absent on assumption claims |
 | `type` | enum | `descriptive` · `associational` · `causal` · `mechanistic` · `predictive` · `interpretive` · `formal` · `methodological` (choosing: §3.3.1) |
 | `role` | enum | `principal` (a contribution) · `supporting` (one of the paper's own claims that a contribution rests on, directly or through other claims, by `depends_on` or `assumptions`) · `secondary` (a finding of the paper that no contribution rests on: a side result, a negative or null result reported in its own right) |
-| `novelty` | enum | `no_prior_found` · `replication` · `extension` · `refutation` · `not_applicable` (a secondary or supporting claim that is not a finding: a control, a routine check; rule 84). Not on assumption claims (§3.8) |
+| `novelty` | enum | `no_prior_found` · `replication` · `extension` · `refutation` · `synthesis` (from v0.43; rule 98) · `not_applicable` (a secondary or supporting claim that is not a finding: a control, a routine check; rule 84). Not on assumption claims (§3.8) |
 | `scope` | object | `population`, `setting`, `geography`, `language`, `period`, `data_type`, `conditions` (list), `excludes` (list: where it explicitly does not apply). Describes this claim only (§3.3.2) |
 | `support` | list | Kinds of support (§4); at least one entry |
 | `assumptions` | list of claim IDs | Assumption claims (§3.8) this claim relies on |
@@ -987,12 +997,14 @@ Prior work enters a claimset in four ways, each linked to the paper's own conten
 
 | The paper uses prior work … | Recorded as |
 |---|---|
-| as a premise of one of its claims (a theorem it applies, a result it builds on): the claim fails if the cited work is wrong | `cited` support of that claim, pointing to the reference, with a `locator` (§4) |
+| as a premise of one of its claims (a theorem it applies, a result it builds on): the claim fails if the cited work is wrong | `cited` support of that claim, pointing to the reference, with a `locator` (§4); or, from v0.43, when what the premise states matters to a reader (the conditions under which the result holds, the passage it rests on), a supporting claim stating it, labelled `synthesis`, with that `cited` support, on which the claim depends (`depends_on`) |
 | to position a claim: what the claim answers, extends, refines, supports or contradicts | a relation of that claim (§3.7), with a one-sentence `note` saying what the target states |
 | as data, software or an implementation that its evidence uses | an artefact of that evidence (§3.6) with `reference` pointing to the cited work |
 | as vocabulary | a borrowed definition (§3.2) |
 
 Prior work that the paper cites as an example or an illustration ("used, e.g., in retail"), or as background (general motivation, surveys of the field), is left out: none of its claims uses it. When the tests do not decide, the item is kept: an unnecessary item costs length, a missing one loses content.
+
+**Reviews** (from v0.43). A paper whose contribution is reading the literature (a narrative or systematic review, guidance for practice) has what the literature establishes as its own content: its reading of it. It states each finding as a claim labelled `synthesis`, supported by the works it reads (`cited`, with locators; the review extension records how far each was read and the passages, `spec/extensions/review-v0.1.md`), and each rule it draws as a claim resting on those findings by an argument (§3.10). The two tests above still decide what else belongs.
 
 **One claim, several places.** Papers state their findings more than once: in the abstract, the introduction, the body and the conclusions. Each assertion is one claim, with source spans for every place the paper makes it, worded as precisely as its most specific statement (usually the body's, with its conditions). The introduction's and abstract's statements show which claims are contributions. A statement in the conclusions (or abstract) that is broader than what the body establishes (more general data, a stronger verb, a recommendation) is not merged into the claim it generalises: that would make the narrower claim stronger, or hide what the paper concludes. It is a claim of its own, with the scope the paper gives it, that depends on the claims it generalises.
 
@@ -1266,7 +1278,7 @@ Typed links from a claim to a claim or work outside this paper, or to another cl
 - `self`: true when the target work shares a human supervisor, guarantor or contributor with this paper.
 - `note`: optional; one self-contained sentence saying what the target states that the relation is about, e.g. for `addresses`: `"Selection among ETS models often misidentifies the type of trend."` It describes the target; it is not a claim of this paper.
 
-**Novelty** says what the claim is relative to earlier work, as far as the authors searched: `no_prior_found` (the authors found no earlier result stating the claim; this reports their search, not a proof that none exists), `replication` (it repeats an earlier result, on new data or by other means), `extension` (it carries an earlier result to new conditions), `refutation` (it shows an earlier result false). A `no_prior_found` claim cites the closest earlier result the authors found, when there is one, as a relation (`addresses` or `extends`) with a `note` saying how the claim differs; a reader then sees what was found and can judge the difference. For a converted paper, `no_prior_found` records that the source presents the claim as its own finding.
+**Novelty** says what the claim is relative to earlier work, as far as the authors searched: `no_prior_found` (the authors found no earlier result stating the claim; this reports their search, not a proof that none exists), `replication` (it repeats an earlier result, on new data or by other means), `extension` (it carries an earlier result to new conditions), `refutation` (it shows an earlier result false), `synthesis` (from v0.43: it states what earlier work establishes, as this paper reads and combines it: a review's findings and the rules it draws from them, or an earlier result a study's finding rests on, stated as a claim so that its passage, scope and conditions are recorded). A synthesis is supported by the work it states, `cited` with a locator, or rests (`depends_on`) on claims that cite it; it needs no `extends` relation, since the cited work is its evidence, not work it goes beyond. A rule a review draws that goes beyond what its sources state (a measure's scaling carried to a score its sources do not scale) is an `extension` of the work it builds on, with the `extends` relation. A `no_prior_found` claim cites the closest earlier result the authors found, when there is one, as a relation (`addresses` or `extends`) with a `note` saying how the claim differs; a reader then sees what was found and can judge the difference. For a converted paper, `no_prior_found` records that the source presents the claim as its own finding.
 
 **Relations within the paper.** `depends_on` says that a claim's argument needs another claim as a premise. Claims of one paper stand in other relations too, and these are relations with `id_type: local`: an explanation `explains` the result it accounts for ("M wins on short series because its initial states are estimated jointly" explains "M has the lowest error on series shorter than 36 observations"); an exception or boundary `qualifies` the claim it limits ("M does not improve on N for intermittent series" qualifies "M improves on N on the retail data"); the paper's results may `support`, `contradict` or `refine` one another; and a claim may `disputes_evidence` another that the paper reports and then questions. An explanation does not depend on the result it explains, and a result does not depend on its explanation: neither is the other's premise. The types `replicates`, `fails_to_replicate`, `supersedes` and `addresses` are for other works only.
 
@@ -1721,6 +1733,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 
 96. Estimands bind (§3.3.3). Each estimand of a planned estimate is an object with a `variable` and optionally `conditions`, `statistic`, `field` and `run`, as a test's quantity, and binds exactly one observation of the evidence objects the claim's support names, with a number at its `field`, as rule 91 says of quantities; an estimand listed in `not_obtained` binds none.
 97. `paper.published_as` (§3.1) appears only in native papers; it is an object whose `id_type` is one of `doi`, `arxiv`, `handle`, `pmid`, `isbn`, `url` and whose `id` is a string with text; `version`, when present, is a string.
+98. `novelty: synthesis` (from v0.43): the claim has `cited` support, or depends (`depends_on`) on a claim labelled `synthesis` or with `cited` support (§3.7).
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -1828,7 +1841,7 @@ What the agent submits. No identifier, version, date, status, classification IDs
 
 ```json
 {
-  "schema_version": "0.42",
+  "schema_version": "0.43",
   "paper": {
     "title": "Method M against the seasonal naive benchmark on UK monthly retail sales",
     "licence": "CC-BY-4.0",
@@ -1928,7 +1941,7 @@ What the agent submits. No identifier, version, date, status, classification IDs
 
 ```json
 {
-  "schema_version": "0.42",
+  "schema_version": "0.43",
   "paper": {
     "id": "doi:10.0000/claimset.2026.000456",
     "title": "Example converted paper",

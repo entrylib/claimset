@@ -149,8 +149,9 @@ class TestAroundIt(unittest.TestCase):
         d = copy.deepcopy(LAB_EXAMPLE)
         d["schema_version"] = "0.41"
         out, done, _todo = migrate(d)
-        self.assertEqual(out["schema_version"], "0.42")
-        self.assertIn("schema_version 0.41 -> 0.42", done)
+        from claimset.validate import SCHEMA_VERSION
+        self.assertEqual(out["schema_version"], SCHEMA_VERSION)
+        self.assertIn(f"schema_version 0.41 -> {SCHEMA_VERSION}", done)
 
 
 if __name__ == "__main__":

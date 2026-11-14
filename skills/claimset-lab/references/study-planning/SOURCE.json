@@ -1,11 +1,11 @@
 {
   "repository": "https://github.com/entrylib/study-planning",
-  "commit": "104ba1c8ed9c0fb9819e015621b0ea13cb5c73fc",
+  "commit": "62d595e9b48110e2c390fba6712a9bfe60b55cb8",
   "date": "2026-11-13",
   "files": {
-    "README.md": "a10b82ec8b021a2f3de80dbc5712c30708817ea0351edc78ce3c18ff8d886038",
+    "README.md": "e98edf37de7b59159b18751b3654eb12f0c3d99e39fd5c71e26275d140dd1489",
     "experiments.md": "e113c3d90c5145358a7ccff32ffc00bfe91f813c3a2aef4180f9574b94f4ee75",
-    "prediction.md": "6d2b6ce4f121a11ac701e05add0c3fa3ce9b5c2922958ced0ce1dc1512f23d21",
+    "prediction.md": "6c56f59fd1340be3e2c4cc0296380802bac0655eef5cba0213bbbcfb7133576c",
     "qualitative.md": "121a4b91aea0be59041bfdda8766f47d7eb81c97e348d2aadfd2de93bdd94e3d",
     "LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744"
   }

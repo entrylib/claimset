@@ -19,6 +19,8 @@ Only what is mechanical is changed:
   are listed to rebind (rule 91), since restructured evidence (result entries made into tables) leaves them
   naming what is gone;
 - v0.42: nothing changes but the version (planned estimates and the flag diagnostic_missing are new);
+- v0.43: nothing changes but the version; claims labelled `extension` that `extends` the very work their `cited`
+  support names are listed: if a claim states what that work establishes, its novelty is `synthesis` (new);
 - `schema_version` is set to the current version.
 From v0.33 a claim inherits the assumptions of the methods studied only for its own subject (§3.2): the
 assumptions a claim inherited under v0.32 and no longer does are listed, to be added to its own `assumptions`
@@ -49,6 +51,16 @@ def migrate(doc):
     if out.get("schema_version") != SCHEMA_VERSION:
         done.append(f"schema_version {out.get('schema_version')} -> {SCHEMA_VERSION}")
         out["schema_version"] = SCHEMA_VERSION
+    for c in out.get("claims") or []:
+        if not isinstance(c, dict) or c.get("novelty") != "extension":
+            continue
+        cited = {s.get("reference") for s in as_list(c.get("support")) if isinstance(s, dict) and s.get("kind") == "cited"}
+        extended = {r.get("reference") for r in as_list(c.get("relations")) if isinstance(r, dict)
+                    and r.get("type") == "extends"}
+        if cited & extended - {None}:
+            todo.append(f"claims.{c.get('id')}: labelled extension, it extends the work it cites as support "
+                        f"({', '.join(sorted(cited & extended))}). If it states what that work establishes, label it "
+                        f"synthesis and drop the extends relation (v0.43, §3.7); keep extension only if it goes beyond")
     for e in out.get("evidence") or []:
         if not isinstance(e, dict):
             continue
