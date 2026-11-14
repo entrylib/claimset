@@ -122,7 +122,10 @@ def build(events):
             continue
         under = [r for r in runs if st.root(r["body"].get("plan") or "") == p["id"]]
         plans.append({"id": p["id"], "kind": cur["body"].get("kind"),
-                      "hypotheses": cur["body"].get("hypotheses") or [], "design": cur["body"].get("design"),
+                      # by their first ID, as the hypotheses above are listed: a plan may name a correction
+                      "hypotheses": list(dict.fromkeys(st.root(h) if isinstance(h, str) and st.get(h) else h
+                                                       for h in cur["body"].get("hypotheses") or [])),
+                      "design": cur["body"].get("design"),
                       "question": cur["body"].get("question"),
                       "estimands": sorted(cur["body"].get("estimands") or {}),
                       "approved": bool({p["id"], cur["id"]} & approvals),
