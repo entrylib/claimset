@@ -58,6 +58,20 @@ class TestSteps(unittest.TestCase):
         self.assertEqual(nextstep.steps(self.lab.read()), [])
         self.assertIn("export the claimset", nextstep.line(self.lab.read()))
 
+    def test_a_plan_naming_a_corrected_hypothesis_plans_it(self):
+        """A plan that names the correction of a hypothesis plans that hypothesis: it is not listed as unplanned."""
+        self.add("actor", {"kind": "agent", "name": "A", "models": [{"provider": "P", "name": "M", "version": "1"}]})
+        self.add("actor", {"kind": "human", "name": "R", "words": "I am R.", "given_at": "2026-11-12T10:00:00Z"})
+        q = self.add("question", {"text": "Does X help?"})
+        h = self.add("hypothesis", {"statement": "X helps.", "question": q, "origin": "a_priori"})
+        h2 = self.lab.append("hypothesis", {"statement": "X helps on monthly data.", "question": q,
+                                            "origin": "a_priori"}, by="AC1", supersedes=h)["id"]
+        pl = self.add("plan", {"kind": "confirmatory", "hypotheses": [h2], "design": "d", "analysis": "a",
+                               "decision": DECISION, "requires_approval": True})
+        steps = [step for step, _ in nextstep.steps(self.lab.read())]
+        self.assertFalse(any("agree the design" in step for step in steps), steps)
+        self.assertTrue(any(f"show {pl} to AC2" in step for step in steps), steps)
+
     def test_anchoring_when_set_up(self):
         self.assertIn(("anchor the record, so its time is attested", "claimset lab anchor"),
                       nextstep.steps(self.lab.read(), anchored=False))
