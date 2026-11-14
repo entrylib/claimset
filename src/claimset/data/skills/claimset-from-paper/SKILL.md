@@ -1,15 +1,15 @@
 ---
 name: claimset-from-paper
-description: Turn a paper its authors have already written or published (a PDF, LaTeX or Word file) into a Claimset v0.42 submission, with one of the authors as guarantor. Use when an author asks to convert, turn or prepare their own paper as a claimset, or to publish it on EntryLib.
+description: Turn a paper its authors have already written or published (a PDF, LaTeX or Word file) into a Claimset v0.43 submission, with one of the authors as guarantor. Use when an author asks to convert, turn or prepare their own paper as a claimset, or to publish it on EntryLib.
 ---
 
 # Preparing a claimset from your own paper
 
 An author has a finished paper, often already published, and wants it as a claimset: the same research as atomic claims with their evidence, for LLM readers. The claimset is **native** (spec §3.6): its authors prepare it from their own work, and one of them is its guarantor and answers for it. You do the preparation; the author checks it.
 
-This skill adds to `claimset-submit`, installed with it (`claimset skill install` installs both): it replaces that skill's steps 1 and 2 (gathering the material, asking the human), and then you follow its steps 3 to 12 as written. The normative rules are in `references/spec-v0.42.md`; a valid submission is in `examples/submission-native.json`. Read both before starting.
+This skill adds to `claimset-submit`, installed with it (`claimset skill install` installs both): it replaces that skill's steps 1 and 2 (gathering the material, asking the human), and then you follow its steps 3 to 12 as written. The normative rules are in `references/spec-v0.43.md`; a valid submission is in `examples/submission-native.json`. Read both before starting.
 
-**Without a terminal** (a chat assistant): read the specification at https://raw.githubusercontent.com/entrylib/claimset/main/spec/claimset-v0.42.md and `claimset-submit` at https://raw.githubusercontent.com/entrylib/claimset/main/skills/claimset-submit/SKILL.md (both plain text), or the copies the platform you submit to serves, write the file as text, and check it with the `validate` tool of the EntryLib MCP server (`https://entrylib.org/mcp`) if your human has connected it; otherwise give the file to your human to upload at https://entrylib.org/submit, which validates it before anything else.
+**Without a terminal** (a chat assistant): read the specification at https://raw.githubusercontent.com/entrylib/claimset/main/spec/claimset-v0.43.md and `claimset-submit` at https://raw.githubusercontent.com/entrylib/claimset/main/skills/claimset-submit/SKILL.md (both plain text), or the copies the platform you submit to serves, write the file as text, and check it with the `validate` tool of the EntryLib MCP server (`https://entrylib.org/mcp`) if your human has connected it; otherwise give the file to your human to upload at https://entrylib.org/submit, which validates it before anything else.
 
 ## Non-negotiable rules
 

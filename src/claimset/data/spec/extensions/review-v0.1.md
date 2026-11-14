@@ -37,7 +37,7 @@ Version 0.1 covers every review, narrative or systematic. Risk of bias, certaint
   "contested_by": [{"reference": "B21", "note": "Argues that AUPRC is not generally preferable under class imbalance."}]}}
 ```
 
-- `kind`: `summary` (the claim states what the cited works establish) or `recommendation` (it turns what they establish into a rule of practice). The core's novelty still applies (claimset §3.7); for a review's claim it is usually `extension`, with an `extends` relation to the work it rests on.
+- `kind`: `summary` (the claim states what the cited works establish) or `recommendation` (it turns what they establish into a rule of practice). The core's novelty still applies (claimset §3.7). From claimset v0.43 a review's claim is a `synthesis`: it states what the works it cites establish, which are its evidence, with no `extends` relation; a rule that goes beyond what its sources state is an `extension` of the work it carries further (amended on 2026-11-14: before v0.43 this said `extension`, which made every claim extend its own evidence).
 - `extracts`: the passages the claim's `cited` support rests on. Each is `{reference, locator, exact, prefix, suffix, start, end, artefact, text, lab_event}`:
   - `reference` (required): a reference that a `cited` support entry of the claim points to;
   - `exact`: the passage, verbatim, from the captured copy `artefact` (with `prefix`, `suffix`, `start` and `end` as a W3C Web Annotation text-quote selector, as `claimset lab quote` gives them); or `text`: the passage as read where no copy was captured (an abstract on a publisher's page). One of the two is required;
@@ -126,7 +126,7 @@ The tool reports, and export writes to the paper's block (§1.3): `searched_befo
 | searches | `ext.review.searches` on the paper, in the order run, with `date` the day of `at` |
 | screenings | `ext.review.flow` on the paper, counted from the latest screening of each work at each stage: `screened`, `excluded_screening`, `assessed`, `excluded_full_text` by reason, `included`, `other_sources` (included works no search found); `identified` is the sum of the searches' results, left out when no search was recorded |
 | an included work | a reference, with `ext.review` `{read, version, checked_on, artefact, lab_event}` from its latest screening |
-| an extract | a `cited` support entry (the work's reference, with the extract's locator) and an entry of `ext.review.extracts`, on the claim of each hypothesis in `for`; the claim's `ext.review.kind` is `recommendation` when its statement recommends (should, use, avoid) and `summary` otherwise, to be checked |
+| an extract | a `cited` support entry (the work's reference, with the extract's locator) and an entry of `ext.review.extracts`, on the claim of each hypothesis in `for`, whose novelty is then `synthesis` (claimset v0.43); the claim's `ext.review.kind` is `recommendation` when its statement recommends (should, use, avoid) and `summary` otherwise, to be checked |
 | the flags of §2.6 | `ext.review.flags` on the paper |
 
 The claimset declares `"review": "0.1"` when any of these is exported.

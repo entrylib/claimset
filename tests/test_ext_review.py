@@ -282,6 +282,9 @@ class TestLab(LabCase):
         self.assertEqual(ex["exact"], "squared error scoring function is consistent")
         self.assertEqual((ex["artefact"], ex["lab_event"]), (art, xt))
         self.assertEqual(claim["ext"]["review"]["kind"], "recommendation")
+        self.assertEqual(claim["novelty"], "synthesis")                # claimset v0.43: it states what the work says
+        self.assertTrue(any("exported as synthesis" in c["what"] for c in out["completion"]
+                            if c["where"] == f"claims.{claim['id']}"))
         block = d["paper"]["ext"]["review"]
         self.assertEqual(block["protocol"]["sources"], ["Google Scholar"])
         self.assertEqual(block["searches"][0]["results"], 12)
@@ -297,6 +300,27 @@ class TestLab(LabCase):
         self.screen()
         block = export(self.lab)["draft"]["paper"]["ext"]["review"]
         self.assertEqual(block["flow"], {"assessed": 1, "included": 1, "other_sources": 1})   # nothing identified by a search
+
+    def test_a_rule_drawn_from_syntheses_is_one(self):
+        """§9 (claimset v0.43): a hypothesis whose status rests only on premises that are syntheses is exported as a
+        synthesis too, and the completion list asks whether its rule goes beyond them."""
+        sr = sources.capture(self.lab, self.agent, file=str(self.paper), url="https://arxiv.org/abs/0912.0902")["id"]
+        self.screen(source=sr, version="preprint")
+        premise = self.hyp("Squared error is consistent for the mean.")
+        work = parse_work("doi:10.1198/jasa.2011.r10138")
+        quote = sources.quote(self.lab, self.lab.state().latest(sr), "squared error scoring function is consistent")
+        xt = self.lab.append("extract", {"work": work, "for": [premise], "source": sr, "locator": "Section 5",
+                                         "quote": {k: quote[k] for k in ("exact", "prefix", "suffix", "start", "end")}},
+                             by=self.agent)["id"]
+        self.lab.append("status", {"target": premise, "to": "supported", "evidence": [xt],
+                                   "rationale": "Gneiting (2011, Section 5)."}, by=self.agent)
+        self.lab.append("status", {"target": self.h, "to": "supported", "evidence": [premise],
+                                   "rationale": "Squared error is consistent for the mean."}, by=self.agent)
+        out = export(self.lab)
+        rule = next(c for c in out["draft"]["claims"] if c["hypothesis"]["lab_event"] == self.h)
+        self.assertEqual(rule["novelty"], "synthesis")
+        self.assertTrue(any("goes beyond" in c["what"] for c in out["completion"] if c["where"] == f"claims.{rule['id']}"))
+        self.assertEqual(out["draft"]["schema_version"], "0.43")
 
 if __name__ == "__main__":
     unittest.main()

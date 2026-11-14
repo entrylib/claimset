@@ -439,6 +439,37 @@ class _Exporter:
                                    f"claim a replication or extension of it")
         return claim, cited_runs
 
+    def mark_synthesis(self, claim, why):
+        """The claim states what earlier work establishes (claimset v0.43 §3.7): its novelty is `synthesis`, and the
+        completion item on its novelty says why."""
+        if claim.get("novelty") == "synthesis":
+            return
+        claim["novelty"] = "synthesis"
+        cid = claim["id"]
+        self.completion = [c for c in self.completion
+                           if not (c["where"] == f"claims.{cid}" and "novelty is exported as" in c["what"])]
+        self.todo(f"claims.{cid}", f"confirm the type (exported as {claim.get('type')}) and role of {cid}, and give its "
+                                   f"scope; its novelty is exported as synthesis: {why}")
+
+    def synthesis_from_premises(self):
+        """A claim whose only support is an argument from claims that are syntheses is one too (§9), unless the rule
+        it draws goes beyond them, which the completion list asks about."""
+        by_id = {c["id"]: c for c in self.claims}
+        changed = True
+        while changed:
+            changed = False
+            for c in self.claims:
+                deps = c.get("depends_on") or []
+                if (c.get("novelty") == "synthesis" or not deps or not c["support"]
+                        or any(s.get("kind") != "argument" for s in c["support"])):
+                    continue
+                if all((by_id.get(d) or {}).get("novelty") == "synthesis" for d in deps):
+                    self.mark_synthesis(c, "it rests, by an argument, on claims that state what earlier work "
+                                           "establishes. If the rule it draws goes beyond what those works state, "
+                                           "label it extension, with an extends relation to the work it carries "
+                                           "further")
+                    changed = True
+
     def ask_background(self):
         """A claim resting on runs and on no premise: ask what earlier work it relies on (§9)."""
         for c in self.claims:
@@ -1246,6 +1277,7 @@ class _Exporter:
         for _name, impl, _mod in self.st.declared():       # the lab parts of extensions (§2.1)
             if impl is not None and hasattr(impl, "export"):
                 impl.export(self)
+        self.synthesis_from_premises()
         draft = {"schema_version": SPEC_VERSION, "paper": paper, "contributors": self.contributors,
                  "models": self.models, "definitions": definitions, "claims": self.claims, "evidence": self.evidence,
                  "warrants": self.warrants, "limitations": self.limitations, "artefacts": self.artefacts}

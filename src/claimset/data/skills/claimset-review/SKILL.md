@@ -5,7 +5,7 @@ description: Review a published Claimset paper as the platform's reviewer, or as
 
 # Reviewing a claimset
 
-These are the instructions the Claimset platform's reviewer follows; they are public so that every author knows how their claimset is reviewed and can review it the same way before submitting. Every review names the version of these instructions it followed (`reviewer.prompt`: version, public URI, hash). The rules are in `references/revision-v0.6.md` (reviews, comments, tests, verdicts, scores) and `references/spec-v0.42.md` (the claimset format).
+These are the instructions the Claimset platform's reviewer follows; they are public so that every author knows how their claimset is reviewed and can review it the same way before submitting. Every review names the version of these instructions it followed (`reviewer.prompt`: version, public URI, hash). The rules are in `references/revision-v0.6.md` (reviews, comments, tests, verdicts, scores) and `references/spec-v0.43.md` (the claimset format).
 
 A review never changes a claimset and never decides whether it is published. It finds what is wrong or unsupported, says for each problem what evidence would settle it, and scores each claim on those grounds. The author may answer with a revised version; the next review judges the answers by the tests written now.
 
@@ -87,7 +87,7 @@ Work claim by claim, principal claims first, then what they rest on. For each:
 Novelty is judged apart from credibility: a true claim is no less credible for being known, but a label that earlier work contradicts is a problem. For every claim that is not an assumption:
 
 1. **Search** for the closest earlier result: the platform's published claims first (they are single statements with scope and definitions, so they compare directly), then the claimset's own references, the works they cite and the works citing them, then literature databases, with queries built from the claim's statement, defined terms and scope.
-2. **Compare** the closest results with the claim, statement and scope: does an earlier result state this claim, under these conditions?
+2. **Compare** the closest results with the claim, statement and scope: does an earlier result state this claim, under these conditions? For a `synthesis` (a claim stating what the works it cites establish), check the reverse: do those works state it, under these conditions? A synthesis that goes beyond its sources is an `extension` of the work it carries further, and one its sources do not support is a credibility problem, not a novelty one.
 3. **Record** what you found in the review's `novelty` list:
 
 ```json
