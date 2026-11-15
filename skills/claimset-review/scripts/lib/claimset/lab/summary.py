@@ -91,6 +91,7 @@ def build(events):
             "evidence": s["body"].get("evidence", []) if s else [],
             "revised_to": s["body"].get("revised_to") if s else None,
             "corrected_by": cur["id"] if cur["id"] != h["id"] else None,
+            "label": st.label(cur["id"]),
         })
 
     checks = []
@@ -121,7 +122,8 @@ def build(events):
         if is_withheld(cur):
             continue
         under = [r for r in runs if st.root(r["body"].get("plan") or "") == p["id"]]
-        plans.append({"id": p["id"], "kind": cur["body"].get("kind"),
+        plans.append({"id": p["id"], "label": st.label(cur["id"]), "revision": len(st.chain(p["id"])),
+                      "kind": cur["body"].get("kind"),
                       # by their first ID, as the hypotheses above are listed: a plan may name a correction
                       "hypotheses": list(dict.fromkeys(st.root(h) if isinstance(h, str) and st.get(h) else h
                                                        for h in cur["body"].get("hypotheses") or [])),
@@ -192,7 +194,7 @@ def render(s):
         out.append(f"{q['id']}: {q['text']}")
         for h in [h for h in s["hypotheses"] if h["question"] == q["id"]]:
             extra = f" -> {h['revised_to']}" if h["revised_to"] else ""
-            corr = f" (corrected by {h['corrected_by']})" if h["corrected_by"] else ""
+            corr = f" (now {h['label']})" if h["corrected_by"] else ""
             out.append(f"  {h['id']} [{h['status']}{extra}] {h['statement']}{corr}")
     orphans = [h for h in s["hypotheses"] if h["question"] not in qs]
     for h in orphans:
@@ -207,7 +209,7 @@ def render(s):
             flags = ("approved, " if p["approved"] else "") + (f"runs {' '.join(p['runs'])}" if p["runs"] else "no runs yet")
             what = (f"estimates {', '.join(p['estimands'])} for {p['question']}" if p["kind"] == "estimation"
                     else f"tests {', '.join(p['hypotheses']) or '-'}")
-            out.append(f"  {p['id']} [{p['kind']}] {what} ({flags})")
+            out.append(f"  {p.get('label') or p['id']} [{p['kind']}] {what} ({flags})")
     r = s["runs"]
     if r["total"]:
         out.append(f"Runs: {r['total']} ({r['confirmatory']} confirmatory, {r['exploratory']} exploratory, "
@@ -226,9 +228,10 @@ def render(s):
     return "\n".join(out)
 
 
-def list_line(event):
-    """One line per event for `claimset lab list`."""
-    sup = f" (corrects {event['supersedes']})" if event.get("supersedes") else ""
+def list_line(event, label=None):
+    """One line per event for `claimset lab list`; a correction shows its revision label (§4.3)."""
+    sup = f" ({label}, corrects {event['supersedes']})" if event.get("supersedes") and label else \
+        (f" (corrects {event['supersedes']})" if event.get("supersedes") else "")
     text = _text(event)
     if len(text) > 100:
         text = text[:97] + "..."

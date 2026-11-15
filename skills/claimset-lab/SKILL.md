@@ -139,7 +139,7 @@ Three things are flagged, not refused, and readers see the flags: analysis code 
 1. Show the supervisor the plan (its hypotheses, design, analysis and decision rule) and ask, in one message, whether they approve it as written.
 2. Wait for their answer. Do not run the plan meanwhile; exploratory runs may continue.
 3. Record the answer yourself: `claimset lab approve PL1 --by <you> --on-behalf-of <their actor ID> --words "<their reply, verbatim>" --given-at <when they said it> --channel conversation`. The record then says who approved, when, in what words, and which agent (with its model, from its actor record) wrote it down. The supervisor never has to run the command, though they may (`--by` their own ID, without `--on-behalf-of`).
-4. If they ask for changes, correct the plan (`--supersedes`) and ask again: an approval covers the version it follows.
+4. If they ask for changes, correct the plan (`--supersedes PL1`) and ask again, naming the revision the tool prints (`PL1.R2`): an approval covers the revision it follows, so approve the revision they were shown (`claimset lab approve PL1.R2 …`).
 
 Never treat silence, a general instruction ("do whatever you need"), or a reply to another question as approval. A standing approval counts only if the supervisor gave it for these plans ("approve every confirmatory plan for Q2 as written"); quote it with `--words` and give the time they said it. If no supervisor is available, write plans without `--requires-approval` and proceed; the record shows which plans were approved.
 
@@ -209,7 +209,7 @@ Citing RS1 as evidence for H2 would be refused: RS1 suggested H2.
 
 ## Corrections
 
-Every writing command takes `--supersedes ID`: it writes a new event of the same type that replaces ID, which stays in the log. Correct a wrong hypothesis wording, a plan written with a typo, or a status given with the wrong evidence this way. An event can be corrected once; to correct it again, correct the correction. A plan corrected after a run does not change what that run was tested against.
+Every writing command takes `--supersedes ID`: it writes a new event of the same type that replaces ID, which stays in the log. Correct a wrong hypothesis wording, a plan written with a typo, or a status given with the wrong evidence this way. An event can be corrected once; to correct it again, correct the correction. The tool names a correction by its revision, `PL1.R2` (the root `PL1` is `PL1.R1`), and every command accepts the label; use it when you talk to people, so a revised plan stays one plan. A plan corrected after a run does not change what that run was tested against.
 
 ## Several agents at once
 
