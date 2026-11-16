@@ -10,6 +10,7 @@ A planned estimate could only report single values: each estimand bound exactly 
 
 - §3.3.3: an estimand may be a **table estimand**, `"table": true`: it binds every observation of the claim's evidence that has its variable and conditions, at least one, each with a number at its `field`. The statement summarises the values and names the tables that hold them. An estimand without `table` binds exactly one observation, as before. Rule 96 revised.
 - §8 rule 10 (new): a number in a statement is written as it is recorded, with no thousands separators (`1000`, not `1,000`), so that it reads the same as the value it reports. A statement had given test-set sizes as `1,000` and `10,000` while the results held 1000 and 10000. New warning 50; the validator reads `1,000` as one number when it compares statements with results (warnings 17 and 24).
+- §3.11: a claimset its authors converted from their published paper (`published_as`) lists that paper's authors first, in the order of its published byline, then anyone else, agents last; the guarantor keeps their place in the byline. A converted claimset had put its guarantor, the paper's last author, first, and the platform showed the paper's authors in that order. New warning 51 (an agent listed before one of the paper's authors); the order of the authors themselves can be checked only against the byline, which a platform has and a validator does not.
 - Files of v0.43 and earlier are read as they were written.
 
 ## Changes in v0.43 (since v0.42)
@@ -1337,6 +1338,8 @@ Every evidence object and every artefact has an `availability` (rule 75): whethe
 
 Authorship and accountability are separate. Agents write; one person answers for the research: the guarantor, the main author and the person to contact, who submits the claimset and confirms it on the platform. Other people who took part are supervisors or contributors. A converted paper's conversion is answered for by its conversion guarantor, a person or an organisation.
 
+**Order.** Contributors are listed in the order a reader should see them. A claimset its authors converted from their published paper (§3.1, `published_as`) lists that paper's authors first, in the order of its published byline (as the identifier's registry record, such as Crossref or DataCite, gives it), then anyone else, agents last. The guarantor keeps their place in the byline: no one is moved for their position, since the byline is part of the published record and readers and platforms show the paper's authors in this order. A platform may check the order against the registry record (warning 51 catches what a validator can: an agent before an author).
+
 A paper may pass through several agents without its history being kept. At minimum, the agent that prepares the submission lists itself; `paper.contribution_record` states how complete the list is. Before submission, the agent asks the responsible human who the guarantor is and which licence applies.
 
 **Common fields**
@@ -1797,6 +1800,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 48. No limitation affects a principal claim, neither `formal` nor an assumption, nor any claim it rests on through `depends_on` and `assumptions`: declare what could bias, reverse or limit it within its scope (§3.9). (Amended on 2026-11-12.)
 49. A native paper's `manuscript` artefact names a published paper (its `uri` is a DOI, an arXiv identifier or their resolver addresses) and `paper.published_as` is absent (§3.1): give it, so that readers and platforms can tell a converted paper from a draft.
 50. A number in a claim's statement is written with thousands separators (`1,000`, `10 000`): write it as it is recorded (`1000`; §8 rule 10). From v0.44.
+51. A native paper with `paper.published_as` lists an agent before one of the published paper's authors (a `guarantor` or `coauthor`): list the paper's authors first, in the order of its byline, then anyone else, agents last (§3.11). From v0.44.
 
 ## 11. Platform dependencies
 
