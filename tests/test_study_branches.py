@@ -309,6 +309,19 @@ class TestCleanCheckout(StudyRepo):
         self.assertIn("--desk", err)
         self.assertNotIn("fatal:", err)                     # not git's own error, nor a guess about a sandbox
         self.assertNotIn("sandbox", err)
+        self.assertIn("claimset: ask: Your project has no online git repository", err)   # the person decides
+
+    def test_a_refusal_the_person_decides_carries_their_question(self):
+        self.cli("setup", "--study", "pilot", "--title", "Pilot")
+        self.cli("lab", "actor", "--kind", "agent", "--name", "Agent", "--label", "research",
+                 "--model", "P|M|1|m-1", "--record-source", "self_reported")
+        code, out, err = self.cli("lab", "actor", "--kind", "human", "--name", "A. Researcher", "--by", "AC1")
+        self.assertEqual(code, 1)
+        self.assertIn("ERROR [L28]", err)                   # for the agent: the rule and the command
+        self.assertIn("claimset: ask: To add you to the study's record I need your name", err)
+        code, out, err = self.cli("lab", "question", "Does A beat B?", "--by", "AC9")
+        self.assertIn("ERROR [L8]", err)                    # the agent's own slip: nothing to ask anyone
+        self.assertNotIn("claimset: ask:", err)
 
     def test_the_receipt_of_each_push_is_in_the_next_commit(self):
         lab = self.new_study()

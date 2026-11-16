@@ -120,12 +120,31 @@ LOCK_TIMEOUT_SECONDS = 10
 
 
 class LabError(Exception):
-    """A refused write or a failed check, tagged with the rule it concerns."""
+    """A refused write or a failed check, tagged with the rule it concerns. `ask`: when the way on is the person's
+    decision, not the agent's, the question to put to them, in plain words (printed as `claimset: ask: …`)."""
 
-    def __init__(self, rule, message):
+    def __init__(self, rule, message, ask=None):
         super().__init__(f"[{rule}] {message}")
         self.rule = rule
         self.message = message
+        self.ask = ask
+
+
+#: Questions for the person, where a refusal's way on is theirs to decide (LabError.ask).
+ASK_APPROVAL = ("This test needs your approval of its plan before I run it. I will describe the plan: the test, the "
+                "data and the rule that decides the outcome. Do you approve it? Please answer in your own words; I "
+                "record them as you give them.")
+ASK_L6 = ("The result that suggested this hypothesis cannot also be the evidence that confirms it. Shall I plan a new "
+          "test on new data, or report the finding as exploration?")
+
+
+def report(exc, file=None):
+    """Print a refusal as the tool does: the error for the agent, then the question for the person, if it has one."""
+    import sys
+    file = file or sys.stderr
+    print(f"ERROR [{exc.rule}] {exc.message}", file=file)
+    if getattr(exc, "ask", None):
+        print(f"claimset: ask: {exc.ask}", file=file)
 
 
 # ---------------------------------------------------------------- hashing
@@ -700,7 +719,9 @@ def check_registration(state, body, by, eid):
         if not body.get("words"):
             raise LabError("L28", "actor: an agent registers a person only with the person's own words: their reply "
                                   "giving their name (and ORCID iD), verbatim (--words \"…\"); or the person runs "
-                                  "`claimset lab actor --kind human` themselves")
+                                  "`claimset lab actor --kind human` themselves",
+                           ask="To add you to the study's record I need your name, and your ORCID iD if you have one, "
+                               "in your own words. What are they?")
     elif body.get("words") is not None and kind != "agent":
         raise LabError("L28", "actor: words record what a person told the agent writing the event; a person "
                               "registering someone writes as themselves")
@@ -872,11 +893,11 @@ def check_status(state, body, by, eid):
         for e in evidence:
             if e in prompted:
                 raise LabError("L6", f"status: {e} suggested hypothesis {target} and cannot also confirm it; "
-                                     f"confirm it with a new run")
+                                     f"confirm it with a new run", ask=ASK_L6)
             ev = state.get(e)
             if ev and ev["type"] == "result" and not is_withheld(ev) and ev["body"].get("run") in prompted_runs:
                 raise LabError("L6", f"status: {e} comes from run {ev['body']['run']}, which suggested "
-                                     f"hypothesis {target}; confirm it with a new run")
+                                     f"hypothesis {target}; confirm it with a new run", ask=ASK_L6)
 
 
 def _check_confirmatory_run(state, plan_id, plan):
@@ -888,7 +909,10 @@ def _check_confirmatory_run(state, plan_id, plan):
     if d:
         raise LabError("L16", f"run: plan {plan_id} already has its deciding runs "
                               f"({', '.join(r['id'] for r in d[1])}); to test again, write a new plan, or "
-                              f"run it as exploratory")
+                              f"run it as exploratory",
+                       ask="This planned test has already been run, and a planned test gets one attempt. Shall I plan "
+                           "a new test on new data, or run this again only as exploration, which cannot confirm the "
+                           "hypothesis?")
 
 
 # A review comment's global ID (revision spec §2.2), named by plans that run its resolution test (§5.7.7)
@@ -1302,7 +1326,9 @@ def check_source(state, body, by, eid):
     holder = _enum(rights, "holder", "rights_holder", "source rights")
     if vis == "public" and holder == "third_party" and not (rights.get("licence") or rights.get("terms")):
         raise LabError("L26", "source: content written by others is published only under its own licence or terms "
-                              "that permit it; give --licence or --terms, or keep it private")
+                              "that permit it; give --licence or --terms, or keep it private",
+                       ask="This source was written by someone else. May it be published with the paper, and under "
+                           "which licence or terms? If you are not sure, I will keep it private.")
 
 
 def check_extension(state, body, by, eid):
@@ -1609,13 +1635,14 @@ def check_approval(state, body, by, eid):
         raise LabError("L22", "approval: approvals are written by a human, or by an agent on a human's behalf")
     if behalf is None:
         raise LabError("L22", "approval: an agent never approves on its own judgement; record the supervisor's "
-                              "approval with --on-behalf-of (their actor ID) and --words (their reply, verbatim)")
+                              "approval with --on-behalf-of (their actor ID) and --words (their reply, verbatim)",
+                       ask=ASK_APPROVAL)
     _ref(state, behalf, "approval", "on_behalf_of", {"actor"})
     h = state.latest(behalf)
     if not is_withheld(h) and h["body"].get("kind") != "human":
         raise LabError("L22", f"approval: {behalf} is not a human actor; approvals are given by people")
     if not isinstance(body.get("words"), str) or not body["words"].strip():
-        raise LabError("L22", "approval: give the human's words, as they gave them (--words)")
+        raise LabError("L22", "approval: give the human's words, as they gave them (--words)", ask=ASK_APPROVAL)
     _check_given(body, "approval")
 
 
@@ -1675,7 +1702,7 @@ def check_run(state, body, by, eid):
         if plan["body"].get("requires_approval") and not plan_approved(state, plan["id"]):
             raise LabError("L23", f"run: plan {plan['id']} requires approval and has none since it was written: ask "
                                   f"the supervisor, wait for their answer, and record it (`claimset lab approve "
-                                  f"{state.root(plan['id'])} --on-behalf-of … --words \"…\"`)")
+                                  f"{state.root(plan['id'])} --on-behalf-of … --words \"…\"`)", ask=ASK_APPROVAL)
 
 
 def check_result(state, body, by, eid):
