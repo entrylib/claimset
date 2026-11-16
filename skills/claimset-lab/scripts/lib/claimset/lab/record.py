@@ -162,14 +162,35 @@ def _fold_pending(lab, top):
     return bool(new)
 
 
+def described(paths, limit=4):
+    """The changed paths of the study folder, as a commit message names them: each file by its path, a run's outputs
+    by their folder (lab/runs/RN3), and no more than `limit`, then how many more. The event log is named by the
+    events added (save) and the anchors are receipts, so both are left out here."""
+    names = []
+    for p in paths:
+        parts = p.split("/")
+        if p in ("lab/lab.jsonl", "lab/anchors.jsonl"):        # named by its events; receipts are not a change
+            continue
+        name = "/".join(parts[:3]) if parts[:2] == ["lab", "runs"] and len(parts) > 3 else p
+        if name not in names:
+            names.append(name)
+    shown = ", ".join(names[:limit])
+    return shown + (f" and {len(names) - limit} more" if len(names) > limit else "")
+
+
 def commit(lab, message, extra_parents=()):
     """Commit the study folder to its branch, with the receipts of earlier pushes (§7.1). Returns the commit,
-    or None if nothing changed: receipts alone are not a change, they wait for the next commit."""
+    or None if nothing changed: receipts alone are not a change, they wait for the next commit. `message` may be a
+    function of the changed paths (relative to the study folder), called once they are known."""
     top = Path(lab.root).resolve().parent
     git(["add", "-A", "."], cwd=top)
     head = git(["rev-parse", "--verify", "-q", "HEAD"], cwd=top, check=False).stdout.strip()
     if head and not git(["diff", "--cached", "--quiet", "HEAD"], cwd=top, check=False).returncode:
         return None
+    if callable(message):
+        listed = git(["diff", "--cached", "--name-only", "HEAD"] if head else ["ls-files", "--cached"], cwd=top,
+                     check=False).stdout.split("\n")
+        message = message([x for x in listed if x.strip()])
     _fold_pending(lab, top)
     tree = git(["write-tree"], cwd=top).stdout.strip()
     args = ["commit-tree", tree, "-m", message]
@@ -323,10 +344,17 @@ def save(lab, before=0, message=None):
     events = lab.read()
     new = events[before:]
     codes = [e["body"].get("code_version") for e in new if e.get("type") == "run" and isinstance(e.get("body"), dict)]
-    if new:
-        ids = ", ".join(e["id"] for e in new[:5]) + (" …" if len(new) > 5 else "")
-        message = message or f"claimset lab: seq {new[0]['seq']}-{new[-1]['seq']} ({ids})"
-    c = commit(lab, message or "claimset lab: update", codes)
+    if message is None:
+        # the subject says what changed: the events added, and any other file of the study folder (a claimset
+        # exported or completed beside the record, a run's outputs, the anchors), each by its path
+        def message(paths):
+            others = described([p for p in paths if not (p.startswith("lab/runs/") and new)])
+            if new:
+                ids = ", ".join(e["id"] for e in new[:5]) + (" …" if len(new) > 5 else "")
+                head = f"claimset lab: seq {new[0]['seq']}-{new[-1]['seq']} ({ids})"
+                return head + (f"; {others}" if others else "")
+            return f"claimset lab: {others}" if others else "claimset lab: record"
+    c = commit(lab, message, codes)
     if c is None and not new and not migrated:
         return None
     if desk(lab):

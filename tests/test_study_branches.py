@@ -412,6 +412,37 @@ class TestCleanCheckout(StudyRepo):
         self.assertTrue(verify(lab, remote=True)["ok"], verify(lab, remote=True)["errors"])
 
 
+class TestCommitMessages(StudyRepo):
+    """A commit of the study branch says what changed: the events added, and every other file of the study folder by
+    its path, never a bare "update" (a claimset completed beside the record was committed as "claimset lab: update",
+    over and over, as it changed)."""
+
+    def subject(self, name="alpha"):
+        return git("log", "-1", "--format=%s", cwd=self.top / "claimset" / name)
+
+    def test_events_and_other_files_are_named(self):
+        lab = self.new_study()
+        (self.top / "claimset" / "alpha" / "alpha.claimset.json").write_text("{}", encoding="utf-8")
+        before = len(lab.read())
+        lab.append("question", {"text": "Q?"}, by="AC1")
+        record.save(lab, before)
+        self.assertRegex(self.subject(), r"^claimset lab: seq \d+-\d+ \(Q1\); alpha\.claimset\.json$")
+
+    def test_a_file_alone_is_named(self):
+        lab = self.new_study()
+        (self.top / "claimset" / "alpha" / "files").mkdir()
+        (self.top / "claimset" / "alpha" / "files" / "results.csv").write_text("a\n", encoding="utf-8")
+        (self.top / "claimset" / "alpha" / "alpha.claimset.json").write_text("{}", encoding="utf-8")
+        record.save(lab, len(lab.read()))
+        self.assertEqual(self.subject(), "claimset lab: alpha.claimset.json, files/results.csv")
+
+    def test_many_files_are_counted(self):
+        from claimset.lab.record import described
+        paths = ["lab/lab.jsonl", "lab/anchors.jsonl", "lab/runs/RN3/stdout.txt", "lab/runs/RN3/results.json",
+                 "a.json", "b.txt", "c.csv", "d.md", "e.json"]
+        self.assertEqual(described(paths), "lab/runs/RN3, a.json, b.txt, c.csv and 2 more")
+
+
 class TestConcurrentWriters(StudyRepo):
     """Lab record v0.15 §7.1: a receipt names the heads of the commit it was pushed with, not of the working tree,
     where another writer may have appended meanwhile; receipts that earlier tools made in that race are reported
