@@ -104,9 +104,10 @@ class TestPreparation(Files):
             out = sc.score(self.write(EXAMPLE))
             old = stub.report                                       # a rubric that takes no name: its own word
             self.assertIn("REPORT 77", sc.describe(out, name="Support"))
-            stub.report = lambda scores, top=0, name="reliability": f"{name} REPORT"
-            self.assertIn("Support REPORT", sc.describe(out, name="Support"))
-            self.assertIn("reliability REPORT", sc.describe(out))
+            stub.report = lambda scores, top=0, name="its own word": f"{name} REPORT"
+            self.assertIn("Backing REPORT", sc.describe(out, name="Backing"))
+            self.assertIn("Support REPORT", sc.describe(out))            # the score's name, whatever the rubric's age
+            self.assertIn("its own word REPORT", sc.describe(out, name=None))
             stub.report = old
 
     def test_a_claimset_with_packaged_files_is_scored_alone_or_as_its_package(self):
@@ -265,9 +266,9 @@ class TestWithTheRubric(Files):
         code, out, _ = run("score", str(self.write(EXAMPLE)))
         self.assertEqual(code, 0, out)
         expected = REAL_RUBRIC.assess(with_verifiability(EXAMPLE))
-        self.assertIn(f"PAPER: reliability {expected['paper']['score']} ({expected['paper']['band']})", out)
+        self.assertIn(f"PAPER: Support {expected['paper']['score']} ({expected['paper']['band']})", out)
         self.assertIn("BIGGEST ISSUES", out)
-        self.assertIn(REAL_RUBRIC.report(expected, 3), out)
+        self.assertIn(REAL_RUBRIC.report(expected, 3, name="Support"), out)
 
 
 if __name__ == "__main__":
