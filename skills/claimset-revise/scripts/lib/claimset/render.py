@@ -299,6 +299,7 @@ def _claim(c, inherited=()):
         names = [f"{n} = {q.get('variable')}"
                  + (f" {_conditions(q.get('conditions'))}" if q.get("conditions") else "")
                  + (f" {q['field']}" if q.get("field") not in (None, "value") else "")
+                 + (" (table: every value)" if q.get("table") is True else "")
                  + (" (not obtained)" if n in missing else "")
                  for n, q in (e.get("estimands") or {}).items() if isinstance(q, dict)]
         lines.append("  planned estimate: " + _join(["; ".join(names),

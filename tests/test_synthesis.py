@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from claimset.migrate import migrate  # noqa: E402
-from claimset.validate import validate  # noqa: E402
+from claimset.validate import SCHEMA_VERSION, validate  # noqa: E402
 
 NATIVE = json.loads((ROOT / "examples" / "submission-native.json").read_text(encoding="utf-8"))
 REF = {"id": "B90", "target": "10.1198/jasa.2011.r10138", "id_type": "doi"}
@@ -83,7 +83,7 @@ class TestMigrate(unittest.TestCase):
         c = finding(d, novelty="extension")
         c["relations"] = [{"type": "extends", "reference": "B90", "note": "Gneiting (2011) shows it."}]
         out, done, todo = migrate(d)
-        self.assertEqual(out["schema_version"], "0.43")
+        self.assertEqual(out["schema_version"], SCHEMA_VERSION)
         self.assertTrue(any("C90" in t and "synthesis" in t for t in todo), todo)
         c["relations"] = [{"type": "extends", "target": "10.1/other", "id_type": "doi", "note": "Another work."}]
         self.assertFalse(any("C90" in t and "synthesis" in t for t in migrate(d)[2]))

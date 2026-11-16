@@ -14,7 +14,7 @@ from claimset.lab import sources  # noqa: E402
 from claimset.lab.core import LabError, verify  # noqa: E402
 from claimset.lab.export import export  # noqa: E402
 from claimset.lab.review import parse_work  # noqa: E402
-from claimset.validate import validate  # noqa: E402
+from claimset.validate import SCHEMA_VERSION, validate  # noqa: E402
 
 from test_lab import LabCase  # noqa: E402
 
@@ -320,7 +320,7 @@ class TestLab(LabCase):
         rule = next(c for c in out["draft"]["claims"] if c["hypothesis"]["lab_event"] == self.h)
         self.assertEqual(rule["novelty"], "synthesis")
         self.assertTrue(any("goes beyond" in c["what"] for c in out["completion"] if c["where"] == f"claims.{rule['id']}"))
-        self.assertEqual(out["draft"]["schema_version"], "0.43")
+        self.assertEqual(out["draft"]["schema_version"], SCHEMA_VERSION)
 
 if __name__ == "__main__":
     unittest.main()
