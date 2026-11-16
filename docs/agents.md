@@ -27,6 +27,15 @@ Running `init` again updates what it wrote and leaves the rest of those files al
 
 `claimset lab actor --kind agent` records the agent's model and the harness it runs in (`system`), which most harnesses announce in the environment; `--system "NAME|VERSION"` gives it when they do not. An agent that cannot tell which model it is leaves `--model` out, and the tool takes `$CLAIMSET_MODEL` (`provider|name|version|identifier`), set by the human, recording it as reported by the human.
 
+## Messages for the agent, questions for the person
+
+The tool's messages are written for agents: an error names its rule (`ERROR [L23] …`) and the command that fixes it. The agent tells the person what happened in plain words (the rules in `claimset guide` say so). Where the way on is the person's decision, the error is followed by a line the agent passes on as written:
+
+```
+ERROR [L23] run: plan PL1 requires approval and has none since it was written: …
+claimset: ask: This test needs your approval of its plan before I run it. …
+```
+
 ## Sandboxes without network
 
 Some harnesses run commands in a sandbox without network. A study's record is pushed after every command, and `claimset submit` reaches entrylib.org, so both fail there; the error says how that harness lets the git host and entrylib.org through (for Codex: `codex -c sandbox_workspace_write.network_access=true`). `claimset init --list` shows what is known for each agent.

@@ -14,6 +14,7 @@ from . import package as _package
 from . import revision as _revision
 from . import validate as _validate
 from .lab import cli as _lab_cli
+from .lab.core import report as _report
 
 
 def _cmd_validate(args):
@@ -47,7 +48,7 @@ def _cmd_setup(args):
                 print("no study branches on the remote; create one with `claimset setup --study NAME --title …`")
         return 0
     except LabError as exc:
-        print(f"ERROR [{exc.rule}] {exc.message}", file=sys.stderr)
+        _report(exc)
         return 1
 
 

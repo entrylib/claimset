@@ -202,12 +202,19 @@ def push(lab):
         raise LabError("anchor", f"this repository has no git remote named '{remote}', so {branch} has nowhere to "
                                  f"be pushed. Add one you can push to (`git remote add {remote} <URL>`); a short "
                                  f"study that needs none is created in desk mode instead (`claimset setup --study "
-                                 f"NAME --title … --desk`), where nothing is anchored")
+                                 f"NAME --title … --desk`), where nothing is anchored",
+                       ask="Your project has no online git repository that I can send the study's record to. The "
+                           "record is sent there after every step, and that is what shows a plan came before its "
+                           "results. Will you add one (on GitHub or a similar host), or shall we keep this study on "
+                           "this computer only, knowing its plans are then not dated by anyone else?")
     out = git(["push", "-q", remote, f"HEAD:refs/heads/{branch}"], cwd=top, check=False)
     if out.returncode != 0:
         from ..agents import network_hint
         raise LabError("anchor", f"push of {branch} to {remote} failed: {out.stderr.strip()}"
-                                 f"{network_hint(out.stderr)}")
+                                 f"{network_hint(out.stderr)}",
+                       ask="I could not send the study's record to your git host. Nothing is lost: it is saved here "
+                           "and is sent with the next step. Can you check that I am allowed to reach the host and to "
+                           "push to this repository?")
     commit_id = git(["rev-parse", "HEAD"], cwd=top).stdout.strip()
     entry = heads_at(lab, commit_id)
     if entry is None:
@@ -329,6 +336,8 @@ def save(lab, before=0, message=None):
     except LabError as exc:
         print(f"claimset: WARNING the record is committed on its branch but not pushed: {exc.message}. "
               f"It is pushed with the next command; `claimset lab anchor` retries now.", file=__import__("sys").stderr)
+        if exc.ask:
+            print(f"claimset: ask: {exc.ask}", file=__import__("sys").stderr)
         return None
 
 

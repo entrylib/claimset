@@ -12,6 +12,7 @@ from .core import (REVISION_RE, Lab, LabError, bind_estimands, duplicate_runs, e
                    missing_diagnostics, plan_flags, plan_warnings, uncounted_exclusions, verify)
 from . import summary as _summary
 from .run import run_command
+from .core import report as _report
 from . import export as _export
 from . import decision as _decision
 from . import anchor as _anchor
@@ -1511,5 +1512,5 @@ def run(func, args):
                       f"({entry['receipt']['commit'][:12]})", file=sys.stderr)
         return code
     except LabError as exc:
-        print(f"ERROR [{exc.rule}] {exc.message}", file=sys.stderr)
+        _report(exc)
         return 1
