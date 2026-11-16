@@ -110,6 +110,8 @@ def version_tuple(v):
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
 ID_RE = re.compile(r"^(?:(AC\d+)\.)?([A-Z]+)(\d+)$")
+# a revision label (§4.3): ROOT.Rk is the k-th event of the correction chain whose root is ROOT (R1 is the root)
+REVISION_RE = re.compile(r"^((?:AC\d+\.)?[A-Z]+\d+)\.R([1-9]\d*)$")
 #: Names of studies and papers: lower-case letters, digits and hyphens, starting with a letter (§3).
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,59}$")
 AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
@@ -211,6 +213,34 @@ class State:
 
     def root(self, eid):
         return self.root_of.get(eid, eid)
+
+    def chain(self, eid):
+        """The IDs of the correction chain containing `eid`, from its root to its latest event."""
+        ids = [self.root(eid)]
+        while ids[-1] in self.superseded_by:
+            ids.append(self.superseded_by[ids[-1]])
+        return ids
+
+    def label(self, eid):
+        """How people name an event (§4.3): its ID, or ROOT.Rk once its chain has more than one event."""
+        if self.get(eid) is None:
+            return eid
+        chain = self.chain(eid)
+        return eid if len(chain) == 1 else f"{chain[0]}.R{chain.index(eid) + 1}"
+
+    def resolve(self, ref):
+        """The event ID a revision label names (ROOT.Rk); any other reference is returned as it is."""
+        m = REVISION_RE.match(ref) if isinstance(ref, str) else None
+        if not m:
+            return ref
+        root, k = m.group(1), int(m.group(2))
+        if self.get(root) is None or self.root(root) != root:
+            raise LabError("ref", f"{ref}: there is no event {root} that starts a correction chain")
+        chain = self.chain(root)
+        if k > len(chain):
+            raise LabError("ref", f"{ref}: {root} has {len(chain)} revision{'s' if len(chain) > 1 else ''}, the latest "
+                                  f"{self.label(chain[-1])}")
+        return chain[k - 1]
 
     def latest(self, eid):
         """The latest event of the correction chain containing `eid`."""

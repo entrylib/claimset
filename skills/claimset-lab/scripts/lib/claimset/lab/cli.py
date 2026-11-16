@@ -7,8 +7,8 @@ import re
 import sys
 from pathlib import Path
 
-from .core import (Lab, LabError, bind_estimands, duplicate_runs, file_hash, first_run_notice, missing_diagnostics,
-                   plan_flags, plan_warnings, uncounted_exclusions, verify)
+from .core import (REVISION_RE, Lab, LabError, bind_estimands, duplicate_runs, file_hash, first_run_notice,
+                   missing_diagnostics, plan_flags, plan_warnings, uncounted_exclusions, verify)
 from . import summary as _summary
 from .run import run_command
 from . import export as _export
@@ -41,8 +41,30 @@ def _clean(body):
 def _emit(args, event):
     if getattr(args, "json", False):
         print(json.dumps(event, ensure_ascii=False, indent=2))
+    elif event.get("supersedes"):
+        # a correction is named by its revision (§4.3): PL1.R2, not a new ID people would take for another plan;
+        # every command accepts the label
+        print(_lab(args).view(_actor(args, required=False)).label(event["id"]))
     else:
         print(event["id"])
+
+
+# arguments that hold a command line or free text, never a reference to an event
+_NOT_REFS = {"command", "words", "why", "text", "reason", "design", "analysis", "definition", "statement", "comment"}
+
+
+def _resolve_refs(args):
+    """Replace each revision label given as an argument (PL1.R2, §4.3) by the event ID it names."""
+    def labels(v):
+        return [x for x in (v if isinstance(v, list) else [v]) if isinstance(x, str) and REVISION_RE.match(x)]
+    if not any(labels(v) for k, v in vars(args).items() if k not in _NOT_REFS):
+        return
+    st = _view(args)
+    for k, v in vars(args).items():
+        if k in _NOT_REFS or not labels(v):
+            continue
+        setattr(args, k, [st.resolve(x) if isinstance(x, str) else x for x in v] if isinstance(v, list)
+                else st.resolve(v))
 
 
 def _auto_anchor(lab, event):
@@ -620,7 +642,7 @@ def cmd_verdict(args):
     rule = pv["body"]["decision"]
     runs = st.plan_runs.get(st.root(args.plan), [])
     hyps = [h for h in pv["body"].get("hypotheses") or [] if isinstance(h, str)]
-    out = {"plan": pv["id"], "framework": rule.get("framework"), "decided": bool(d),
+    out = {"plan": pv["id"], "plan_label": st.label(pv["id"]), "framework": rule.get("framework"), "decided": bool(d),
            "deciding_runs": [r["id"] for r in d[1]] if d else [r["id"] for r in runs],
            "runs_needed": pv["body"].get("runs", 1)}
 
@@ -646,7 +668,7 @@ def cmd_verdict(args):
         return 0
     parts = list(out["hypotheses"].items()) if "hypotheses" in out else [(None, out)]
     for h, x in parts:
-        head = f"{out['plan']} {h}" if h else out["plan"]
+        head = f"{out['plan_label']} {h}" if h else out["plan_label"]
         print(f"{head} ({x['framework']}): supported if {x['supported']}; "
               f"not_supported if {x['not_supported']}; otherwise inconclusive")
     if not d:
@@ -708,6 +730,14 @@ def _estimate(args, st, pv, d):
 
 
 def cmd_approve(args):
+    st = _view(args)
+    t = st.get(args.target)
+    if t is not None and t["type"] == "plan" and args.target != st.root(args.target) \
+            and st.latest(args.target)["id"] != args.target:
+        latest = st.latest(args.target)["id"]
+        raise LabError("ref", f"{st.label(args.target)} is not the plan's latest revision: {st.label(latest)} is. "
+                              f"Approve the revision the supervisor was shown; an approval counts for the revisions "
+                              f"written before it")
     return _write(args, "approval", {"target": args.target, "comment": args.comment,
                                      "on_behalf_of": args.on_behalf_of, "words": args.words,
                                      "given_at": args.given_at, "channel": args.channel})
@@ -810,20 +840,17 @@ def cmd_show(args):
     e = st.get(args.id)
     if e is None:
         raise LabError("L12", f"no event '{args.id}'")
-    latest = st.latest(args.id)
-    chain = []
-    cur = st.root(args.id)
-    chain.append(cur)
-    while cur in st.superseded_by:
-        cur = st.superseded_by[cur]
-        chain.append(cur)
-    out = {"event": latest, "correction_chain": chain if len(chain) > 1 else []}
+    chain = st.chain(args.id)
+    # a root ID means the latest revision; any other ID (or a label, PL1.R2) names that revision (§4.3)
+    shown = st.latest(args.id) if args.id == chain[0] else e
+    out = {"event": shown, "revision": st.label(shown["id"]), "correction_chain": chain if len(chain) > 1 else []}
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 
 
 def cmd_list(args):
-    events = _view(args).events
+    st = _view(args)
+    events = st.events
     if args.type:
         events = [e for e in events if e["type"] == args.type]
     if args.last:
@@ -832,7 +859,7 @@ def cmd_list(args):
         print(json.dumps(events, ensure_ascii=False, indent=2))
     else:
         for e in events:
-            print(_summary.list_line(e))
+            print(_summary.list_line(e, st.label(e["id"])))
     return 0
 
 
@@ -1456,6 +1483,8 @@ def run(func, args):
                 _record.migrate(lab)          # a receipt an earlier tool left uncommitted (lab record v0.15)
                 before = len(lab.read())
                 _not_a_person(lab, getattr(args, "by", None) or os.environ.get("CLAIMSET_ACTOR"))
+        if command and command not in ("init", "move"):
+            _resolve_refs(args)
         code = func(args)
         if code == 0 and lab is not None and lab.exists() and len(lab.read()) > before:
             _print_next(lab, args)

@@ -53,9 +53,10 @@ def steps(events, actor=None, anchored=True):
                     f'--choice "measure|…|supervisor" --requires-approval {by}'))
     for p in s["plans"]:
         if p["awaiting_approval"]:
-            out.append((f"show {p['id']} to {human} and ask whether they approve it as written; do not run it before "
+            shown = p.get("label") or p["id"]           # the revision shown is the revision approved (§4.3)
+            out.append((f"show {shown} to {human} and ask whether they approve it as written; do not run it before "
                         f"they answer",
-                        f'claimset lab approve {p["id"]} {by} --on-behalf-of {human} --words "<their reply>" '
+                        f'claimset lab approve {shown} {by} --on-behalf-of {human} --words "<their reply>" '
                         f'--given-at <when> --channel conversation'))
     for p in s["plans"]:
         if p["kind"] != "exploratory" and not p["awaiting_approval"] and not p["done"]:
