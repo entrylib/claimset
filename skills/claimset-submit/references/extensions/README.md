@@ -1,4 +1,35 @@
-# Registry of extensions
+# Extensions
+
+## What an extension is
+
+The claimset core holds what research in every field shares: claims, their evidence, assumptions, limitations and the terms they use. An extension adds what one kind of work needs and the others do not: the codebook of a qualitative study, the search and screening of a literature review, the glosses of linguistic examples. A paper uses every extension its work needs, and none when it needs none. A claimset is complete without its extensions: a reader that does not know one still reads every claim and what it rests on.
+
+## Using an extension
+
+- **Do you need one?** Only when your work has the record an extension describes (the table below). Declaring an extension without its record adds nothing, and the scores do not change.
+- **In a claimset:** name it in the top-level `extensions`, with the version you follow, and put its fields in `ext` blocks on the objects it extends:
+
+  ```json
+  {"schema_version": "0.44", "extensions": {"qualitative": "0.1"},
+   "definitions": [{"id": "D4", "term": "arrange for ensemble", "kind": "concept", "definition": "…",
+                    "ext": {"qualitative": {"code": {"include": "asks for automatic arranging for named instruments"}}}}]}
+  ```
+
+- **In a lab record:** nothing to declare by hand. The tool declares an extension the first time a command needs it (recording a code declares `qualitative`; recording a search declares `review`), and export carries its blocks into the claimset. `claimset lab extension NAME` declares one explicitly.
+- **Checking:** `claimset validate` checks every block by its extension's rules (`qualitative.1`, `review.3`, …), as it checks the core.
+- **If you work with an AI agent,** it reads the extension's specification from its skills (`references/extensions/`) and writes the blocks; you check what they say.
+
+## The extensions
+
+| Extension | For | Use it when | What you record | Specification |
+|---|---|---|---|---|
+| `qualitative` 0.1 | Research that codes material against a codebook | you assign codes to passages of sources and report themes or counts of coded material | the codes with their criteria, each coding of a passage, and the counts a planned test uses | [qualitative-v0.1.md](qualitative-v0.1.md) |
+| `review` 0.1 | Literature reviews, narrative or systematic | your claims state what other works establish | the protocol, the searches and screening counts, how far each work was read, the passages each claim rests on, and the works that disagree | [review-v0.1.md](review-v0.1.md) |
+| `linguistics` 0.1 | Linguistic examples | your evidence quotes examples that need a gloss | the interlinear gloss of each example, its segmentation into morphemes, and its acceptability judgement | [linguistics-v0.1.md](linguistics-v0.1.md) |
+
+`candidates.md` surveys the extensions the format may need next (trials, surveys, wet-lab work and others). None of them exists until it is registered below.
+
+## The registry
 
 Extensions add to the claimset core (claimset specification §2.7), and to the lab record (lab record §2.1, §5.22), the detail that one kind of work needs. One extension covers both: what the work records in the lab and what its claimset says. Each is specified in its own file, `<name>-v<major>.<minor>.md`, and follows the compatibility rule of §2.6 on its own: a block valid under a version of an extension stays valid under it for good.
 
