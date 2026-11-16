@@ -44,7 +44,7 @@ The rules:
 pip install claimset                 # Python 3.10 or later, no other dependencies
 claimset init                        # give the project's coding agents the skills and instructions
 claimset validate paper.claimset.json
-claimset score paper.claimset.json   # optional: the score EntryLib would give it, and its biggest issues
+claimset score paper.claimset.json   # optional, after `pip install entrylib-rubric`: the score EntryLib would give it
 claimset submit paper.claimset.json  # to EntryLib; prints the consent link for the guarantor
 ```
 
