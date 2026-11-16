@@ -10,7 +10,7 @@
 - Nothing in the tools, skills or specifications assumes one coding agent or one model provider. What differs between agents (where they read skills and instructions, their hooks, how they identify themselves, their sandboxes) is data in `src/claimset/agents.py`; `agents/` holds the one template `claimset init` writes for all of them.
 - `README.md` is also the PyPI page, read by agents as much as people: keep it short, with full URLs, and put reference material in `docs/`. Its rules for agents are `agents/RULES.md`, copied verbatim (`tests/test_guide.py` checks it).
 - Every validator rule needs a test: a valid case that passes and a broken case that fails with that rule's number.
-- Run `python3 -m unittest discover -s tests` before committing.
+- Before committing a change to Python code (`*.py`, `pyproject.toml`), run `python3 -m unittest discover -s tests`. A change to text alone (specifications, skills, examples, README) needs no test run; run `python3 tools/sync_skills.py` after editing what it copies.
 - Specification text is written for LLM readers as much as for humans: plain, explicit, one meaning per term.
 
 ## Pull requests

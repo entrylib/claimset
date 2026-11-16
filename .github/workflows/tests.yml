@@ -1,9 +1,13 @@
 name: tests
 
+# Python checks run only when Python code changes. A change to text alone (the specifications, skills, examples,
+# README) runs none here; build.yml still runs every check before a release is drafted.
 on:
   push:
     branches: [main]
+    paths: ["**.py", "pyproject.toml", ".github/workflows/tests.yml"]
   pull_request:
+    paths: ["**.py", "pyproject.toml", ".github/workflows/tests.yml"]
   workflow_call:          # run by build.yml before a release is drafted
 
 jobs:
