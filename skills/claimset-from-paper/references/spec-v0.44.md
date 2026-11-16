@@ -1,10 +1,17 @@
-# Claimset — Specification v0.43 (draft)
+# Claimset — Specification v0.44 (draft)
 
-Status: working draft · Date: 2026-11-14 · Supersedes v0.42 (`spec/claimset-v0.42.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
+Status: working draft · Date: 2026-11-16 · Supersedes v0.43 (`spec/claimset-v0.43.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
 
 Claimset is the name of both the open format and the platform.
 
-## Changes since v0.42
+## Changes since v0.43
+
+A planned estimate could only report single values: each estimand bound exactly one observation. A simulation study fixed in advance what it would estimate over a grid (for each distribution, measure and test-set size, the forecast each error measure ranks first), and its estimands, each naming a variable without the conditions that pick one value, matched a whole table. The format had no way to report that: the lab record exported them as not obtained, and the validator, rightly, refused that while they matched values.
+
+- §3.3.3: an estimand may be a **table estimand**, `"table": true`: it binds every observation of the claim's evidence that has its variable and conditions, at least one, each with a number at its `field`. The statement summarises the values and names the tables that hold them. An estimand without `table` binds exactly one observation, as before. Rule 96 revised.
+- Files of v0.43 and earlier are read as they were written.
+
+## Changes in v0.43 (since v0.42)
 
 A review states what earlier work establishes and draws rules from it; a study states the earlier results its findings rest on. Neither had a label for such a claim. The first review written as a claimset (a summary of the literature on evaluating predictions) had to label each of its findings and recommendations `extension`, with an `extends` relation to the very work it cites as its evidence: the page then said that the claims extend the papers they rely on, which is not what they do.
 
@@ -955,7 +962,8 @@ A claim that tests a hypothesis carries it as `hypothesis`, with the test's outc
 }
 ```
 
-- `estimands`: the values the plan fixed, `{name: {variable, conditions, statistic, field, run}}`. Each binds exactly one observation of the evidence the claim's support names, with a number at its `field`, as a test's quantities do (*Quantities and table cells*; rule 96).
+- `estimands`: the values the plan fixed, `{name: {variable, conditions, statistic, field, run, table}}`. Each binds exactly one observation of the evidence the claim's support names, with a number at its `field`, as a test's quantities do (*Quantities and table cells*; rule 96).
+- A **table estimand** (`"table": true`, from v0.44) is a set of values fixed in advance: the plan named a variable and the conditions it holds fixed, and every observation with that variable and those conditions is one of its values (one per setting, method or size of a grid). It binds all of them, at least one, each with a number at its `field`. The statement summarises them (their range, where they change, what they show) and names the tables of the evidence that hold them; it does not need to list every value. Use one when the plan fixed a grid of values to estimate; give an estimand without `table` the conditions that pick one value.
 - `not_obtained`: optional list of the names of estimands the planned runs did not give (a run failed, a value could not be computed). Each binds nothing, and the statement says which values were not obtained and why. A planned estimate that was not obtained is reported, as one that was.
 - `runs`, `lab_plan`, `registration`, `flags`: as in `test`. A planned estimate names its plan: `lab_plan`, `registration`, or both (rule 95).
 - The statement gives the values the estimands bind, with their uncertainty, under the scope the plan fixed. It calls them large, small, good or bad only by a standard the paper states and cites; a standard fixed in the plan for deciding would have made the plan a test, and the claim confirmatory.
@@ -1731,7 +1739,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 
 95. Planned estimates (§3.3.3). A claim with `planning: planned_estimate` has `estimate` and `planned_at_anchor`, and `planned_at` unless `planned_at_anchor` is `registry` and `estimate.registration` names the registration; it has no `hypothesis` and no `test`. `estimate` is an object with only `estimands`, `not_obtained`, `runs`, `lab_plan`, `registration` and `flags`: `estimands` is a non-empty object; it names its plan by `lab_plan` or `registration` (the ID of an entry in `references`), or both; `runs`, if present, is a positive integer; `flags`, if present, is a list of test flags (§3.3.3); `not_obtained`, if present, is a list of names of its estimands. A claim with `estimate` has `planning: planned_estimate`.
 
-96. Estimands bind (§3.3.3). Each estimand of a planned estimate is an object with a `variable` and optionally `conditions`, `statistic`, `field` and `run`, as a test's quantity, and binds exactly one observation of the evidence objects the claim's support names, with a number at its `field`, as rule 91 says of quantities; an estimand listed in `not_obtained` binds none.
+96. Estimands bind (§3.3.3). Each estimand of a planned estimate is an object with a `variable` and optionally `conditions`, `statistic`, `field`, `run` and (from v0.44) `table` (a boolean), as a test's quantity, and binds exactly one observation of the evidence objects the claim's support names, with a number at its `field`, as rule 91 says of quantities; a table estimand (`table: true`) binds at least one, each with a number at its `field`; an estimand listed in `not_obtained` binds none. (Revised in v0.44.)
 97. `paper.published_as` (§3.1) appears only in native papers; it is an object whose `id_type` is one of `doi`, `arxiv`, `handle`, `pmid`, `isbn`, `url` and whose `id` is a string with text; `version`, when present, is a string.
 98. `novelty: synthesis` (from v0.43): the claim has `cited` support, or depends (`depends_on`) on a claim labelled `synthesis` or with `cited` support (§3.7).
 

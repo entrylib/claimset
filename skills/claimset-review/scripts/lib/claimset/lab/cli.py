@@ -7,7 +7,8 @@ import re
 import sys
 from pathlib import Path
 
-from .core import (REVISION_RE, Lab, LabError, bind_estimands, duplicate_runs, file_hash, first_run_notice,
+from .core import (REVISION_RE, Lab, LabError, bind_estimands, duplicate_runs, estimand_matches, file_hash,
+                   first_run_notice, is_table_estimand,
                    missing_diagnostics, plan_flags, plan_warnings, uncounted_exclusions, verify)
 from . import summary as _summary
 from .run import run_command
@@ -622,6 +623,12 @@ def cmd_plan(args):
             "code_version": commit, "dirty": dirty if commit is not None else None}
     body = _record_forms(args, "plan", body)
     warnings = plan_warnings(_view(args), body)
+    for name, q in estimands.items():               # what an estimand will bind (§5.7.8, as amended 2026-11-16)
+        if isinstance(q, dict) and not q.get("conditions") and "table" not in q:
+            warnings.append(f"estimand {name} names no conditions: if the runs give several results of "
+                            f"{q.get('variable')!r} (one per setting of a grid), it reports all of them as a table; "
+                            f"give conditions to estimate one value, or say so with "
+                            f"--estimand '{name}={{\"variable\": \"{q.get('variable')}\", \"table\": true}}'")
     code = _write(args, "plan", body)
     for w in warnings:
         print(f"claimset: warning: {w}", file=sys.stderr)
@@ -704,7 +711,12 @@ def _estimate(args, st, pv, d):
            "deciding_runs": [r["id"] for r in d[1]] if d else [r["id"] for r in runs],
            "runs_needed": pv["body"].get("runs", 1), "estimands": {}}
     if d:
+        matches = estimand_matches(st, d[0], d[1])
         for name, (res, value) in bind_estimands(st, d[0], d[1]).items():
+            q = (d[0]["body"].get("estimands") or {}).get(name)
+            if is_table_estimand(q, matches.get(name, [])):
+                out["estimands"][name] = {"table": [r["id"] for r in matches.get(name, [])]}
+                continue
             out["estimands"][name] = {"result": res["id"] if res else None, "value": value}
         unclear = []
         out["flags"] = plan_flags(st, d[0], d[1], lab=_lab(args), notes=unclear)
@@ -720,6 +732,10 @@ def _estimate(args, st, pv, d):
         return 0
     print(f"Deciding runs: {', '.join(out['deciding_runs'])}")
     for name, x in out["estimands"].items():
+        if "table" in x:
+            print(f"  {name}: a table of {len(x['table'])} results" if x["table"] else
+                  f"  {name}: a table estimand, not obtained (no result of the deciding runs matches it)")
+            continue
         print(f"  {name} = {x['value']} ({x['result']})" if x["result"] else
               f"  {name}: not obtained (no single result of the deciding runs holds it)")
     for f in out.get("flags") or []:

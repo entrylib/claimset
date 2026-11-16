@@ -1,6 +1,6 @@
 # Claimset Lab Record — Specification v0.22 (draft)
 
-Status: working draft · Date: 2026-11-12 · Supersedes v0.21 · Companion to the claimset specification (`spec/claimset-v0.43.md`; v0.42 until 2026-11-14), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
+Status: working draft · Date: 2026-11-12 · Supersedes v0.21 · Companion to the claimset specification (`spec/claimset-v0.44.md`; v0.43 until 2026-11-16, v0.42 until 2026-11-14), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
 
 ## Errata
 
@@ -20,6 +20,8 @@ A pilot ran the same study with agents of three sizes (entrylib:2026.000005). Wh
 - Records begun before v0.22 are read as they were written: rule L31 does not apply to them, and they have no estimation plans and no diagnostics.
 
 Amended on 2026-11-13 (§5.7, §5.7.6): a plan may record where each choice that can change the conclusion came from (`choices`: the brief, the supervisor, good practice for planning a study, the literature, or the agent alone), and the tool warns when a planned test records none, or records choices only the agent made. An agent evaluating forecasts chose its error measures from a well-known competition's precedent, without asking, and chose wrongly for the forecasts it compared. Optional in every record.
+
+Amended on 2026-11-16 (§5.7.8, §9): an estimand may be a table estimand: the plan says so (`"table": true`), or it matches several results of the deciding runs, all of which it then reports; export writes claimset v0.44, which has table estimands, and marks them. A simulation study fixed a grid of values to estimate (one per distribution, measure and test-set size), naming each estimand by its variable alone; export reported every one as not obtained, though the runs had given them all, and the claimset validator refused that. `claimset lab plan` now says, for an estimand that names no conditions, that it will report a table if the runs give several results. Nothing a record holds changes meaning: an estimand that matched exactly one result binds it as before.
 
 Amended on 2026-11-15 (§4.3): a corrected event is named by its revision, `PL1.R2` for the second event of the chain whose root is `PL1`, wherever people read or write IDs; the tool accepts the label in every command and prints it for a correction. A plan revised before approval had appeared as a new plan (`PL2`, `PL3`, `PL4`) while it was one plan being revised, and the supervisor was asked to approve an ID they had not been shown. The tool refuses an approval of a plan revision that is not the latest. Nothing a record holds changes: the log keeps event IDs.
 
@@ -636,11 +638,12 @@ Not every planned analysis decides a hypothesis. A study may fix in advance what
 ```
 
 - `question`: the question whose values it estimates. Required. It places the estimate in a paper (§5.17).
-- `estimands`: the values it estimates, `{name: {variable, conditions, statistic, field, run}}`, each binding one result of the deciding runs as a decision rule's quantity does (§5.7.1). Required, at least one; names are letters, digits and `_`, starting with a letter. With several deciding runs, each names its `run`.
+- `estimands`: the values it estimates, `{name: {variable, conditions, statistic, field, run, table}}`, each binding one result of the deciding runs as a decision rule's quantity does (§5.7.1). Required, at least one; names are letters, digits and `_`, starting with a letter. With several deciding runs, each names its `run`.
+- A **table estimand** (as amended on 2026-11-16) estimates a grid of values: one per setting, method or size the plan varies. It is marked `"table": true`, or names its variable and the conditions it holds fixed and matches several results of the deciding runs; it reports every result it matches (claimset §3.3.3, table estimands). To estimate one value, give the conditions that pick it.
 - `design`, `analysis`, `setup`, `data`, `holdout`, `exclusions`, `diagnostics`, `runs`, `requires_approval`: as for a confirmatory plan.
 - No `hypotheses` and no `decision`: nothing is supported or refuted. A plan that fixes a rule for deciding (a threshold the value must pass) is a confirmatory plan of a hypothesis.
 
-Its runs are labelled `confirmatory`, since they carry out a plan fixed in advance: the plan is decided by its first `runs` of them (§5.7.2), further ones are refused (L16), and approval and anchoring apply as for a confirmatory plan (L5, L23). `claimset lab verdict` shows the value each estimand binds, the flags and the warnings; no status is recorded. Export makes each decided estimation plan a claim (§9). An estimand that binds no result (a run failed) is reported as not obtained, never dropped.
+Its runs are labelled `confirmatory`, since they carry out a plan fixed in advance: the plan is decided by its first `runs` of them (§5.7.2), further ones are refused (L16), and approval and anchoring apply as for a confirmatory plan (L5, L23). `claimset lab verdict` shows the value each estimand binds (for a table estimand, how many results it reports), the flags and the warnings; no status is recorded. Export makes each decided estimation plan a claim (§9). An estimand that binds no result (a run failed) is reported as not obtained, never dropped.
 
 ### 5.8 `approval` (prefix `AP`)
 

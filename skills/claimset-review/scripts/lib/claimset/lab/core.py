@@ -1501,10 +1501,13 @@ def check_estimation_plan(state, body):
             raise LabError("L32", f"plan: estimand name {name!r}: letters, digits and _, starting with a letter")
         if not isinstance(q, dict) or not isinstance(q.get("variable"), str) or not q["variable"].strip():
             raise LabError("L32", f"plan: estimand {name} binds a result by its variable: {{\"variable\": …}}")
-        extra = set(q) - {"variable", "conditions", "statistic", "field", "run"}
+        extra = set(q) - {"variable", "conditions", "statistic", "field", "run", "table"}
         if extra:
             raise LabError("L32", f"plan: estimand {name} has {', '.join(sorted(extra))}; an estimand has variable, "
-                                  f"conditions, statistic, field and run")
+                                  f"conditions, statistic, field, run and table")
+        if "table" in q and not isinstance(q["table"], bool):
+            raise LabError("L32", f"plan: estimand {name}: table is true (a table estimand: every result with its "
+                                  f"variable and conditions) or false")
         if q.get("conditions") is not None and not isinstance(q["conditions"], dict):
             raise LabError("L32", f"plan: estimand {name}: conditions is an object")
         if q.get("field", "value") not in _claimset.QUANTITY_FIELDS:
@@ -1519,20 +1522,41 @@ def check_estimation_plan(state, body):
 NAME_TOKEN_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 
-def bind_estimands(state, plan_version, runs):
-    """{name: (result event or None, value or None)} for each estimand of a decided estimation plan (§5.7.8): the one
-    result of the deciding runs it binds, as a decision rule's quantity binds; None when it binds none or several."""
+def estimand_matches(state, plan_version, runs):
+    """{name: [result events]}: every result of the deciding runs that each estimand of an estimation plan matches
+    (§5.7.8): its variable, its conditions, its statistic, in its run."""
     out = {}
     est = plan_version["body"].get("estimands") if isinstance(plan_version["body"].get("estimands"), dict) else {}
     for name, q in est.items():
         if not isinstance(q, dict):
-            out[name] = (None, None)
+            out[name] = []
             continue
         pool = runs if not isinstance(q.get("run"), int) else runs[q["run"] - 1:q["run"]]
-        hits = [r for run in pool for r in state.results_of.get(run["id"], [])
-                if not is_withheld(r) and _decision.observed(r["body"]) == q.get("variable")
-                and all(_conditions(r["body"]).get(k) == v for k, v in _conditions(q).items())
-                and (q.get("statistic") is None or r["body"].get("statistic") == q.get("statistic"))]
+        out[name] = [r for run in pool for r in state.results_of.get(run["id"], [])
+                     if not is_withheld(r) and _decision.observed(r["body"]) == q.get("variable")
+                     and all(_conditions(r["body"]).get(k) == v for k, v in _conditions(q).items())
+                     and (q.get("statistic") is None or r["body"].get("statistic") == q.get("statistic"))]
+    return out
+
+
+def is_table_estimand(q, matches):
+    """Whether an estimand reports a table (§5.7.8, as amended on 2026-11-16): it says so (table: true), or it matches
+    several results of the deciding runs, all of which it then reports."""
+    return isinstance(q, dict) and (q.get("table") is True or len(matches) > 1)
+
+
+def bind_estimands(state, plan_version, runs):
+    """{name: (result event or None, value or None)} for each estimand of a decided estimation plan (§5.7.8): the one
+    result of the deciding runs it binds, as a decision rule's quantity binds; None when it binds none or several
+    (a table estimand: estimand_matches gives all its results)."""
+    out = {}
+    est = plan_version["body"].get("estimands") if isinstance(plan_version["body"].get("estimands"), dict) else {}
+    matches = estimand_matches(state, plan_version, runs)
+    for name, q in est.items():
+        if not isinstance(q, dict):
+            out[name] = (None, None)
+            continue
+        hits = matches.get(name, [])
         if len(hits) != 1:
             out[name] = (None, None)
             continue

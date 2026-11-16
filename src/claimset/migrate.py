@@ -21,6 +21,8 @@ Only what is mechanical is changed:
 - v0.42: nothing changes but the version (planned estimates and the flag diagnostic_missing are new);
 - v0.43: nothing changes but the version; claims labelled `extension` that `extends` the very work their `cited`
   support names are listed: if a claim states what that work establishes, its novelty is `synthesis` (new);
+- v0.44: nothing changes but the version; the estimands of planned estimates that match several observations are
+  listed: if the plan fixed all of them as a grid of values, the estimand is a table estimand (`table: true`, new);
 - `schema_version` is set to the current version.
 From v0.33 a claim inherits the assumptions of the methods studied only for its own subject (§3.2): the
 assumptions a claim inherited under v0.32 and no longer does are listed, to be added to its own `assumptions`
@@ -51,6 +53,23 @@ def migrate(doc):
     if out.get("schema_version") != SCHEMA_VERSION:
         done.append(f"schema_version {out.get('schema_version')} -> {SCHEMA_VERSION}")
         out["schema_version"] = SCHEMA_VERSION
+    evidence = {e.get("id"): e for e in out.get("evidence") or [] if isinstance(e, dict)}
+    for c in out.get("claims") or []:
+        est = c.get("estimate") if isinstance(c, dict) else None
+        if not isinstance(est, dict) or not isinstance(est.get("estimands"), dict):
+            continue
+        evs = [evidence[s["evidence"]] for s in as_list(c.get("support"))
+               if isinstance(s, dict) and s.get("evidence") in evidence]
+        for name, q in est["estimands"].items():
+            if not isinstance(q, dict) or q.get("table") is not None or not isinstance(q.get("variable"), str):
+                continue
+            hits = [h for e in evs for h in bind_quantity(q, bindable(e), [x for x in as_list(e.get("lab_runs"))
+                                                                         if isinstance(x, str)])]
+            if len(hits) > 1:
+                todo.append(f"claims:{c.get('id')}.estimate.estimands.{name} matches {len(hits)} observations: if the "
+                            f"plan fixed all of them as a grid of values to estimate, mark it a table estimand "
+                            f"(\"table\": true, v0.44, §3.3.3) and remove it from not_obtained; otherwise give the "
+                            f"conditions that pick one")
     for c in out.get("claims") or []:
         if not isinstance(c, dict) or c.get("novelty") != "extension":
             continue

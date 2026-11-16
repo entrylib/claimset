@@ -25,7 +25,7 @@ import operator
 import re
 import sys
 
-SCHEMA_VERSION = "0.43"
+SCHEMA_VERSION = "0.44"
 #: The first specification version accepted (spec §2.6), set when the platform launches. Files of every version from
 #: it to SCHEMA_VERSION are then valid for good, each checked by its own version's rules (a frozen validator in
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
@@ -1683,9 +1683,13 @@ def check_estimate(r, c, w, by_id):
             r.err("96", f"{w}.estimate.estimands.{name}", "an object with the variable of the observation it binds, "
                                                           "and optionally conditions, statistic, field and run")
             continue
-        for f in sorted(set(q) - {"variable", "conditions", "statistic", "field", "run"}):
+        for f in sorted(set(q) - {"variable", "conditions", "statistic", "field", "run", "table"}):
             r.err("96", f"{w}.estimate.estimands.{name}.{f}", "an estimand has variable, conditions, statistic, "
-                                                              "field and run")
+                                                              "field, run and table")
+        if "table" in q and not isinstance(q["table"], bool):
+            r.err("96", f"{w}.estimate.estimands.{name}.table", "true for a table estimand (it binds every "
+                                                                "observation with its variable and conditions), "
+                                                                "or false")
         if q.get("field", "value") not in QUANTITY_FIELDS:
             r.err("96", f"{w}.estimate.estimands.{name}.field", f"one of {', '.join(QUANTITY_FIELDS)}")
         if "conditions" in q and not isinstance(q["conditions"], dict):
@@ -1720,9 +1724,18 @@ def check_estimate(r, c, w, by_id):
                                        "its registration and the anchor is registry")
 
 
+def _matches(hits):
+    """The observations an estimand matches, for a message: one by name, several by count and the first few."""
+    where = sorted({h["where"] for h in hits})
+    if len(where) == 1:
+        return where[0]
+    return f"{len(where)} observations ({', '.join(where[:3])}{', …' if len(where) > 3 else ''})"
+
+
 def check_estimate_bindings(r, claims, evidence_by_id):
     """Rule 96: each estimand of a planned estimate binds exactly one observation of the evidence the claim's
-    support names, with a number at its field; an estimand listed in not_obtained binds none (§3.3.3)."""
+    support names, with a number at its field; a table estimand binds at least one, each with a number at its field;
+    an estimand listed in not_obtained binds none (§3.3.3)."""
     for cid, c in claims.items():
         est = c.get("estimate")
         if c.get("planning") != "planned_estimate" or not isinstance(est, dict) \
@@ -1741,13 +1754,27 @@ def check_estimate_bindings(r, claims, evidence_by_id):
                 hits += bind_quantity(q, bindable(e), [x for x in as_list(e.get("lab_runs")) if isinstance(x, str)])
             if name in absent:
                 if hits:
-                    r.err("96", f"{w}.{name}", f"listed in not_obtained, but binds {hits[0]['where']}: remove it "
-                                               f"from not_obtained, or correct the estimand")
+                    r.err("96", f"{w}.{name}", f"listed in not_obtained, but matches "
+                                               f"{_matches(hits)}: remove it from not_obtained, or correct the "
+                                               f"estimand")
+                continue
+            if q.get("table") is True:
+                if not hits:
+                    r.err("96", f"{w}.{name}", f"a table estimand binds no observation of {where}: it names the "
+                                               f"variable {q['variable']!r} with the conditions "
+                                               f"{json.dumps(as_dict(q.get('conditions')), ensure_ascii=False)}, "
+                                               f"which no result or table cell has")
+                bad = [h["where"] for h in hits
+                       if not rule_number(read_field(h["observation"], q.get("field") or "value"))]
+                if bad:
+                    r.err("96", f"{w}.{name}", f"a table estimand binds {', '.join(bad[:5])}"
+                                               f"{' and others' if len(bad) > 5 else ''}, which have no number at "
+                                               f"{q.get('field') or 'value'}")
                 continue
             if len(hits) > 1:
-                r.err("96", f"{w}.{name}", f"binds {len(hits)} observations "
-                                           f"({', '.join(sorted({h['where'] for h in hits}))}), not exactly one: give "
-                                           f"the conditions that tell them apart")
+                r.err("96", f"{w}.{name}", f"binds {_matches(hits)}, not exactly one: give the conditions that "
+                                           f"tell them apart, or, if the plan fixed all of them as a grid of "
+                                           f"values to estimate, mark it a table estimand (\"table\": true)")
             elif not hits:
                 r.err("96", f"{w}.{name}", f"binds no observation of {where}: it names the variable "
                                            f"{q['variable']!r} with the conditions "

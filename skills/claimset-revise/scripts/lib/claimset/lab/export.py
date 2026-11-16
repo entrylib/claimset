@@ -18,7 +18,8 @@ from . import decision as _decision
 from . import tables as _tables
 from . import record as _record
 from .core import (FLAGS, RENAMED_KINDS, SETUP_ROLES, TERM_ID_RE, TERM_MARK_RE, LabError, State, agent_base,
-                   bind_estimands, file_hash, final_statuses, is_withheld, plan_flags, verify)
+                   bind_estimands, estimand_matches, file_hash, final_statuses, is_table_estimand, is_withheld,
+                   plan_flags, verify)
 
 FINAL = {"supported", "not_supported", "inconclusive", "revised", "abandoned"}
 OUTCOMES = ("supported", "not_supported", "inconclusive")
@@ -707,13 +708,27 @@ class _Exporter:
             self.mapping[cid] = pv["id"]
             estimands = json.loads(json.dumps(pv["body"].get("estimands") or {}))
             bound = bind_estimands(st, pv, runs)
-            missing = [n for n, (res, value) in bound.items() if res is None or value is None]
+            matches = estimand_matches(st, pv, runs)
+            # a table estimand (lab record §5.7.8, as amended on 2026-11-16): it says so, or it matches several results
+            # of the deciding runs, all of which it reports (claimset v0.44 §3.3.3)
+            tables = {n: matches.get(n, []) for n, q in estimands.items() if is_table_estimand(q, matches.get(n, []))}
+            for n in tables:
+                estimands[n]["table"] = True
+            missing = [n for n, (res, value) in bound.items() if n not in tables and (res is None or value is None)]
+            missing += [n for n, hits in tables.items() if not hits]
             parts = []
             for n, q in estimands.items():
                 res, value = bound.get(n, (None, None))
                 cond = q.get("conditions") or {}
                 where = f" ({', '.join(f'{k} {v}' for k, v in cond.items())})" if cond else ""
                 field = f" {q['field']}" if q.get("field") not in (None, "value") else ""
+                if n in tables and tables[n]:
+                    vals = [v for v in (_claimset.read_field(r["body"], q.get("field") or "value") for r in tables[n])
+                            if _claimset.rule_number(v)]
+                    span = f", from {min(vals):g} to {max(vals):g}" if vals else ""
+                    parts.append(f"{q.get('variable')}{field}{where} was obtained as a table of {len(tables[n])} "
+                                 f"values{span}")
+                    continue
                 parts.append(f"{q.get('variable')}{field}{where} " + (f"was {value:g}" if value is not None
                                                                       else "was not obtained"))
             statement = "Under plan " + pv["id"] + ", " + "; ".join(parts) + "."
@@ -728,7 +743,8 @@ class _Exporter:
             claim["estimate"] = estimate
             run_ids = [r["id"] for r in runs]
             eid, refs, whole = self.make_evidence(run_ids, quantities=estimands)
-            read = [res["id"] for res, _v in bound.values() if res is not None]
+            read = [res["id"] for res, _v in bound.values() if res is not None] + [
+                r["id"] for hits in tables.values() for r in hits]
             cited = list(dict.fromkeys(refs[x] for x in read if x in refs))
             support = {"kind": "empirical_quant", "evidence": eid}
             if cited or whole:
@@ -744,7 +760,13 @@ class _Exporter:
                       f"{cid} reports the planned estimate of {pv['id']}: rewrite its statement as a sentence a "
                       f"reader understands alone, with each value, its uncertainty and the scope the plan fixed; it "
                       f"reports values, so it calls them large or small only by a standard the paper states and "
-                      f"cites" + (f"; say that {', '.join(missing)} was not obtained, and why" if missing else ""))
+                      f"cites" + (f"; say that {', '.join(missing)} was not obtained, and why" if missing else "")
+                      + (f"; {', '.join(n for n in tables if tables[n])} "
+                         f"{'is a table estimand' if len([n for n in tables if tables[n]]) == 1 else 'are table estimands'}"
+                         f" (every result of the variable under the plan's conditions): summarise its values (their "
+                         f"range, where they change, what they show) and name the tables of the evidence that hold "
+                         f"them; if the plan meant one value, its estimand was ambiguous: say so"
+                         if any(tables.values()) else ""))
             self.todo(f"claims.{cid}", f"confirm the type (exported as descriptive) and role of {cid}, and give its "
                                        f"scope; its novelty is exported as no_prior_found: look for the closest "
                                        f"earlier estimate and cite it")
