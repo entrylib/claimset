@@ -2927,6 +2927,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- summary (rule 94, warning 45; §3.1) -----
     check_summary(r, paper)
     check_published_as(r, paper, coll.get("artefacts") or [])
+    check_contributor_order(r, paper, coll.get("contributors") or [])
 
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
@@ -3037,6 +3038,26 @@ def check_published_as(r, paper, artefacts):
                                                       "{id_type, id} with its identifier, so that readers and "
                                                       "platforms can tell a conversion by its authors from a draft "
                                                       "(§3.1)")
+            return
+
+
+def check_contributor_order(r, paper, contributors):
+    """Warning 51 (v0.44): a claimset its authors converted from their published paper (`published_as`) lists an
+    agent before one of that paper's authors (§3.11, Order). Whether the authors follow the byline can be checked
+    only against the byline, which the validator does not have."""
+    if paper.get("origin") != "native" or not isinstance(paper.get("published_as"), dict):
+        return
+    people = [c for c in contributors if isinstance(c, dict)]
+    authors = [i for i, c in enumerate(people) if c.get("type") == "human"
+               and {"guarantor", "coauthor"} & set(c.get("positions") or [])]
+    if not authors:
+        return
+    last = authors[-1]
+    for i, c in enumerate(people[:last]):
+        if c.get("type") == "agent":
+            r.warn("W51", f"contributors:{c.get('id')}", "an agent listed before the published paper's authors: list "
+                                                          "them first, in the order of its byline, then anyone else, "
+                                                          "agents last (§3.11)")
             return
 
 
