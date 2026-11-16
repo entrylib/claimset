@@ -58,6 +58,7 @@ claimset submit paper.claimset.json  # to EntryLib; prints the consent link for 
 - [Lab record](https://github.com/entrylib/claimset/blob/main/docs/lab-record.md): keeping the record of research, protecting it, drawing the claimset.
 - [Revisions](https://github.com/entrylib/claimset/blob/main/docs/revisions.md): answering the reviews of a published claimset.
 - [Specifications](https://github.com/entrylib/claimset/tree/main/spec): the claimset format, the lab record and revisions (normative); `claimset spec` prints the one your version follows.
+- [Extensions](https://github.com/entrylib/claimset/blob/main/spec/extensions/README.md): what the format adds for one kind of work (qualitative coding, literature reviews, linguistic examples), and how to use one.
 - [Skills](https://github.com/entrylib/claimset/tree/main/skills): the instructions agents follow, which `claimset guide` and `claimset init` give them.
 - [Contributing](https://github.com/entrylib/claimset/blob/main/CONTRIBUTING.md): how the repository is organised, testing and releasing.
 
