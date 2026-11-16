@@ -835,10 +835,11 @@ class _Exporter:
                 self.todo("claims[].checks", f"check {cur['id']} targets {target}, which no exported claim rests on; "
                                              f"it is not exported")
                 continue
-            by = self.person.get(self.actor_of(cur["by"]))
+            made_by = b.get("on_behalf_of") or cur["by"]          # a person's check recorded by an agent is theirs
+            by = self.person.get(self.actor_of(made_by))
             checker = next((x for x in self.contributors if x["id"] == by), None)
             if checker is None or "author" in checker["positions"]:
-                self.todo("claims[].checks", f"check {cur['id']} was made by {cur['by']}, who is an author or not "
+                self.todo("claims[].checks", f"check {cur['id']} was made by {made_by}, who is an author or not "
                                              f"exported; a claimset check comes from a non-author, so it is not "
                                              f"exported")
                 continue

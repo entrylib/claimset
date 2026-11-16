@@ -15,6 +15,9 @@ def _text(event):
     if event["type"] == "status":
         return f"{b.get('target')} -> {b.get('to')}: {b.get('rationale', '')}"
     if event["type"] == "check":
+        if b.get("on_behalf_of"):
+            return (f"{b.get('target')}: {b.get('outcome')} ({b.get('extent')}), checked by {b['on_behalf_of']}, "
+                    f"recorded by agent {event.get('by')}: \"{b.get('words', '')}\"")
         return f"{b.get('target')}: {b.get('outcome')} ({b.get('extent')})"
     if event["type"] == "run":
         return f"[{b.get('label')}, {b.get('exit_status')}] {' '.join(b.get('command') or [])}"
@@ -100,7 +103,7 @@ def build(events):
         if not is_withheld(cur):
             b = cur["body"]
             checks.append({"id": c["id"], "target": b.get("target"), "outcome": b.get("outcome"),
-                           "extent": b.get("extent"), "by": cur["by"]})
+                           "extent": b.get("extent"), "by": b.get("on_behalf_of") or cur["by"]})
 
     counts = {}
     for e in st.events:

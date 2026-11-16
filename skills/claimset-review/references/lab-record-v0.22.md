@@ -21,6 +21,8 @@ A pilot ran the same study with agents of three sizes (entrylib:2026.000005). Wh
 
 Amended on 2026-11-13 (§5.7, §5.7.6): a plan may record where each choice that can change the conclusion came from (`choices`: the brief, the supervisor, good practice for planning a study, the literature, or the agent alone), and the tool warns when a planned test records none, or records choices only the agent made. An agent evaluating forecasts chose its error measures from a well-known competition's precedent, without asking, and chose wrongly for the forecasts it compared. Optional in every record.
 
+Amended on 2026-11-16 (§5.13, §6 rules L9 and L33, §9): a person's check may be recorded by an agent on their behalf, with their words (`on_behalf_of`, `words`, `given_at`, `channel`), as an approval is. A supervisor read a study's proofs in a conversation with the agent and confirmed them, but the tool refuses a command written as a person inside an agent harness (§4.6), and a check had no other form, so the confirmation could be kept only as a decision. Optional in every record; nothing a record holds changes meaning.
+
 Amended on 2026-11-16 (§5.7.8, §9): an estimand may be a table estimand: the plan says so (`"table": true`), or it matches several results of the deciding runs, all of which it then reports; export writes claimset v0.44, which has table estimands, and marks them. A simulation study fixed a grid of values to estimate (one per distribution, measure and test-set size), naming each estimand by its variable alone; export reported every one as not obtained, though the runs had given them all, and the claimset validator refused that. `claimset lab plan` now says, for an estimand that names no conditions, that it will report a table if the runs give several results. Nothing a record holds changes meaning: an estimand that matched exactly one result binds it as before.
 
 Amended on 2026-11-15 (§4.3): a corrected event is named by its revision, `PL1.R2` for the second event of the chain whose root is `PL1`, wherever people read or write IDs; the tool accepts the label in every command and prints it for a correction. A plan revised before approval had appeared as a new plan (`PL2`, `PL3`, `PL4`) while it was one plan being revised, and the supervisor was asked to approve an ID they had not been shown. The tool refuses an approval of a plan revision that is not the latest. Nothing a record holds changes: the log keeps event IDs.
@@ -710,7 +712,14 @@ Each entry needs `variable` (text; `quantity`, its older name, is read as `varia
 
 ### 5.13 `check` (prefix `CK`)
 
-`{target, outcome, extent, notes, resolution}`: an independent check of a hypothesis, result or derivation; same semantics as claimset checks (claimset §5). The checking actor must not have written the target.
+`{target, outcome, extent, notes, resolution, on_behalf_of, words, given_at, channel}`: an independent check of a hypothesis, result or derivation; same semantics as claimset checks (claimset §5). The checking actor must not have written the target.
+
+A person's check is written in one of two ways, as an approval is (§5.8):
+
+- **By the person** (`by` a human actor), from a terminal of their own (§4.6).
+- **By an agent on the person's behalf** (`by` an agent actor, `on_behalf_of` the human actor). The agent showed the person what to check, waited, and records their answer: `words` is their reply, verbatim (`"Confirmed"`); `given_at` and `channel` are as for an approval. The checking actor is then the person: rule L9 applies to them, not to the agent that writes the event down, and export names them as the checker (§9).
+
+A claimset check comes from someone who is not an author (claimset §5): a supervisor who is an author of the paper may check in the record, and export keeps such a check out of the claimset with a completion item saying so.
 
 ### 5.14 `artefact` (prefix `AR`)
 
@@ -793,7 +802,7 @@ L5. A run is labelled `confirmatory` only if it names a `confirmatory` or `estim
 L6. A `status` event moving a hypothesis to `supported` must not list as evidence any event in that hypothesis's `prompted_by`, nor results of runs listed there.
 L7. Every `status`, `decision` and `deviation` has a rationale or reason; every `revised` status names `revised_to`.
 L8. Every `by` names an `actor` event with a lower `seq`.
-L9. A `check` is not made by the actor who wrote its target.
+L9. A `check` is not made by the actor who wrote its target. For a check recorded on a person's behalf (`on_behalf_of`), the checking actor is that person.
 L10. Agent logs follow L1–L9 and L11–L12 on their own, starting from their base, and the restrictions of §3.5 (who writes them, what they may refer to and correct, which event types they hold). A merged event equals the event its `origin` names, whose header hash it records; an agent log is merged once, and nothing is added to it afterwards. Only merged events carry an actor prefix in the main log.
 L11. A `supersedes` reference names an earlier event of the same type that has not already been superseded.
 L12. Every `id` has the prefix of its `type` and is unique in the log; every reference in a body names an event with a lower `seq`.
@@ -816,6 +825,7 @@ L28. In records begun under v0.19 or later: an `actor` event of kind `human` wri
 L29. A record begun under a version of this specification later than the tool's own (`init.lab_spec_version`) is refused: the tool does not know that version's rules. The record may be valid; read it with a current tool (update the claimset package). Records of every earlier version are checked by the rules of the version they were begun under (§5.1).
 L31. In records begun under v0.22 or later: a hypothesis written after a run (a run event earlier in the log, or in the main log under an agent log) has `origin: from_exploration` or a non-empty `independence`. A correction of a hypothesis first written before any run is exempt.
 L32. In records begun under v0.22 or later: an estimation plan names a question, at least one well-formed estimand (§5.7.8; with several deciding runs, each with its `run`), and no hypotheses, decision rule or criterion; `runs` is a positive integer. `question` and `estimands` appear only on estimation plans, and `diagnostics`, a list of distinct non-empty names, only on confirmatory and estimation plans. Records begun earlier have none of them.
+L33. A check's `on_behalf_of`, when present, names a human actor, the check's `by` is an agent actor, and its `words` are non-empty; a check written by a human has no `on_behalf_of` (as L22 for approvals).
 L30. In records begun under v0.20 or later: an event carries a block (`ext`) only of an extension declared by an earlier `extension` event, on an event type that extension allows, and is of a type an extension defines only when that extension is declared; an extension is declared once, at a version the tool knows (an extension or version it does not know is refused with a message saying so, as claimset rule 80). The extension's own rules apply to its blocks and events.
 
 The tool enforces L1–L5, L8–L23, L31 and L32 mechanically, and refuses L6 and L7 violations. L15–L17 apply to records begun under v0.5 or later, and to records whose `init` is withheld. Where a check depends on withheld content (a withheld run, result or plan), `verify` does not report it as a violation; withholding lowers verifiability instead (§8).
