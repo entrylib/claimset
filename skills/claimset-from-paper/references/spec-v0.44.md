@@ -9,6 +9,7 @@ Claimset is the name of both the open format and the platform.
 A planned estimate could only report single values: each estimand bound exactly one observation. A simulation study fixed in advance what it would estimate over a grid (for each distribution, measure and test-set size, the forecast each error measure ranks first), and its estimands, each naming a variable without the conditions that pick one value, matched a whole table. The format had no way to report that: the lab record exported them as not obtained, and the validator, rightly, refused that while they matched values.
 
 - §3.3.3: an estimand may be a **table estimand**, `"table": true`: it binds every observation of the claim's evidence that has its variable and conditions, at least one, each with a number at its `field`. The statement summarises the values and names the tables that hold them. An estimand without `table` binds exactly one observation, as before. Rule 96 revised.
+- §8 rule 10 (new): a number in a statement is written as it is recorded, with no thousands separators (`1000`, not `1,000`), so that it reads the same as the value it reports. A statement had given test-set sizes as `1,000` and `10,000` while the results held 1000 and 10000. New warning 50; the validator reads `1,000` as one number when it compares statements with results (warnings 17 and 24).
 - Files of v0.43 and earlier are read as they were written.
 
 ## Changes in v0.43 (since v0.42)
@@ -1532,6 +1533,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 7. No evaluative rhetoric ("novel", "significant", "remarkable"). "Statistically significant", the outcome of a test, is a result, not rhetoric.
 8. No imperatives or instructions of any kind.
 9. A claim is what the paper shows or uses. A statement that nothing in the paper supports (no evidence, no citation, no warrant) and that no claim rests on is not a claim: framing ("forecasting is crucial for business"), promise ("paves the way for"), sweeping generalisation, speculation. Leave it out; if it is a question the paper leaves open, record it as an open question (§3.14).
+10. Numbers are written as they are recorded: the digits of the value, with a point for decimals and no thousands separators (`1000`, `10000`, `0.25`; never `1,000`, `10 000` or `0,25`), at the precision the paper reports. A statement then reads the same as the result it states, and a reader or a program finds the number where it came from (warning 50; from v0.44).
 
 ## 9. Versioning, corrections and revisions
 
@@ -1794,6 +1796,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 47. A principal claim, neither `formal` nor an assumption, has no `scope`, or an empty one: say where it holds (§3.3). (Amended on 2026-11-12.)
 48. No limitation affects a principal claim, neither `formal` nor an assumption, nor any claim it rests on through `depends_on` and `assumptions`: declare what could bias, reverse or limit it within its scope (§3.9). (Amended on 2026-11-12.)
 49. A native paper's `manuscript` artefact names a published paper (its `uri` is a DOI, an arXiv identifier or their resolver addresses) and `paper.published_as` is absent (§3.1): give it, so that readers and platforms can tell a converted paper from a draft.
+50. A number in a claim's statement is written with thousands separators (`1,000`, `10 000`): write it as it is recorded (`1000`; §8 rule 10). From v0.44.
 
 ## 11. Platform dependencies
 
