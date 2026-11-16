@@ -197,6 +197,12 @@ def push(lab):
         raise LabError("anchor", f"{branch} is kept in desk mode, without a remote: nothing is anchored; to anchor "
                                  f"from now on, run `claimset setup --study {Path(lab.root).resolve().parent.name} "
                                  f"--remote <name>`")
+    if remote not in git(["remote"], cwd=top, check=False).stdout.split():
+        # said plainly, before git's own error: the commonest first stumble is a project that was never pushed anywhere
+        raise LabError("anchor", f"this repository has no git remote named '{remote}', so {branch} has nowhere to "
+                                 f"be pushed. Add one you can push to (`git remote add {remote} <URL>`); a short "
+                                 f"study that needs none is created in desk mode instead (`claimset setup --study "
+                                 f"NAME --title … --desk`), where nothing is anchored")
     out = git(["push", "-q", remote, f"HEAD:refs/heads/{branch}"], cwd=top, check=False)
     if out.returncode != 0:
         from ..agents import network_hint

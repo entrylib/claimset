@@ -300,6 +300,16 @@ class TestCleanCheckout(StudyRepo):
         page_hash = git("show", "HEAD:lab/lab.jsonl", cwd=study)
         self.assertIn('"role":"original"', page_hash.replace(" ", ""))
 
+    def test_a_repository_without_the_remote_is_told_so_plainly(self):
+        git("remote", "remove", "origin", cwd=self.top)
+        code, out, err = self.cli("setup", "--study", "pilot", "--title", "Pilot")
+        self.assertEqual(code, 0, err)                      # the record is still created and committed
+        self.assertIn("has no git remote named 'origin'", err)
+        self.assertIn("git remote add origin <URL>", err)
+        self.assertIn("--desk", err)
+        self.assertNotIn("fatal:", err)                     # not git's own error, nor a guess about a sandbox
+        self.assertNotIn("sandbox", err)
+
     def test_the_receipt_of_each_push_is_in_the_next_commit(self):
         lab = self.new_study()
         os.environ["CLAIMSET_ACTOR"] = "AC1"
