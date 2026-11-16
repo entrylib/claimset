@@ -181,7 +181,7 @@ def search_finder(portal=None, limit=20):
     return find
 
 
-def describe(out, top=3, by=None, name=None):
+def describe(out, top=3, by=None, name="Support"):
     """The scores as `claimset score` prints them. `by` says where they were computed (default: on this machine;
     the portal's MCP tool says it scored the file sent to it). `name`: what the score is called, for a site that shows
     it under another name; the rubric's own word when None, or when the installed rubric cannot take a name."""
