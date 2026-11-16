@@ -430,6 +430,19 @@ def exploration_words(e):
     return "; ".join(out)
 
 
+def _corrections(p):
+    """The departures from the source that a claimset records (§3.1): those of a converted source, or of the published
+    paper its authors converted, each with a string `field`; and how the view names what they correct."""
+    if isinstance(p.get("converted_from"), dict):
+        found, against = p["converted_from"].get("corrections"), "the source"
+    elif isinstance(p.get("published_as"), dict):
+        found, against = p["published_as"].get("corrections"), "the published paper"
+    else:
+        return [], ""
+    return [c for c in found if isinstance(c, dict) and isinstance(c.get("field"), str) and c["field"]] \
+        if isinstance(found, list) else [], against
+
+
 def render(doc):
     """The reading view of a claimset, as a string."""
     p = doc.get("paper") or {}
@@ -442,6 +455,10 @@ def render(doc):
         authors = ", ".join(a.get("name", "") for a in cf.get("source_authors") or [] if isinstance(a, dict))
         meta.append(f"converted from {cf.get('source_id')} {cf.get('source_version', '')}".strip()
                     + (f" by {authors}" if authors else ""))
+    corrections, against = _corrections(p)
+    if corrections:
+        meta.append(f"corrects {against} in {len(corrections)} place{'s' if len(corrections) != 1 else ''} "
+                    f"(CORRECTIONS)")
     if p.get("contributions"):
         meta.append("contributions " + ", ".join(p["contributions"]))
     if isinstance(p.get("highlights"), list) and p["highlights"]:
@@ -469,11 +486,24 @@ def render(doc):
     order = {"principal": 0, "supporting": 1, "secondary": 2}
     main = sorted((c for c in claims if not any(c is u for u in unevidenced)),
                   key=lambda c: order.get(c.get("role"), 3))           # stable: file order within a role
+    corrected = {}
+    for corr in corrections:
+        corrected.setdefault(corr["field"].split(".")[0], []).append(corr)
+
+    def marked(fn):
+        """An object's lines, then a line for each correction of it (§3.1, Appendix D)."""
+        def lines(x):
+            out = fn(x)
+            for corr in corrected.get(x.get("id"), []):
+                out.append(f"  corrected from {against} ({_join([corr.get('kind'), corr.get('where')])}): "
+                           f"printed {corr.get('printed')}")
+            return out
+        return lines
     sections = [
-        ("DEFINITIONS", doc.get("definitions"), _definition),
-        ("CLAIMS", main, lambda c: _claim(c, inherited(c))),
-        ("CLAIMS WITHOUT EVIDENCE", unevidenced, lambda c: _claim(c, inherited(c))),
-        ("EVIDENCE", doc.get("evidence"), _evidence),
+        ("DEFINITIONS", doc.get("definitions"), marked(_definition)),
+        ("CLAIMS", main, marked(lambda c: _claim(c, inherited(c)))),
+        ("CLAIMS WITHOUT EVIDENCE", unevidenced, marked(lambda c: _claim(c, inherited(c)))),
+        ("EVIDENCE", doc.get("evidence"), marked(_evidence)),
         ("WARRANTS", doc.get("warrants"),
          lambda w: [f"{w.get('id')} [{_join([w.get('reasoning'), ('premises ' + ', '.join(w['premises'])) if w.get('premises') else ''])}] {w.get('text', '')}"]),
         ("LIMITATIONS", doc.get("limitations"),
@@ -484,6 +514,9 @@ def render(doc):
         ("ARTEFACTS", [a for a in doc.get("artefacts") or [] if isinstance(a, dict) and a.get("description")],
          lambda a: [f"{a.get('id')} [{_join([a.get('kind'), a.get('function')], ', ')}] {a.get('description')}"
                     + (f" shows {', '.join(_s(x) for x in a['shows'])}" if a.get("shows") else "") + _ext(a)]),
+        ("CORRECTIONS", corrections,
+         lambda x: [f"{x.get('field')} [{_join([x.get('kind'), x.get('where'), ('found by ' + x['found_by']) if x.get('found_by') else ''])}] "
+                    f"printed {x.get('printed')}; recorded {x.get('recorded')}; {x.get('reason')}"]),
         ("REFERENCES", doc.get("references"),
          lambda b: [f"{b.get('id')} {b.get('target')}" + (f" ({b['id_type']})" if b.get("id_type") not in (None, "reference") else "")]),
     ]
