@@ -459,6 +459,18 @@ class TestReviewFindings(ExportCase):
         self.assertEqual(c["test"]["lab_plan"], pl)
         self.assertTrue(pl.startswith(self.agent + "."))
 
+    def test_check_on_a_persons_behalf_is_theirs(self):
+        """Lab record v0.22 amended 2026-11-16: an agent records a person's check; export names the person as the
+        checker, not the agent that wrote it down."""
+        rn, rs = self.run_(0.1, "m")
+        self.status(self.h, "supported", rs)
+        self.add("check", {"target": rn, "outcome": "confirmed", "extent": "full", "on_behalf_of": self.human,
+                           "words": "Confirmed", "given_at": "2026-11-16T17:37:45Z", "channel": "conversation"})
+        out = export(self.lab)
+        checks = self.claim(out, self.h)["checks"]
+        person = next(p for p in out["draft"]["contributors"] if p["type"] == "human")
+        self.assertEqual([(x["by"], x["outcome"]) for x in checks], [(person["id"], "confirmed")])
+
     def test_check_by_author_is_not_exported(self):
         rn, rs = self.run_(0.1, "m")
         self.status(self.h, "supported", rs)

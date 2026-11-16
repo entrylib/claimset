@@ -1275,9 +1275,32 @@ def check_check(state, body, by, eid):
     _enum(body, "extent", "check_extent", "check")
     if body.get("outcome") == "disputed" and not (body.get("notes") or "").strip():
         raise LabError("schema", "check: a disputed check needs notes saying what failed")
+    checker = _check_behalf(state, body, by)
     authors = {state.get(x)["by"] for x in _chain(state, target)}
-    if by in authors:
-        raise LabError("L9", f"check: {by} wrote {target} and cannot check it; use an independent actor")
+    if checker in authors:
+        raise LabError("L9", f"check: {checker} wrote {target} and cannot check it; use an independent actor")
+
+
+def _check_behalf(state, body, by):
+    """Rule L33: a person's check written by an agent on their behalf names the person and gives their words. Returns
+    the checking actor: the person, or the writer."""
+    behalf = body.get("on_behalf_of")
+    if behalf is None:
+        if body.get("words") is not None:
+            raise LabError("L33", "check: words are a person's reply, recorded with --on-behalf-of (their actor ID)")
+        return by
+    actor = state.latest(by)
+    if actor is None or is_withheld(actor) or actor["body"].get("kind") != "agent":
+        raise LabError("L33", "check: a person checking writes as themselves; on_behalf_of is for an agent recording "
+                              "a person's check")
+    _ref(state, behalf, "check", "on_behalf_of", {"actor"})
+    h = state.latest(behalf)
+    if not is_withheld(h) and h["body"].get("kind") != "human":
+        raise LabError("L33", f"check: {behalf} is not a human actor; on_behalf_of records a person's check")
+    if not isinstance(body.get("words"), str) or not body["words"].strip():
+        raise LabError("L33", "check: give the person's words, as they gave them (--words)")
+    _check_given(body, "check")
+    return behalf
 
 
 def _chain(state, eid):

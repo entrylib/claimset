@@ -222,6 +222,25 @@ class TestRules(LabCase):
         h = self.hyp()
         self.add("check", {"target": h, "outcome": "confirmed", "extent": "full"}, by=self.human)
 
+    def test_check_on_a_persons_behalf(self):
+        """Lab record v0.22 amended 2026-11-16, L33 and L9: an agent records a person's check with their words; the
+        person, not the agent, is the checking actor."""
+        h = self.hyp()                                                      # written by the agent
+        body = {"target": h, "outcome": "confirmed", "extent": "full"}
+        self.assertRefused("L33", "check", {**body, "on_behalf_of": self.human})                 # no words
+        self.assertRefused("L33", "check", {**body, "on_behalf_of": self.agent, "words": "ok"})  # not a person
+        self.assertRefused("L33", "check", {**body, "on_behalf_of": self.human, "words": "ok"},
+                           by=self.human)                                   # a person writes as themselves
+        self.assertRefused("L33", "check", {**body, "words": "Confirmed"}, by=self.human)        # words need behalf
+        self.assertRefused("schema", "check", {**body, "on_behalf_of": self.human, "words": "Confirmed",
+                                               "given_at": "today"})
+        self.add("check", {**body, "on_behalf_of": self.human, "words": "Confirmed",
+                           "given_at": "2026-11-16T17:37:45Z", "channel": "conversation"})
+        h2 = self.add("hypothesis", {"statement": "Theirs.", "question": self.q, "origin": "a_priori"},
+                      by=self.human)
+        self.assertRefused("L9", "check", {"target": h2, "outcome": "confirmed", "extent": "full",
+                                           "on_behalf_of": self.human, "words": "Confirmed"})  # they wrote it
+
     def test_disputed_check_needs_notes(self):
         h = self.hyp()
         self.assertRefused("schema", "check", {"target": h, "outcome": "disputed", "extent": "full"},

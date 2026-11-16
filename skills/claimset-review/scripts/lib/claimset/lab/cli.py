@@ -460,7 +460,9 @@ def cmd_status(args):
 
 def cmd_check(args):
     return _write(args, "check", {"target": args.target, "outcome": args.outcome, "extent": args.extent,
-                                  "notes": args.notes, "resolution": args.resolution})
+                                  "notes": args.notes, "resolution": args.resolution,
+                                  "on_behalf_of": args.on_behalf_of, "words": args.words,
+                                  "given_at": args.given_at, "channel": args.channel})
 
 
 def cmd_artefact(args):
@@ -1333,6 +1335,12 @@ def add_parser(subparsers):
     p.add_argument("--extent", required=True, choices=["full", "partial"])
     p.add_argument("--notes")
     p.add_argument("--resolution")
+    p.add_argument("--on-behalf-of", dest="on_behalf_of", metavar="AC",
+                   help="the person whose check an agent records (the agent writes with --by): they checked, and "
+                        "you record their answer")
+    p.add_argument("--words", help="the person's reply, verbatim (required with --on-behalf-of)")
+    p.add_argument("--given-at", dest="given_at", metavar="TIME", help="when they gave it (ISO 8601, UTC)")
+    p.add_argument("--channel", help="where they gave it: conversation, email, meeting notes, …")
 
     p = cmd("artefact", cmd_artefact, "register a file or resource (hashed if it is a local file)")
     p.add_argument("path_or_uri")
