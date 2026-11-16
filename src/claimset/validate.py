@@ -1493,6 +1493,10 @@ NUMBER_SKIP = re.compile(
 #: "claimset-haiku-2", "COVID-19"). Numbers in scientific notation ("1e-5") are numbers. (Erratum of 2026-11-12.)
 NAME_WITH_DIGITS = re.compile(r"(?<![\w.])[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*")
 SCIENTIFIC = re.compile(r"\d+(?:\.\d+)?[eE][-+]?\d+")
+#: A number written with thousands separators (a comma, a space, a thin or narrow no-break space between groups of
+#: three digits): 1,000 or 10 000. Statements write numbers as recorded (§8 rule 10, warning 50, from v0.44); warnings
+#: 17 and 24 read such a number as the one number it is.
+THOUSANDS = re.compile(r"(?<![\w.,])\d{1,3}(?:[, \u2009\u202f]\d{3})+(?:\.\d+)?(?![\w]|[,.]\d)")
 
 
 def _numbers_text(text):
@@ -1502,7 +1506,9 @@ def _numbers_text(text):
         t = m.group(0)
         mixed = any(ch.isalpha() for ch in t) and any(ch.isdigit() for ch in t)
         return " " if mixed and not SCIENTIFIC.fullmatch(t) else t
-    return NAME_WITH_DIGITS.sub(name, NUMBER_SKIP.sub(" ", sci_text(text)))
+    text = NUMBER_SKIP.sub(" ", sci_text(text))
+    text = THOUSANDS.sub(lambda m: re.sub(r"[, \u2009\u202f]", "", m.group(0)), text)
+    return NAME_WITH_DIGITS.sub(name, text)
 
 
 def restates_interest(statement, declaration):
@@ -2915,6 +2921,9 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
     check_inline_formulae(r, coll)
 
+    # ----- numbers written as recorded (warning 50; §8 rule 10) -----
+    check_number_format(r, claims)
+
     # ----- summary (rule 94, warning 45; §3.1) -----
     check_summary(r, paper)
     check_published_as(r, paper, coll.get("artefacts") or [])
@@ -3033,6 +3042,17 @@ def check_published_as(r, paper, artefacts):
 
 #: Warning 45 (§3.1): the most words a paper's summary has.
 MAX_SUMMARY_WORDS = 150
+
+
+def check_number_format(r, claims):
+    """Warning 50 (v0.44): a number in a claim's statement written with thousands separators (§8 rule 10)."""
+    for cid, c in claims.items():
+        stmt = NUMBER_SKIP.sub(" ", _text(c.get("statement")))
+        found = [m.group(0) for m in THOUSANDS.finditer(stmt)]
+        if found:
+            shown = ", ".join(repr(x) for x in found[:3])
+            r.warn("W50", f"claims:{cid}.statement", f"{shown} written with thousands separators: write numbers as they "
+                                                     f"are recorded ({re.sub(r'[, ]', '', found[0])}; §8 rule 10)")
 
 
 def check_summary(r, paper):
