@@ -2952,6 +2952,10 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
 
     # ----- summary (rule 94, warning 45; §3.1) -----
     check_summary(r, paper)
+
+    # ----- what a reader finds their way by: names, summaries, symbols, the results of a relation
+    #       (rules 101 to 104, warnings 52 and 53; §3.2, §3.3, §3.7) -----
+    check_reading(r, claims, coll["definitions"], by_id)
     check_published_as(r, paper, coll.get("artefacts") or [])
     check_published_corrections(r, paper, coll)
     check_contributor_order(r, paper, coll.get("contributors") or [])
@@ -3121,8 +3125,14 @@ def check_contributor_order(r, paper, contributors):
             return
 
 
-#: Warning 45 (§3.1): the most words a paper's summary has.
-MAX_SUMMARY_WORDS = 150
+#: Warning 45 (§3.1): the most words a paper's summary has (150 until the amendment of 2026-11-17).
+MAX_SUMMARY_WORDS = 250
+#: Rule 101 (§3.3): the most characters a claim's name has.
+MAX_NAME_CHARS = 100
+#: Warning 52 (§3.3): the most words a claim's summary has.
+MAX_CLAIM_SUMMARY_WORDS = 50
+#: Rule 103 (§3.2): a symbol is one inline formula and nothing else.
+SYMBOL_RE = re.compile(r"^\$[^$\s](?:[^$]*[^$\s])?\$$")
 
 
 def check_number_format(r, claims):
@@ -3137,7 +3147,7 @@ def check_number_format(r, claims):
 
 
 def check_summary(r, paper):
-    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 150 words."""
+    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 250 words."""
     if "summary" not in paper:
         return
     text = paper["summary"]
@@ -3149,6 +3159,83 @@ def check_summary(r, paper):
     if words > MAX_SUMMARY_WORDS:
         r.warn("W45", "paper.summary", f"{words} words: keep the summary to {MAX_SUMMARY_WORDS} words or fewer; "
                                        "a reader outside the field reads it whole, and the claims carry the detail")
+
+
+def check_reading(r, claims, definitions, by_id):
+    """What a reader finds their way by (v0.44 as amended on 2026-11-17). Rule 101: a claim's `name` is a non-empty
+    string on one line of at most 100 characters, and no two claims share one. Rule 102: a claim's `summary` is a
+    string with text; warning 52: more than 50 words. Rule 103: a definition's `symbol` is one inline formula;
+    warning 53: two definitions give the same symbol. Rule 104: `results` in a relation, only within the paper,
+    resolve in evidence the claim's own support points to."""
+    named = {}
+    for cid, c in claims.items():
+        w = f"claims:{cid}"
+        if "name" in c:
+            name = c["name"]
+            if not isinstance(name, str) or not name.strip():
+                r.err("101", f"{w}.name", "a short name: what the statement says in a few words (§3.3)")
+            elif "\n" in name.strip() or "\r" in name.strip():
+                r.err("101", f"{w}.name", "a name is on one line")
+            elif len(name.strip()) > MAX_NAME_CHARS:
+                r.err("101", f"{w}.name", f"{len(name.strip())} characters: a name has at most {MAX_NAME_CHARS}; the "
+                                          f"statement carries the detail")
+            else:
+                key = " ".join(name.split()).casefold()
+                if key in named:
+                    r.err("101", f"{w}.name", f"{named[key]} has the same name: a name tells one claim from the "
+                                              f"others")
+                else:
+                    named[key] = cid
+        if "summary" in c:
+            text = c["summary"]
+            if not isinstance(text, str) or not text.strip():
+                r.err("102", f"{w}.summary", "a text: the claim in one or two sentences of plain language (§3.3)")
+            elif len(text.split()) > MAX_CLAIM_SUMMARY_WORDS:
+                r.warn("W52", f"{w}.summary", f"{len(text.split())} words: keep a claim's summary to "
+                                              f"{MAX_CLAIM_SUMMARY_WORDS} words or fewer; the statement carries the "
+                                              f"detail")
+        own = []
+        for sp in as_list(c.get("support")):
+            sp = as_dict(sp)
+            if isinstance(sp.get("evidence"), str):
+                e = by_id(sp["evidence"], "evidence")
+                if e is not None:
+                    own.append((sp["evidence"], e))
+        for i, rel in enumerate(as_list(c.get("relations"))):
+            rel = as_dict(rel)
+            if "results" not in rel:
+                continue
+            rw = f"{w}.relations[{i}].results"
+            if rel.get("id_type") != "local":
+                r.err("104", rw, "only a relation to another claim of this paper (id_type local) names results: the "
+                                 "observations of this claim that bear on that claim (§3.7)")
+                continue
+            results = rel["results"]
+            if not isinstance(results, list) or not results or not all(isinstance(x, str) for x in results):
+                r.err("104", rw, "a non-empty list of references to results, tables, table rows or bulk data rows")
+                continue
+            for x in results:
+                m = re.match(r"^(E\d+)\.", x)
+                if not any(result_ref_resolves(x, m.group(1) if m else eid, e, by_id) for eid, e in own
+                           if not m or eid == m.group(1)):
+                    r.err("104", rw, f"'{x}' does not resolve to a result, table, table row or bulk data rows of "
+                                     f"evidence this claim's support points to")
+    seen = {}
+    for d in definitions:
+        d = as_dict(d)
+        if "symbol" not in d:
+            continue
+        w = f"definitions:{_h(d.get('id'))}.symbol"
+        sym = d["symbol"]
+        if not isinstance(sym, str) or not SYMBOL_RE.match(sym.strip()) or sym.strip().startswith("$$"):
+            r.err("103", w, "one inline formula and nothing else, as the paper writes the term: \"$s(y,f)$\" (§3.2)")
+            continue
+        key = re.sub(r"\s+", "", sym)
+        if key in seen:
+            r.warn("W53", w, f"{seen[key]} gives the same symbol: one symbol, one meaning; give each quantity its "
+                             f"own symbol, or define the term once")
+        else:
+            seen[key] = _h(d.get("id"))
 
 
 #: Rule 90 (§3.1): the most highlights a paper has.

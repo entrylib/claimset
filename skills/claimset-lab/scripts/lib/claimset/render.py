@@ -198,7 +198,9 @@ def _declarations(d):
 def _definition(d):
     tags = [("members", "members"), ("part_of", "part of"), ("broader", "a kind of"), ("assumptions", "assumes"),
             ("identifiers", "identifiers"), ("measures", "measures"), ("targets", "targets"), ("unit", "unit")]
-    line = f"{d.get('id')} " + (f"[{d['kind']}] " if d.get("kind") else "") + f"{d.get('term')}: {d.get('definition')}"
+    symbol = f" ({d['symbol'].strip()})" if isinstance(d.get("symbol"), str) and d["symbol"].strip() else ""
+    line = (f"{d.get('id')} " + (f"[{d['kind']}] " if d.get("kind") else "")
+            + f"{d.get('term')}{symbol}: {d.get('definition')}")
     for key, label in tags:
         if d.get(key):
             vals = d[key] if isinstance(d[key], list) else [d[key]]
@@ -267,7 +269,10 @@ def _claim(c, inherited=()):
             head.append(f"{key} {c[key]}")
     if isinstance(c.get("hypothesis"), dict) and c["hypothesis"].get("outcome"):
         head.append(f"outcome {c['hypothesis']['outcome']}")
-    lines = [f"{c.get('id')} [{_join(head)}]{_ext(c)}", f"  {c.get('statement', '')}"]
+    name = f' "{" ".join(c["name"].split())}"' if isinstance(c.get("name"), str) and c["name"].strip() else ""
+    lines = [f"{c.get('id')}{name} [{_join(head)}]{_ext(c)}", f"  {c.get('statement', '')}"]
+    if isinstance(c.get("summary"), str) and c["summary"].strip():
+        lines.append("  in plain words: " + " ".join(c["summary"].split()))
     if c.get("scope"):
         lines.append(f"  scope: {_scope(c['scope'])}")
     for rel in c.get("relations") or []:
@@ -278,7 +283,9 @@ def _claim(c, inherited=()):
         loc = f", at {rel['locator']}" if rel.get("locator") else ""
         note = f": {rel['note']}" if rel.get("note") else ""
         own = ", own earlier work" if rel.get("self") else ""
-        lines.append(f"  {rel.get('type')} {target}{loc}{own}{note}")
+        by = (", by " + ", ".join(_s(x) for x in rel["results"])
+              if isinstance(rel.get("results"), list) and rel["results"] else "")
+        lines.append(f"  {rel.get('type')} {target}{loc}{own}{by}{note}")
     t = c.get("test")
     if isinstance(t, dict):
         params = "; ".join(f"{k} {_s(v)}" for k, v in (t.get("parameters") or {}).items())
