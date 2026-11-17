@@ -28,6 +28,12 @@ Amended on 2026-11-17 (§3.1, §3.2, §3.3, §3.6, §3.7, §8 rule 11, §10 rule
 
 Amended on 2026-11-17 (§3.13, §10.4 warning 54): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 54. A warning only: every file valid before stays valid.
 
+Amended on 2026-11-17 (§2.2, §3.1, §10 warnings 55 and 56): a submission proposes the paper's subfield, and the guarantor agrees to it. The subfield was assigned by the platform's classifier at publication, where nobody saw it first: a paper on a forecast error measure was listed under Cognitive Neuroscience. A proposal was already allowed and already kept; it is now expected.
+
+- §3.1: `paper.classification.subfield` is proposed with the submission, from the list of OpenAlex subfields, and the guarantor agrees to it by name before the claimset is submitted. A platform's classifier assigns it only when a submission proposes none.
+- New warning 55: a submission that proposes no subfield. New warning 56: a proposed subfield that is not the ID of an OpenAlex subfield.
+- The package lists the subfields (`claimset subfields`), and the validator prints the name of the one a submission proposes.
+
 ## Changes in v0.43 (since v0.42)
 
 A review states what earlier work establishes and draws rules from it; a study states the earlier results its findings rest on. Neither had a label for such a claim. The first review written as a claimset (a summary of the literature on evaluating predictions) had to label each of its findings and recommendations `extension`, with an `extends` relation to the very work it cites as its evidence: the page then said that the claims extend the papers they rely on, which is not what they do.
@@ -540,7 +546,8 @@ The same format exists in two forms:
 | `paper.date` | At publication: the publication date |
 | `paper.status` | At publication (`active`), and later by governance actions |
 | `paper.status_notice` | When status changes from `active` |
-| `paper.classification.subfield`, `paper.classification.topics` | At validation: assigned by the platform's classifier; agent proposals are considered |
+| `paper.classification.subfield` | Proposed with the submission and agreed to by the guarantor (§3.1); assigned by the platform's classifier only when a submission proposes none |
+| `paper.classification.topics` | At validation: assigned by the platform's classifier; agent proposals are considered |
 | `claims[].verifiability`, `claims[].verifiability_flags` | At validation, and recomputed when availability changes |
 | `artefacts[].uri`, `artefacts[].archive_uri` of files in the submission package | At publication: the platform's permanent location of each file (§2.5) |
 
@@ -680,7 +687,7 @@ The core of this specification is what every field shares and what claims are co
 | `status_notice` | object | Platform-assigned unless `active`: `{date, reason_code, statement, issued_by}` |
 | `date` | ISO date | Platform-assigned. Publication date |
 | `licence` | string | Required. SPDX identifier, e.g. `CC-BY-4.0`. Native papers: chosen by the supervisor or guarantor. Converted papers: see *Licence of a converted paper* below and rule 31 |
-| `classification` | object | `subfield` (one OpenAlex subfield ID) and `topics` (1–3 OpenAlex topic IDs): platform-assigned; the agent may propose values. `keywords` (free text, for specifics the taxonomy does not reach): supplied by the agent, recommended |
+| `classification` | object | `subfield` (one OpenAlex subfield ID): proposed with the submission and agreed to by the guarantor (below; warnings 55 and 56). `topics` (1–3 OpenAlex topic IDs): platform-assigned; the agent may propose values. `keywords` (free text, for specifics the taxonomy does not reach): supplied by the agent, recommended |
 | `contributions` | list of claim IDs | Required. Ordered by priority; principal claims only |
 | `highlights` | list of IDs | Optional. One to five IDs, ordered by priority: principal claims (each in `contributions`) and terms the paper introduces (definitions without `source`), chosen by the guarantor (below; rule 90) |
 | `summary` | string | Optional. The paper in a few sentences of plain language, for a reader outside its field (below; rule 94, warning 45) |
@@ -732,6 +739,12 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 - Native papers: the guarantor chooses them (principle 10), as they choose the licence. The agent proposes up to five, in order of priority, with a line on why each, and records what the guarantor decides. If the guarantor prefers none, the field is left out, and the platform shows the contributions in their order.
 - Converted papers: the claims and terms the source itself puts first (its highlights, or without them its abstract), when they are principal claims or the paper's own terms; otherwise the field is left out.
 - A correction or revision may change them, like any field.
+
+**`classification.subfield`** (from v0.44 as amended on 2026-11-17). The field the paper is listed under: one of the subfields of OpenAlex, named by its ID, `openalex:subfields/<four digits>` (`"openalex:subfields/2613"` is Statistics and Probability). `claimset subfields` prints the list, and `claimset subfields <words>` those whose name holds the words. A submission proposes it:
+- The agent chooses the subfield from the list, by what the paper is about and where its readers are, and never writes an ID from memory.
+- The guarantor is told the subfield's name and agrees to it before the claimset is submitted, as they approve the highlights and the summary (principle 10). `claimset validate` prints the name of the proposed subfield.
+- A submission that proposes none is flagged (warning 55), and so is a proposed value that is not the ID of a subfield (warning 56). A platform's classifier then assigns the subfield, which nobody sees before publication; a platform may refuse such a submission instead.
+- A correction or revision keeps the subfield of the version before, and changes it only when the guarantor asks.
 
 **`summary`.** What a reader outside the paper's field should know of it, in a few sentences: what was asked, what was found and under which conditions, and what the finding is good for. At most 250 words, the length of an abstract (warning 45; 150 words until the amendment of 2026-11-17), in plain language: a term the paper defines is explained in words, not only named; numbers are the paper's own; maths is written as in statements (§8 rule 6) and kept to what the finding needs. It adds no claim: every finding it states is a claim of the paper, with its conditions, and it says nothing the claims do not.
 - Native papers: the agent drafts it from the claims, and the guarantor approves or rewrites it (principle 10). A summary written for the claimset is never the abstract of a published version copied.
@@ -1869,6 +1882,8 @@ The file records identifier type and venue facts for cited works only. Trust in 
 52. A claim's `summary` has more than 50 words (§3.3): one or two plain sentences; the statement carries the detail. (From v0.44 as amended on 2026-11-17, as warning 53.)
 53. Two definitions give the same `symbol` (§3.2): one symbol, one meaning. Give each quantity its own symbol, or define the term once.
 54. The paper cites no work: `references` is missing or empty (§3.13). A paper places its findings in its field by citing the works they build on, test or depart from: at the least, the works that define the methods it uses and the results it tests. Relations to claimsets do not count, since a claimset is cited by its claims' global IDs in relations, not listed in `references`; when a paper tests or extends a claimset, the works that claimset cites are where to start. From v0.44 as amended on 2026-11-17.
+55. A submission proposes no subfield (`paper.classification.subfield`, §3.1): choose the paper's OpenAlex subfield from the list, tell the guarantor its name, and give its ID once they agree. (From v0.44 as amended on 2026-11-17, as warning 56.)
+56. A submission's `paper.classification.subfield` is not the ID of an OpenAlex subfield (§3.1): a platform cannot use it.
 
 ## 11. Platform dependencies
 
