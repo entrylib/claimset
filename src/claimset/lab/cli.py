@@ -20,6 +20,7 @@ from . import guard as _guard
 from . import protect as _protect
 from . import layout as _layout
 from . import record as _record
+from . import draft as _draft
 from .. import validate as _claimset
 
 #: Commands that only read the record: they are allowed anywhere and never commit.
@@ -86,9 +87,28 @@ def _auto_anchor(lab, event):
 def _write(args, etype, body, by=None):
     lab = _lab(args)
     by = _actor(args) if by is None else by
+    if getattr(args, "draft", None):
+        return _write_draft(args, lab, etype, body, by)
     event = lab.append(etype, _clean(body), by=by, supersedes=getattr(args, "supersedes", None))
     _emit(args, event)
     _auto_anchor(lab, event)
+    return 0
+
+
+def _write_draft(args, lab, etype, body, by, supersedes=False):
+    """Add the event to a draft instead of the record (lab record §3.6)."""
+    supersedes = getattr(args, "supersedes", None) if supersedes is False else supersedes
+    event, broken = _draft.add(lab, args.draft, etype, _clean(body), by, supersedes)
+    if getattr(args, "json", False):
+        print(json.dumps(event, ensure_ascii=False, indent=2))
+    else:
+        print(f"{event['id']} (draft {args.draft}; not recorded)")
+    for w in broken:
+        print(f"claimset: warning: the change breaks a later drafted event, {w}", file=sys.stderr)
+    print(f"claimset: next: when the draft is complete, show it to the supervisor (claimset lab draft show "
+          f"{args.draft}); revise it with --draft {args.draft} --supersedes ID until they agree; then record it with "
+          f"their words (claimset lab draft record {args.draft} --on-behalf-of … --words \"…\" --given-at …)",
+          file=sys.stderr)
     return 0
 
 
@@ -268,8 +288,11 @@ def _extension(args, name, by=None):
     from .. import extensions as _ext
     lab = _lab(args)
     by = _actor(args) if by is None else by
-    st = lab.view(by)
+    st = _view(args) if getattr(args, "draft", None) else lab.view(by)
     if name not in st.extensions:
+        if getattr(args, "draft", None):
+            _write_draft(args, lab, "extension", {"name": name, "version": _ext.latest(name)}, by, None)
+            return _view(args)
         if st.owner:
             raise LabError("L30", f"the {name} extension is declared in the main log, before agent logs that use "
                                   f"it start: `claimset lab extension {name}` there, after merging this log")
@@ -850,7 +873,11 @@ def cmd_run(args):
 
 
 def _view(args):
-    """The state the current actor sees: its open agent log on top of the main log, or the main log."""
+    """The state the current actor sees: its open agent log on top of the main log, or the main log; with --draft,
+    the draft's events on top of that, as if recorded (lab record §3.6)."""
+    if getattr(args, "draft", None):
+        lab = _lab(args)
+        return _draft.simulate(lab, _draft.load(lab, args.draft, must_exist=False), _actor(args, required=False))[0]
     return _lab(args).view(_actor(args, required=False))
 
 
@@ -1045,12 +1072,68 @@ def _anchored(lab, events):
         return True
 
 
+def cmd_draft(args):
+    """Drafts (lab record §3.6): list, show, check, drop, discard and record."""
+    from .run import code_version
+    lab = _lab(args)
+    if args.action == "list":
+        found = _draft.names(lab)
+        if args.json:
+            print(json.dumps(found))
+        else:
+            for name in found:
+                print(f"{name}: {len(_draft.load(lab, name))} drafted events")
+            if not found:
+                print("no drafts")
+        return 0
+    if not args.name:
+        raise LabError("draft", f"draft {args.action}: name the draft (claimset lab draft list shows them)")
+    by = _actor(args, required=args.action == "record")
+    if args.action == "show":
+        print(_draft.render(lab, args.name, by), end="")
+        return 0
+    if args.action == "check":
+        problems, warns = _draft.check(lab, args.name, by)
+        for w in warns:
+            print(f"claimset: warning: {w}", file=sys.stderr)
+        if problems:
+            for eid, exc in problems:
+                print(f"{eid}: [{exc.rule}] {exc.message}")
+            return 1
+        print(f"draft {args.name}: OK, it can be recorded")
+        return 0
+    if args.action == "drop":
+        if not args.id:
+            raise LabError("draft", "draft drop: name the drafted event to remove (claimset lab draft show lists them)")
+        for w in _draft.drop(lab, args.name, args.id):
+            print(f"claimset: warning: {w}", file=sys.stderr)
+        print(f"dropped {args.id} from draft {args.name}")
+        return 0
+    if args.action == "discard":
+        _draft.discard(lab, args.name)
+        print(f"discarded draft {args.name}")
+        return 0
+    written, approvals = _draft.record(lab, args.name, by,
+                                       {"on_behalf_of": args.on_behalf_of, "words": args.words,
+                                        "given_at": args.given_at, "channel": args.channel,
+                                        "comment": args.comment},
+                                       code_version(os.getcwd(), lab.root))
+    if args.json:
+        print(json.dumps({"recorded": dict(written), "approvals": approvals}, indent=2))
+    else:
+        for old, new in written:
+            print(f"{new}" + (f" (drafted as {old})" if old != new else ""))
+        for a in approvals:
+            print(a)
+    return 0
+
+
 def cmd_next(args):
     """What to do next: the steps still open, each with its command (lab record §2, principle 8)."""
     from . import nextstep
     lab = _lab(args)
     st = lab.view(_actor(args, required=False), lab.read())
-    todo = nextstep.steps(st.events, _actor(args, required=False), _anchored(lab, st.events))
+    todo = nextstep.steps(st.events, _actor(args, required=False), _anchored(lab, st.events), _drafts(lab, args))
     if args.json:
         print(json.dumps([{"step": w, "command": c} for w, c in todo], ensure_ascii=False, indent=2))
         return 0
@@ -1082,12 +1165,23 @@ def _not_a_person(lab, by):
                                   f"terminal of their own, outside {harness.name}.")
 
 
+def _drafts(lab, args):
+    """[(name, drafted events with the IDs the record would give them now)] for `next` (lab record §3.6)."""
+    out = []
+    for name in _draft.names(lab):
+        try:
+            out.append((name, _draft.simulate(lab, _draft.load(lab, name), _actor(args, required=False))[2]))
+        except LabError:
+            continue
+    return out
+
+
 def _print_next(lab, args):
     """After a writing command, the next step in one line (claimset lab next gives them all)."""
     from . import nextstep
     try:
         events = lab.view(_actor(args, required=False), lab.read()).events
-        print(f"claimset: next: {nextstep.line(events, _actor(args, required=False), _anchored(lab, events))}",
+        print(f"claimset: next: {nextstep.line(events, _actor(args, required=False), _anchored(lab, events), _drafts(lab, args))}",
               file=sys.stderr)
     except Exception:  # noqa: BLE001 - a hint, never a reason for a written event to look failed
         pass
@@ -1103,6 +1197,9 @@ def cmd_summary(args):
                      "newer_main_events": len(main) - st.base}
     merged = lab.view(main=main).merged
     s["agent_logs"] = {a: {"events": len(lab.read_agent(a)), "merged_by": merged.get(a)} for a in lab.agent_logs()}
+    drafts = {name: len(_draft.load(lab, name)) for name in _draft.names(lab)}
+    if drafts:
+        s["drafts"] = drafts
     if args.json:
         print(json.dumps(s, ensure_ascii=False, indent=2))
     else:
@@ -1489,6 +1586,26 @@ def add_parser(subparsers):
     def lab_help(args):
         lab.print_help()
         return 2
+
+    for name in ("question", "term", "hypothesis", "assume", "plan"):
+        lab_sub.choices[name].add_argument(
+            "--draft", metavar="NAME",
+            help="add the event to the draft NAME, to agree with the supervisor before it is recorded (lab record "
+                 "§3.6); with --supersedes naming a drafted event, replace it")
+
+    p = lab_sub.add_parser("draft", help="drafts: what the study will test, agreed with the supervisor before it is "
+                                         "recorded (list, show, check, drop, discard, record)", parents=[common])
+    p.add_argument("action", choices=["list", "show", "check", "drop", "discard", "record"])
+    p.add_argument("name", nargs="?", help="the draft's name")
+    p.add_argument("id", nargs="?", help="drop: the drafted event to remove")
+    p.add_argument("--by", help="actor ID of the writer (default: $CLAIMSET_ACTOR)")
+    p.add_argument("--comment", help="record: the approval's comment (default: names the draft)")
+    p.add_argument("--on-behalf-of", dest="on_behalf_of", metavar="AC",
+                   help="record: the supervisor whose approval of the draft's plans the agent records")
+    p.add_argument("--words", help="record: the supervisor's reply agreeing to the draft, verbatim")
+    p.add_argument("--given-at", dest="given_at", metavar="TIME", help="record: when they gave it (ISO 8601, UTC)")
+    p.add_argument("--channel", help="record: where they gave it: conversation, email, meeting notes, …")
+    p.set_defaults(func=cmd_draft)
 
     lab.set_defaults(func=lab_help)
     return lab

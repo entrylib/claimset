@@ -33,7 +33,7 @@ class TestSteps(unittest.TestCase):
         self.add("actor", {"kind": "agent", "name": "A", "models": [{"provider": "P", "name": "M", "version": "1"}]})
         self.assertIn("register the person", first(self.lab.read()))
         self.add("actor", {"kind": "human", "name": "R", "words": "I am R.", "given_at": "2026-11-12T10:00:00Z"})
-        self.assertIn("record the research question", first(self.lab.read()))
+        self.assertIn("agree the research question with the supervisor", first(self.lab.read()))
         q = self.add("question", {"text": "Does X help?"})
         self.assertIn(f"state what you expect for {q}", first(self.lab.read()))
         h = self.add("hypothesis", {"statement": "X helps.", "question": q, "origin": "a_priori"})
