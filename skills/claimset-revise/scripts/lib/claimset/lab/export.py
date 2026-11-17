@@ -615,8 +615,17 @@ class _Exporter:
             elif cur["body"].get("plan") and cur["body"].get("run"):
                 deviations[(st.root(cur["body"]["plan"]), cur["body"]["run"])] = cur
         self.test_counts = {o: 0 for o in OUTCOMES}
+        self.not_claimed = []
         for h in self.hyps:
             decided = st.decided_plans_for(h["id"]) if st.strict else {}
+            # Formal tests (§5.7.4, as amended on 2026-11-17): one claim, from the latest formal verdict, unless the
+            # hypothesis was revised into another or abandoned; the other formal verdicts are listed, not claimed
+            formal = {root for root, (pv, _) in decided.items()
+                      if _decision.effective(pv["body"].get("decision") or {}, h["id"], st.same_hypothesis)
+                      .get("framework") == "formal" and (h["id"], root) in self.verdicts}
+            dropped = self.withdrawn(h["id"]) if formal else None
+            chosen = None if dropped or not formal else max(
+                formal, key=lambda r: st.pos[self.verdicts[(h["id"], r)]["id"]])
             for root, (pv, runs) in sorted(decided.items(), key=lambda kv: st.pos[kv[1][1][0]["id"]]):
                 verdict = self.verdicts.get((h["id"], root))
                 if verdict is None:
@@ -625,6 +634,21 @@ class _Exporter:
                 outcome = verdict["body"]["to"]
                 self.test_counts[outcome] += 1
                 version = self.hypothesis_at(h["id"], st.pos[pv["id"]]) or st.latest(h["id"])
+                if root in formal and root != chosen:
+                    entry = {"lab_event": version["id"], "lab_plan": pv["id"], "outcome": outcome}
+                    if dropped:
+                        entry.update(because=dropped["body"]["to"], why=dropped["body"].get("rationale"),
+                                     _into=dropped["body"].get("revised_to"))
+                    else:
+                        latest = st.label(st.decided_plans_for(h["id"])[chosen][0]["id"])
+                        entry.update(because="reworded", _into=h["id"],
+                                     why=f"The statement was reworded after this verdict and decided again under "
+                                         f"{latest}, whose verdict is the claim's. This verdict: "
+                                         f"{verdict['body'].get('rationale') or '(no rationale)'}")
+                    self.not_claimed.append(entry)
+                    continue
+                if root == chosen:
+                    version = self.hypothesis_at(h["id"], st.pos[verdict["id"]]) or st.latest(h["id"])
                 whole = pv["body"].get("decision") or {}
                 rule = _decision.effective(whole, h["id"], st.same_hypothesis)
                 bound = {k: ({("variable" if a == "quantity" else a): b for a, b in q.items()}
@@ -662,6 +686,45 @@ class _Exporter:
         if self.withheld_deviations:
             self.todo("claims[].planning", f"deviations {', '.join(self.withheld_deviations)} are withheld, so the "
                                            f"planning labels do not take them into account; check them")
+
+    def withdrawn(self, hypothesis_id):
+        """The latest status (not superseded, not withheld) marking the hypothesis `revised` or `abandoned`, or None."""
+        st, found = self.st, None
+        for e in st.events:
+            b = e.get("body") if isinstance(e.get("body"), dict) else {}
+            if e["type"] == "status" and not is_withheld(e) and e["id"] not in st.superseded_by \
+                    and isinstance(b.get("target"), str) and st.get(b["target"]) is not None \
+                    and st.root(b["target"]) == st.root(hypothesis_id) and b.get("to") in ("revised", "abandoned"):
+                found = e
+        return found
+
+    def resolve_not_claimed(self):
+        """`into` of each formal verdict that gives no claim: the claim of the hypothesis it went into, following
+        further revisions (§9, as amended on 2026-11-17)."""
+        st = self.st
+        claim_of = {}
+        for c in self.claims:
+            ev = (c.get("hypothesis") or {}).get("lab_event")
+            if ev and st.get(ev) is not None:
+                claim_of.setdefault(st.root(ev), c["id"])
+        out = []
+        for x in self.not_claimed:
+            target, seen = x.pop("_into", None), set()
+            while target and st.get(target) is not None and st.root(target) not in claim_of \
+                    and st.root(target) not in seen:
+                seen.add(st.root(target))
+                nxt = self.withdrawn(target)
+                target = nxt["body"].get("revised_to") if nxt is not None else None
+            cid = claim_of.get(st.root(target)) if target and st.get(target) is not None else None
+            entry = {k: x[k] for k in ("lab_event", "lab_plan", "outcome", "because")}
+            if cid and x["because"] != "abandoned":
+                entry["into"] = cid
+            entry["why"] = x.get("why") or ""
+            if not entry["why"]:
+                self.todo("paper.exploration.not_claimed", f"say why {x['lab_event']}'s verdict under "
+                                                           f"{x['lab_plan']} gives no claim")
+            out.append(entry)
+        return out
 
     def anchor_before(self, pv, first_run):
         """The service of the earliest anchor that covers plan version `pv` and was made before the first deciding
@@ -1296,6 +1359,9 @@ class _Exporter:
         lab_aid = self.export_artefacts()
         self.round_values()
         paper = self.export_paper(lab_aid)
+        not_claimed = self.resolve_not_claimed()
+        if not_claimed:
+            paper["exploration"]["not_claimed"] = not_claimed
         self._paper = paper
         for _name, impl, _mod in self.st.declared():       # the lab parts of extensions (§2.1)
             if impl is not None and hasattr(impl, "export"):
@@ -1416,6 +1482,18 @@ def _model_keys(doc, kind="agent"):
     return out
 
 
+def _by_event(exploration, doc):
+    """The exploration summary with each `not_claimed[].into` named by its claim's lab event, so renumbering claims
+    while completing the claimset does not read as a change of what the record gives."""
+    if not isinstance(exploration, dict) or not isinstance(exploration.get("not_claimed"), list):
+        return exploration
+    events = {c.get("id"): (c.get("hypothesis") or {}).get("lab_event") for c in doc.get("claims") or []
+              if isinstance(c, dict)}
+    return dict(exploration, not_claimed=[dict(x, into=events.get(x["into"], x["into"]))
+                                          if isinstance(x, dict) and "into" in x else x
+                                          for x in exploration["not_claimed"]])
+
+
 def check(lab, doc, paper=None):
     """What a completed claimset changed of what export takes from the record (lab record §9): the claims of the
     record's planned tests, hypotheses and planned estimates, their outcome, planning, test and estimate, the
@@ -1452,6 +1530,7 @@ def check(lab, doc, paper=None):
                     out.append(f"{got.get('id')}.{block}.{f} is {json.dumps(a)}, but the record gives "
                                f"{json.dumps(b)}")
     a, b = (doc.get("paper") or {}).get("exploration"), (fresh.get("paper") or {}).get("exploration")
+    a, b = _by_event(a, doc), _by_event(b, fresh)
     if a != b:
         out.append(f"paper.exploration is {json.dumps(a)}, but the record gives {json.dumps(b)}")
     for provider, name, version in sorted(_model_keys(fresh) - _model_keys(doc), key=str):

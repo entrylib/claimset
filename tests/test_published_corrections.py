@@ -1,4 +1,4 @@
-"""Corrections to the published paper (claimset spec v0.44 §3.1, rule 99), and corrections in the reading view
+"""Corrections to the published paper (claimset spec v0.44 §3.1, rule 100), and corrections in the reading view
 (Appendix D). From a claimset whose authors corrected conditions their published paper had left out."""
 
 import copy
@@ -33,7 +33,7 @@ def entry(**over):
 
 
 def r99(d):
-    return [e for e in validate(d).errors if e["rule"] == "99"]
+    return [e for e in validate(d).errors if e["rule"] == "100"]
 
 
 class TestRule99(unittest.TestCase):

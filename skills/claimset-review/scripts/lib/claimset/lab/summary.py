@@ -228,6 +228,9 @@ def render(s):
     if s["recent_notes"]:
         out.append("Recent notes:")
         out += [f"  {n['id']} {n['text']}" for n in s["recent_notes"]]
+    if s.get("drafts"):
+        out.append("Drafts, not recorded (lab record §3.6): " + "; ".join(f"{k} ({n} events)" for k, n in
+                                                                       s["drafts"].items()))
     return "\n".join(out)
 
 

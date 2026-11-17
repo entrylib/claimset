@@ -1080,6 +1080,32 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
             elif nt and nt > limit:
                 r.err("46", "paper.exploration.tests", f"{nt} planned tests reported as {oc}, but the count is {limit}")
 
+        # rule 99 (amended on 2026-11-17): the formal verdicts that give no claim (§3.1.1)
+        nc = exp.get("not_claimed")
+        if nc is not None:
+            if not isinstance(nc, list):
+                r.err("99", "paper.exploration.not_claimed", "must be a list of objects")
+                nc = []
+            for i, x in enumerate(nc):
+                w = f"paper.exploration.not_claimed[{i}]"
+                if not isinstance(x, dict):
+                    r.err("99", w, "must be an object {lab_event, lab_plan, outcome, because, into, why}")
+                    continue
+                for k in ("lab_event", "lab_plan", "why"):
+                    if not (isinstance(x.get(k), str) and x[k].strip()):
+                        r.err("99", f"{w}.{k}", "must be a non-empty string")
+                if x.get("outcome") not in tkeys:
+                    r.err("99", f"{w}.outcome", "must be supported, not_supported or inconclusive")
+                because = x.get("because")
+                if because not in ("reworded", "revised", "abandoned"):
+                    r.err("99", f"{w}.because", "must be reworded, revised or abandoned")
+                if "into" in x and not (isinstance(x["into"], str) and _h(x["into"]) in claims):
+                    r.err("99", f"{w}.into", "must be the ID of a claim of this file")
+                if because == "reworded" and "into" not in x:
+                    r.err("99", f"{w}.into", "a reworded verdict names the claim that states the final wording")
+                if because == "abandoned" and "into" in x:
+                    r.err("99", f"{w}.into", "an abandoned hypothesis went into no claim")
+
     # ---------- Studies and papers in a repository (rules 55-57) ----------
     if paper.get("study") is not None and not (isinstance(paper["study"], str) and NAME_RE.match(paper["study"])):
         r.err("56", "paper.study", "must be the study's name: lower-case letters, digits and hyphens, starting "
@@ -3016,7 +3042,7 @@ CORRECTION_KINDS = ("misprint", "correction")
 
 
 def check_published_corrections(r, paper, coll):
-    """Rule 99 (v0.44): `paper.published_as.corrections` lists where the claimset departs from the published paper
+    """Rule 100 (v0.44): `paper.published_as.corrections` lists where the claimset departs from the published paper
     (§3.1, Corrections to the published paper)."""
     pub = paper.get("published_as")
     if not isinstance(pub, dict) or "corrections" not in pub:
@@ -3024,25 +3050,25 @@ def check_published_corrections(r, paper, coll):
     w = "paper.published_as.corrections"
     corrections = pub["corrections"]
     if not isinstance(corrections, list):
-        r.err("99", w, "a list of {kind, field, where, printed, recorded, reason, found_by} (§3.1)")
+        r.err("100", w, "a list of {kind, field, where, printed, recorded, reason, found_by} (§3.1)")
         return
     ids = {o.get("id") for items in coll.values() for o in items if isinstance(o, dict)}
     people = {c.get("id") for c in coll.get("contributors") or [] if isinstance(c, dict)}
     for i, corr in enumerate(corrections):
         at = f"{w}[{i}]"
         if not isinstance(corr, dict):
-            r.err("99", at, "must be an object")
+            r.err("100", at, "must be an object")
             continue
         if corr.get("kind") not in CORRECTION_KINDS:
-            r.err("99", f"{at}.kind", f"one of {', '.join(CORRECTION_KINDS)} (§3.1)")
+            r.err("100", f"{at}.kind", f"one of {', '.join(CORRECTION_KINDS)} (§3.1)")
         for f in ("field", "where", "printed", "recorded", "reason"):
             if not isinstance(corr.get(f), str) or not corr[f].strip():
-                r.err("99", at, f"missing {f}")
+                r.err("100", at, f"missing {f}")
         fld = corr.get("field")
         if isinstance(fld, str) and fld.strip() and fld.split(".")[0] not in ids:
-            r.err("99", f"{at}.field", f"'{fld}' does not begin with the ID of an object in the file")
+            r.err("100", f"{at}.field", f"'{fld}' does not begin with the ID of an object in the file")
         if "found_by" in corr and (not isinstance(corr["found_by"], str) or corr["found_by"] not in people):
-            r.err("99", f"{at}.found_by", "the ID of a contributor")
+            r.err("100", f"{at}.found_by", "the ID of a contributor")
 
 
 def check_published_as(r, paper, artefacts):

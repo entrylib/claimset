@@ -427,6 +427,12 @@ def exploration_words(e):
         out.append("covers " + (mine or "part of its lab")
                    + (f" (the whole lab: {', '.join(whole)})" if whole else "")
                    + (f"; other papers from the lab: {others}" if others else ""))
+    nc = [x for x in e.get("not_claimed") or [] if isinstance(x, dict)] if isinstance(e.get("not_claimed"), list) \
+        else []
+    if nc:      # the formal verdicts that give no claim (spec §3.1.1, as amended on 2026-11-17)
+        out.append("not claimed: " + ", ".join(
+            f"{x.get('lab_event')} under {x.get('lab_plan')} ({str(x.get('outcome', '')).replace('_', ' ')}; "
+            f"{x.get('because')}" + (f", into {x['into']}" if x.get("into") else "") + ")" for x in nc))
     return "; ".join(out)
 
 
