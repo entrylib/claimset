@@ -4,6 +4,7 @@
     "title": "Method M against the seasonal naive benchmark on UK monthly retail sales",
     "licence": "CC-BY-4.0",
     "classification": {
+      "subfield": "openalex:subfields/1803",
       "keywords": [
         "retail demand forecasting"
       ]

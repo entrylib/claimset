@@ -29,6 +29,7 @@ claimset validate claimset.json --published   # check a published file
 claimset render claimset.json -o claimset.txt  # the reading view: plain text for reading models
 claimset render claimset.json --claim C4       # one claim and what it rests on (a claim bundle)
 claimset renumber claimset.json                # before the first submission: IDs in reading order
+claimset subfields statistics                  # the OpenAlex subfields whose name holds the words: one is proposed
 claimset migrate claimset.json                 # bring a file from an earlier version (below)
 claimset package claimset.json -o paper.zip    # the submission package: the claimset and its files (BagIt)
 claimset validate paper.zip                    # validate a package: files, checksums and the claimset

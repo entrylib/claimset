@@ -25,6 +25,19 @@ def _cmd_validate(args):
     return 1 if rep.errors else 0
 
 
+def _cmd_subfields(args):
+    """The OpenAlex subfields a submission may propose (specification §3.1), all or those whose name holds the words."""
+    from . import subfields
+    found = subfields.find(args.words)
+    for sid, name in found:
+        print(f"{sid}  {name}")
+    if not found:
+        print(f"no subfield's name holds {' and '.join(repr(w) for w in args.words)}: try fewer or other words, or "
+              f"`claimset subfields` for all {len(subfields.SUBFIELDS)}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_setup(args):
     """Create, attach or adopt study branches (lab record spec §3)."""
     from .lab import record
@@ -310,6 +323,13 @@ def build_parser():
                    help="the file is a revision submission, naming the claimset it revises in paper.id")
     v.add_argument("--json", action="store_true", help="machine-readable report")
     v.set_defaults(func=_cmd_validate)
+
+    sf = sub.add_parser("subfields", help="list the OpenAlex subfields a submission may propose (spec §3.1)",
+                        description="Print the OpenAlex subfields, one per line as `<ID>  <name>`: all of them, or "
+                                    "those whose name holds every word given. The ID goes in "
+                                    "paper.classification.subfield once the guarantor agrees to the name.")
+    sf.add_argument("words", nargs="*", help="words the subfield's name holds, in any case (e.g. statistics)")
+    sf.set_defaults(func=_cmd_subfields)
 
     rv = sub.add_parser("render", help="the reading view of a claimset: plain text for reading models")
     rv.add_argument("file", help="path to the claimset JSON file")

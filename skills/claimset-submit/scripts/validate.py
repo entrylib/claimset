@@ -52,6 +52,14 @@ def _sibling(name):
     return importlib.import_module(name)
 
 
+def _subfields():
+    """The module of OpenAlex subfields (subfields.py): beside this file in the package and in the skill."""
+    if __package__:
+        from . import subfields
+        return subfields
+    return _sibling("subfields")
+
+
 def schema_version_tuple(v):
     """(major, minor) of a specification version such as "0.37", or None if `v` is not one."""
     m = SCHEMA_VERSION_RE.match(v) if isinstance(v, str) else None
@@ -182,6 +190,7 @@ class Report:
         self.errors = []
         self.warnings = []
         self.computed = {}
+        self.subfield = None      # (ID, name) of the subfield a submission proposes, when it is a listed one (§3.1)
 
     def err(self, rule, where, msg):
         self.errors.append({"rule": rule, "where": where, "message": msg})
@@ -563,6 +572,22 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
         r.err("27", "paper.classification.subfield", "platform-assigned OpenAlex subfield missing")
     if not published and not cls.get("keywords"):
         r.warn("W5", "paper.classification.keywords", "recommended: keywords help the platform classify the paper")
+    if not published:
+        # The subfield is proposed with the submission and confirmed by the guarantor (§3.1): a classifier's choice,
+        # which nobody sees before publication, has put papers in fields far from their own.
+        sub = cls.get("subfield")
+        if sub is None or sub == "":
+            r.warn("W54", "paper.classification.subfield",
+                   "no subfield proposed: a platform's classifier then chooses it, unseen, and may choose a field far "
+                   "from the paper's. Choose the paper's OpenAlex subfield (`claimset subfields <words>` lists them), "
+                   "show its name to the guarantor, and give its ID once they agree, such as "
+                   "\"openalex:subfields/2613\" (Statistics and Probability; §3.1)")
+        elif _subfields().norm(sub) is None:
+            r.warn("W55", "paper.classification.subfield",
+                   f"{sub!r} is not the ID of an OpenAlex subfield (openalex:subfields/<four digits>, one that "
+                   f"`claimset subfields` lists): a platform cannot use it, and its classifier chooses instead (§3.1)")
+        else:
+            r.subfield = (_subfields().norm(sub), _subfields().name(sub))
     topics = as_list(cls.get("topics"))
     if len(topics) > 3:
         r.err("1", "paper.classification.topics", "at most 3 topics")
@@ -4087,8 +4112,10 @@ def print_report(rep, published=False, as_json=False):
     """Print a validation report as text or JSON."""
     mode = "published file" if published else "submission"
     if as_json:
+        sub = getattr(rep, "subfield", None)
         print(json.dumps({"mode": mode, "valid": not rep.errors, "errors": rep.errors,
-                          "warnings": rep.warnings, "computed": rep.computed}, indent=2))
+                          "warnings": rep.warnings, "computed": rep.computed,
+                          "subfield": {"id": sub[0], "name": sub[1]} if sub else None}, indent=2))
     else:
         print(f"{'VALID' if not rep.errors else 'INVALID'} {mode}: "
               f"{len(rep.errors)} error(s), {len(rep.warnings)} warning(s)")
@@ -4096,6 +4123,9 @@ def print_report(rep, published=False, as_json=False):
             print(f"  ERROR   [rule {e['rule']}] {e['where']}: {e['message']}")
         for w in rep.warnings:
             print(f"  WARNING [{w['rule']}] {w['where']}: {w['message']}")
+        if getattr(rep, "subfield", None):
+            print(f"  Subfield proposed: {rep.subfield[1]} ({rep.subfield[0]}). The guarantor sees this name and "
+                  f"agrees to it before the claimset is submitted (§3.1).")
         first = [w for w in rep.warnings if w["rule"] in HANDOVER]
         if first:
             print(f"  Address before hand-over ({len(first)}), or say in the hand-over why each stays: "
