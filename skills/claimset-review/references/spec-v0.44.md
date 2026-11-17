@@ -26,10 +26,12 @@ Amended on 2026-11-17 (§3.1, §3.2, §3.3, §3.6, §3.7, §8 rule 11, §10 rule
 - §3.6: a figure's `description` says what the figure shows, as a caption does; how it was made is not part of it.
 - §2.3: the reading view gives a claim's name and summary, a definition's symbol and the results of a relation.
 
-Amended on 2026-11-17 (§2.2, §3.1, §10 warnings 54 and 55): a submission proposes the paper's subfield, and the guarantor agrees to it. The subfield was assigned by the platform's classifier at publication, where nobody saw it first: a paper on a forecast error measure was listed under Cognitive Neuroscience. A proposal was already allowed and already kept; it is now expected.
+Amended on 2026-11-17 (§3.13, §10.4 warning 54): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 54. A warning only: every file valid before stays valid.
+
+Amended on 2026-11-17 (§2.2, §3.1, §10 warnings 55 and 56): a submission proposes the paper's subfield, and the guarantor agrees to it. The subfield was assigned by the platform's classifier at publication, where nobody saw it first: a paper on a forecast error measure was listed under Cognitive Neuroscience. A proposal was already allowed and already kept; it is now expected.
 
 - §3.1: `paper.classification.subfield` is proposed with the submission, from the list of OpenAlex subfields, and the guarantor agrees to it by name before the claimset is submitted. A platform's classifier assigns it only when a submission proposes none.
-- New warning 54: a submission that proposes no subfield. New warning 55: a proposed subfield that is not the ID of an OpenAlex subfield.
+- New warning 55: a submission that proposes no subfield. New warning 56: a proposed subfield that is not the ID of an OpenAlex subfield.
 - The package lists the subfields (`claimset subfields`), and the validator prints the name of the one a submission proposes.
 
 ## Changes in v0.43 (since v0.42)
@@ -685,7 +687,7 @@ The core of this specification is what every field shares and what claims are co
 | `status_notice` | object | Platform-assigned unless `active`: `{date, reason_code, statement, issued_by}` |
 | `date` | ISO date | Platform-assigned. Publication date |
 | `licence` | string | Required. SPDX identifier, e.g. `CC-BY-4.0`. Native papers: chosen by the supervisor or guarantor. Converted papers: see *Licence of a converted paper* below and rule 31 |
-| `classification` | object | `subfield` (one OpenAlex subfield ID): proposed with the submission and agreed to by the guarantor (below; warnings 54 and 55). `topics` (1–3 OpenAlex topic IDs): platform-assigned; the agent may propose values. `keywords` (free text, for specifics the taxonomy does not reach): supplied by the agent, recommended |
+| `classification` | object | `subfield` (one OpenAlex subfield ID): proposed with the submission and agreed to by the guarantor (below; warnings 55 and 56). `topics` (1–3 OpenAlex topic IDs): platform-assigned; the agent may propose values. `keywords` (free text, for specifics the taxonomy does not reach): supplied by the agent, recommended |
 | `contributions` | list of claim IDs | Required. Ordered by priority; principal claims only |
 | `highlights` | list of IDs | Optional. One to five IDs, ordered by priority: principal claims (each in `contributions`) and terms the paper introduces (definitions without `source`), chosen by the guarantor (below; rule 90) |
 | `summary` | string | Optional. The paper in a few sentences of plain language, for a reader outside its field (below; rule 94, warning 45) |
@@ -741,7 +743,7 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 **`classification.subfield`** (from v0.44 as amended on 2026-11-17). The field the paper is listed under: one of the subfields of OpenAlex, named by its ID, `openalex:subfields/<four digits>` (`"openalex:subfields/2613"` is Statistics and Probability). `claimset subfields` prints the list, and `claimset subfields <words>` those whose name holds the words. A submission proposes it:
 - The agent chooses the subfield from the list, by what the paper is about and where its readers are, and never writes an ID from memory.
 - The guarantor is told the subfield's name and agrees to it before the claimset is submitted, as they approve the highlights and the summary (principle 10). `claimset validate` prints the name of the proposed subfield.
-- A submission that proposes none is flagged (warning 54), and so is a proposed value that is not the ID of a subfield (warning 55). A platform's classifier then assigns the subfield, which nobody sees before publication; a platform may refuse such a submission instead.
+- A submission that proposes none is flagged (warning 55), and so is a proposed value that is not the ID of a subfield (warning 56). A platform's classifier then assigns the subfield, which nobody sees before publication; a platform may refuse such a submission instead.
 - A correction or revision keeps the subfield of the version before, and changes it only when the guarantor asks.
 
 **`summary`.** What a reader outside the paper's field should know of it, in a few sentences: what was asked, what was found and under which conditions, and what the finding is good for. At most 250 words, the length of an abstract (warning 45; 150 words until the amendment of 2026-11-17), in plain language: a term the paper defines is explained in words, not only named; numbers are the paper's own; maths is written as in statements (§8 rule 6) and kept to what the finding needs. It adds no claim: every finding it states is a claim of the paper, with its conditions, and it says nothing the claims do not.
@@ -1485,7 +1487,7 @@ Each work the paper cites is listed once, in the top-level `references`, and cit
 - `id`: `B1`, `B2`, ….
 - `target` and `id_type`: as for cited support (§4): an identifier (`doi`, `arxiv`, …), a global claim ID of a claimset (`id_type: claimset`), a paper or claim of the same repository not yet published (`id_type: claimset_local`, §2.4), or the reference as printed in the paper's reference list (`id_type: reference`).
 - `archive_uri`: required for `url` targets, unless the claimset holds a captured copy of the page: an artefact that names the entry in `reference` and whose `version` is the copy's hash (a captured source, lab record §5.20; private copies keep their hash in the record). Give one whenever the page can be archived (warning 32).
-Only works that a support entry, relation, definition, artefact or test points to are listed.
+Only works that a support entry, relation, definition, artefact or test points to are listed. Every paper cites some: the works its findings build on, test or depart from, at the least those that define the methods it uses and the results it tests (warning 54). A relation to a claimset does not replace them: when a paper tests a claimset's claims, the works those claims rest on bear on its findings too.
 
 ### 3.14 Open questions
 
@@ -1879,8 +1881,9 @@ The file records identifier type and venue facts for cited works only. Trust in 
 51. A native paper with `paper.published_as` lists an agent before one of the published paper's authors (a `guarantor` or `coauthor`): list the paper's authors first, in the order of its byline, then anyone else, agents last (§3.11). From v0.44.
 52. A claim's `summary` has more than 50 words (§3.3): one or two plain sentences; the statement carries the detail. (From v0.44 as amended on 2026-11-17, as warning 53.)
 53. Two definitions give the same `symbol` (§3.2): one symbol, one meaning. Give each quantity its own symbol, or define the term once.
-54. A submission proposes no subfield (`paper.classification.subfield`, §3.1): choose the paper's OpenAlex subfield from the list, tell the guarantor its name, and give its ID once they agree. (From v0.44 as amended on 2026-11-17, as warning 55.)
-55. A submission's `paper.classification.subfield` is not the ID of an OpenAlex subfield (§3.1): a platform cannot use it.
+54. The paper cites no work: `references` is missing or empty (§3.13). A paper places its findings in its field by citing the works they build on, test or depart from: at the least, the works that define the methods it uses and the results it tests. Relations to claimsets do not count, since a claimset is cited by its claims' global IDs in relations, not listed in `references`; when a paper tests or extends a claimset, the works that claimset cites are where to start. From v0.44 as amended on 2026-11-17.
+55. A submission proposes no subfield (`paper.classification.subfield`, §3.1): choose the paper's OpenAlex subfield from the list, tell the guarantor its name, and give its ID once they agree. (From v0.44 as amended on 2026-11-17, as warning 56.)
+56. A submission's `paper.classification.subfield` is not the ID of an OpenAlex subfield (§3.1): a platform cannot use it.
 
 ## 11. Platform dependencies
 
@@ -2089,7 +2092,7 @@ declarations funding: none | competing interests: None declared.
 DEFINITIONS
 D1 [variable] forecast skill: Relative reduction in mean absolute scaled error against a seasonal naive benchmark, averaged over series and horizons.
 D2 [method] method M: The forecasting method studied in this paper, as implemented in version 1.0 of the code.
-D3 [method] seasonal naive method: Forecasts each month by the value of the same month one year earlier.
+D3 [method] seasonal naive method: Forecasts each month by the value of the same month one year earlier. [source B1]
 D4 [data] UK monthly retail sales: 1,200 monthly sales series of one UK retailer's store network, 2010-2024, each with at least 36 observations.
 D5 [design] rolling-origin evaluation: Rolling origin with forecasts for horizons 1 to 12 months from each origin.
 
@@ -2112,6 +2115,9 @@ L1 [sampling; affects C2; reduces_transferability; mitigation none] All 1,200 se
 
 ARTEFACTS
 A2 [table] Mean relative MASE reduction of method M by forecast horizon, 1 to 12 months.
+
+REFERENCES
+B1 10.1016/j.ijforecast.2006.03.001 (doi)
 ```
 
 ## Appendix E: a qualitative paper (definitions, claims, evidence and warrant of a submission)

@@ -577,13 +577,13 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
         # which nobody sees before publication, has put papers in fields far from their own.
         sub = cls.get("subfield")
         if sub is None or sub == "":
-            r.warn("W54", "paper.classification.subfield",
+            r.warn("W55", "paper.classification.subfield",
                    "no subfield proposed: a platform's classifier then chooses it, unseen, and may choose a field far "
                    "from the paper's. Choose the paper's OpenAlex subfield (`claimset subfields <words>` lists them), "
                    "show its name to the guarantor, and give its ID once they agree, such as "
                    "\"openalex:subfields/2613\" (Statistics and Probability; §3.1)")
         elif _subfields().norm(sub) is None:
-            r.warn("W55", "paper.classification.subfield",
+            r.warn("W56", "paper.classification.subfield",
                    f"{sub!r} is not the ID of an OpenAlex subfield (openalex:subfields/<four digits>, one that "
                    f"`claimset subfields` lists): a platform cannot use it, and its classifier chooses instead (§3.1)")
         else:
@@ -2984,6 +2984,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     check_published_as(r, paper, coll.get("artefacts") or [])
     check_published_corrections(r, paper, coll)
     check_contributor_order(r, paper, coll.get("contributors") or [])
+    check_references_present(r, coll.get("references"))
 
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
@@ -3128,6 +3129,17 @@ def check_published_as(r, paper, artefacts):
                                                       "platforms can tell a conversion by its authors from a draft "
                                                       "(§3.1)")
             return
+
+
+def check_references_present(r, references):
+    """Warning 54 (v0.44, amended on 2026-11-17): the paper cites no work: `references` is missing or empty (§3.13).
+    Relations to other claimsets do not count: a claimset is cited by its claims' global IDs in relations, not listed
+    in `references`, and the works it rests on are what place a finding in its field."""
+    if isinstance(references, list) and references:
+        return
+    r.warn("W54", "references", "the paper cites no work: cite the works its findings build on, test or depart from, "
+                                "each pointed to by the support entry, relation or definition that uses it; when it "
+                                "tests or extends a claimset, start from the works that claimset cites (§3.13)")
 
 
 def check_contributor_order(r, paper, contributors):

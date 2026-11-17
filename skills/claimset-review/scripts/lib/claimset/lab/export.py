@@ -1234,7 +1234,7 @@ class _Exporter:
             {"where": "paper.classification.keywords", "what": "propose keywords"},
             {"where": "paper.classification.subfield",
              "what": "propose the paper's OpenAlex subfield (`claimset subfields <words>` lists them) and have the "
-                     "guarantor agree to it by name before the claimset is submitted (claimset §3.1, W54)"},
+                     "guarantor agree to it by name before the claimset is submitted (claimset §3.1, W55)"},
             {"where": "definitions", "what": "check the definitions exported from the record's terms, and add any "
                                              "the claims need that the record lacks, each with its kind; each method "
                                              "or model of the study's own that a planned test compares gives every "

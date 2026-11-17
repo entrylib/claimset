@@ -1,4 +1,4 @@
-"""The subfield a submission proposes (specification §3.1; warnings 54 and 55): one of OpenAlex's, agreed to by the
+"""The subfield a submission proposes (specification §3.1; warnings 55 and 56): one of OpenAlex's, agreed to by the
 guarantor before submission."""
 
 import contextlib
@@ -36,8 +36,8 @@ class TestProposedSubfield(unittest.TestCase):
     def test_a_listed_subfield_passes_and_is_named(self):
         rep = validate(with_subfield("openalex:subfields/2613"))
         self.assertEqual(rep.errors, [])
-        self.assertNotIn("W54", rules(rep))
         self.assertNotIn("W55", rules(rep))
+        self.assertNotIn("W56", rules(rep))
         self.assertEqual(rep.subfield, ("openalex:subfields/2613", "Statistics and Probability"))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -51,31 +51,31 @@ class TestProposedSubfield(unittest.TestCase):
 
     def test_the_example_proposes_one(self):
         rep = validate(copy.deepcopy(NATIVE))
-        self.assertNotIn("W54", rules(rep))
+        self.assertNotIn("W55", rules(rep))
         self.assertEqual(rep.subfield[1], "Management Science and Operations Research")
 
     def test_no_subfield_is_flagged(self):
         for doc in (with_subfield(None), with_subfield("")):
             rep = validate(doc)
             self.assertEqual(rep.errors, [])                       # a file valid before stays valid
-            self.assertEqual(rules(rep).count("W54"), 1)
+            self.assertEqual(rules(rep).count("W55"), 1)
             self.assertIsNone(rep.subfield)
         doc = with_subfield(None)
         del doc["paper"]["classification"]
-        self.assertIn("W54", rules(validate(doc)))
+        self.assertIn("W55", rules(validate(doc)))
 
     def test_a_value_that_is_no_subfield_is_flagged(self):
         for bad in ("openalex:subfields/9999", "Statistics", "openalex:subfields/XXXX", "openalex:T10282", 2613):
             rep = validate(with_subfield(bad))
             self.assertEqual(rep.errors, [], bad)
-            self.assertEqual(rules(rep).count("W55"), 1, bad)
-            self.assertNotIn("W54", rules(rep))
+            self.assertEqual(rules(rep).count("W56"), 1, bad)
+            self.assertNotIn("W55", rules(rep))
             self.assertIsNone(rep.subfield)
 
     def test_a_published_file_is_not_asked_again(self):
         rep = validate(copy.deepcopy(PUBLISHED), published=True)
-        self.assertNotIn("W54", rules(rep))
-        self.assertNotIn("W55", rules(rep))                        # its subfield is the platform's to check
+        self.assertNotIn("W55", rules(rep))
+        self.assertNotIn("W56", rules(rep))                        # its subfield is the platform's to check
 
 
 class TestTheList(unittest.TestCase):
