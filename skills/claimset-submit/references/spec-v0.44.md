@@ -16,6 +16,8 @@ A planned estimate could only report single values: each estimand bound exactly 
 
 Amended on 2026-11-17 (§3.1.1, §3.3.3, §10 rule 99): a hypothesis tested by proof gives one claim, in its final wording. A study of proofs recorded its hypotheses before their wording was agreed; the agreed wording had to be decided by a second formal plan, and its paper carried a claim for every wording tested, two for most results, beside the merged and dropped ones. A proof is checked, not sampled, and its reader can check it: deciding a corrected statement again does not raise the chance of a false claim as repeating a statistical test does. So *One claim per planned test* now excepts formal tests: a hypothesis decided under formal plans gives one claim, from its latest formal verdict, and the exploration summary lists the formal verdicts that give no claim, with why and the claim each went into (`not_claimed`; new rule 99), and the reading view's exploration line names them (§2.3). Optional; every file valid before stays valid.
 
+Amended on 2026-11-17 (§3.13, §10.4 warning 52): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 52. A warning only: every file valid before stays valid.
+
 ## Changes in v0.43 (since v0.42)
 
 A review states what earlier work establishes and draws rules from it; a study states the earlier results its findings rest on. Neither had a label for such a claim. The first review written as a claimset (a summary of the literature on evaluating predictions) had to label each of its findings and recommendations `extension`, with an `extends` relation to the very work it cites as its evidence: the page then said that the claims extend the papers they rely on, which is not what they do.
@@ -1440,7 +1442,7 @@ Each work the paper cites is listed once, in the top-level `references`, and cit
 - `id`: `B1`, `B2`, ….
 - `target` and `id_type`: as for cited support (§4): an identifier (`doi`, `arxiv`, …), a global claim ID of a claimset (`id_type: claimset`), a paper or claim of the same repository not yet published (`id_type: claimset_local`, §2.4), or the reference as printed in the paper's reference list (`id_type: reference`).
 - `archive_uri`: required for `url` targets, unless the claimset holds a captured copy of the page: an artefact that names the entry in `reference` and whose `version` is the copy's hash (a captured source, lab record §5.20; private copies keep their hash in the record). Give one whenever the page can be archived (warning 32).
-Only works that a support entry, relation, definition, artefact or test points to are listed.
+Only works that a support entry, relation, definition, artefact or test points to are listed. Every paper cites some: the works its findings build on, test or depart from, at the least those that define the methods it uses and the results it tests (warning 52). A relation to a claimset does not replace them: when a paper tests a claimset's claims, the works those claims rest on bear on its findings too.
 
 ### 3.14 Open questions
 
@@ -1827,6 +1829,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 49. A native paper's `manuscript` artefact names a published paper (its `uri` is a DOI, an arXiv identifier or their resolver addresses) and `paper.published_as` is absent (§3.1): give it, so that readers and platforms can tell a converted paper from a draft.
 50. A number in a claim's statement is written with thousands separators (`1,000`, `10 000`): write it as it is recorded (`1000`; §8 rule 10). From v0.44.
 51. A native paper with `paper.published_as` lists an agent before one of the published paper's authors (a `guarantor` or `coauthor`): list the paper's authors first, in the order of its byline, then anyone else, agents last (§3.11). From v0.44.
+52. The paper cites no work: `references` is missing or empty (§3.13). A paper places its findings in its field by citing the works they build on, test or depart from: at the least, the works that define the methods it uses and the results it tests. Relations to claimsets do not count, since a claimset is cited by its claims' global IDs in relations, not listed in `references`; when a paper tests or extends a claimset, the works that claimset cites are where to start. From v0.44 as amended on 2026-11-17.
 
 ## 11. Platform dependencies
 
@@ -2035,7 +2038,7 @@ declarations funding: none | competing interests: None declared.
 DEFINITIONS
 D1 [variable] forecast skill: Relative reduction in mean absolute scaled error against a seasonal naive benchmark, averaged over series and horizons.
 D2 [method] method M: The forecasting method studied in this paper, as implemented in version 1.0 of the code.
-D3 [method] seasonal naive method: Forecasts each month by the value of the same month one year earlier.
+D3 [method] seasonal naive method: Forecasts each month by the value of the same month one year earlier. [source B1]
 D4 [data] UK monthly retail sales: 1,200 monthly sales series of one UK retailer's store network, 2010-2024, each with at least 36 observations.
 D5 [design] rolling-origin evaluation: Rolling origin with forecasts for horizons 1 to 12 months from each origin.
 
@@ -2058,6 +2061,9 @@ L1 [sampling; affects C2; reduces_transferability; mitigation none] All 1,200 se
 
 ARTEFACTS
 A2 [table] Mean relative MASE reduction of method M by forecast horizon, 1 to 12 months.
+
+REFERENCES
+B1 10.1016/j.ijforecast.2006.03.001 (doi)
 ```
 
 ## Appendix E: a qualitative paper (definitions, claims, evidence and warrant of a submission)

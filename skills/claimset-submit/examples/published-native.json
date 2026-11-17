@@ -110,7 +110,8 @@
       "id": "D3",
       "term": "seasonal naive method",
       "kind": "method",
-      "definition": "Forecasts each month by the value of the same month one year earlier."
+      "definition": "Forecasts each month by the value of the same month one year earlier.",
+      "source": "B1"
     },
     {
       "id": "D4",
@@ -280,6 +281,13 @@
         "level": "public"
       },
       "description": "Mean relative MASE reduction of method M by forecast horizon, 1 to 12 months."
+    }
+  ],
+  "references": [
+    {
+      "id": "B1",
+      "target": "10.1016/j.ijforecast.2006.03.001",
+      "id_type": "doi"
     }
   ]
 }

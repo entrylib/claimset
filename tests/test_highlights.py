@@ -46,9 +46,7 @@ class TestRule90(unittest.TestCase):
 
     def test_a_borrowed_term(self):
         d = doc(highlights=["C2", "D3"])
-        d.setdefault("references", []).append({"id": "B9", "target": "10.1016/j.ijforecast.2006.03.001",
-                                               "id_type": "doi"})
-        next(x for x in d["definitions"] if x["id"] == "D3")["source"] = "B9"
+        self.assertEqual(next(x for x in d["definitions"] if x["id"] == "D3")["source"], "B1")   # the example's
         r = validate(d)
         self.assertEqual(rules(r), ["90"])
         self.assertIn("borrowed", r.errors[0]["message"])
