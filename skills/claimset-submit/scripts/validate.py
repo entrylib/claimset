@@ -2953,6 +2953,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- summary (rule 94, warning 45; §3.1) -----
     check_summary(r, paper)
     check_published_as(r, paper, coll.get("artefacts") or [])
+    check_published_corrections(r, paper, coll)
     check_contributor_order(r, paper, coll.get("contributors") or [])
 
     # ----- highlights (rule 90, warning 39; §3.1) -----
@@ -3035,6 +3036,39 @@ PUBLISHED_ID_TYPES = ("doi", "arxiv", "handle", "pmid", "isbn", "url")
 #: Warning 49: a manuscript artefact's uri that names a published paper (a DOI or an arXiv identifier).
 PUBLISHED_URI = re.compile(r"^(?:doi:|https?://(?:dx\.)?doi\.org/|10\.\d{4,9}/|arxiv:|https?://arxiv\.org/abs/)",
                            re.I)
+
+
+CORRECTION_KINDS = ("misprint", "correction")
+
+
+def check_published_corrections(r, paper, coll):
+    """Rule 100 (v0.44): `paper.published_as.corrections` lists where the claimset departs from the published paper
+    (§3.1, Corrections to the published paper)."""
+    pub = paper.get("published_as")
+    if not isinstance(pub, dict) or "corrections" not in pub:
+        return
+    w = "paper.published_as.corrections"
+    corrections = pub["corrections"]
+    if not isinstance(corrections, list):
+        r.err("100", w, "a list of {kind, field, where, printed, recorded, reason, found_by} (§3.1)")
+        return
+    ids = {o.get("id") for items in coll.values() for o in items if isinstance(o, dict)}
+    people = {c.get("id") for c in coll.get("contributors") or [] if isinstance(c, dict)}
+    for i, corr in enumerate(corrections):
+        at = f"{w}[{i}]"
+        if not isinstance(corr, dict):
+            r.err("100", at, "must be an object")
+            continue
+        if corr.get("kind") not in CORRECTION_KINDS:
+            r.err("100", f"{at}.kind", f"one of {', '.join(CORRECTION_KINDS)} (§3.1)")
+        for f in ("field", "where", "printed", "recorded", "reason"):
+            if not isinstance(corr.get(f), str) or not corr[f].strip():
+                r.err("100", at, f"missing {f}")
+        fld = corr.get("field")
+        if isinstance(fld, str) and fld.strip() and fld.split(".")[0] not in ids:
+            r.err("100", f"{at}.field", f"'{fld}' does not begin with the ID of an object in the file")
+        if "found_by" in corr and (not isinstance(corr["found_by"], str) or corr["found_by"] not in people):
+            r.err("100", f"{at}.found_by", "the ID of a contributor")
 
 
 def check_published_as(r, paper, artefacts):
