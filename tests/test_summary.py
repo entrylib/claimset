@@ -35,8 +35,8 @@ class TestSummary(unittest.TestCase):
 
     def test_warning_45(self):
         self.assertEqual(found(validate(doc(summary=TEXT)), "W45"), [])
-        self.assertEqual(found(validate(doc(summary=" ".join(["word"] * 150))), "W45"), [])
-        self.assertEqual(len(found(validate(doc(summary=" ".join(["word"] * 151))), "W45")), 1)
+        self.assertEqual(found(validate(doc(summary=" ".join(["word"] * 250))), "W45"), [])   # 150 until 2026-11-17
+        self.assertEqual(len(found(validate(doc(summary=" ".join(["word"] * 251))), "W45")), 1)
 
     def test_reading_view(self):
         lines = render(doc(summary="A  finding,\nin plain words.")).splitlines()

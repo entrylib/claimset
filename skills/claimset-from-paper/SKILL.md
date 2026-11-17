@@ -50,7 +50,9 @@ Then follow `claimset-submit` from its step 3, with these:
 Where the claimset departs from the published paper, say so: a misprint you find, or a result the authors now state differently (a condition the paper left out, a conclusion narrowed), goes in `paper.published_as.corrections` (spec §3.1) with what was printed, what is recorded and why. Never correct the paper silently, and never correct it without the author's agreement: ask them about each one. Platforms show the authors in this order, and EntryLib refuses a submission whose authors differ from the byline's order.
 - **Planning.** A test is `confirmatory` only if it was registered before the data were seen (spec §3.3.3, *Tests registered outside a lab record*); otherwise the claim is `exploratory`, whatever the paper's wording.
 - **References.** Give each cited work its DOI or other identifier (look it up); `id_type: reference` is for works without one.
-- **`paper.summary`** (spec §3.1): draft a few sentences of plain language, at most 150 words, from the principal claims, never from the abstract, and ask the author to approve or rewrite it. It is shown first on the paper's page.
+- **`paper.summary`** (spec §3.1): draft a few sentences of plain language, at most 250 words, from the principal claims, never from the abstract, and ask the author to approve or rewrite it. It is shown first on the paper's page.
+- **A claim's `name` and `summary`** (spec §3.3, optional): the name is what the claim is called, a few words that say what the statement says; where the paper names the result itself (a theorem's title, a heading), use that name. The summary is the claim in one or two sentences of plain language, at most 50 words, written from the statement. Ask the author to approve them with the claims.
+- **Symbols** (spec §3.2, optional): a term the paper writes a symbol for gives it in `symbol` (`"$\\sigma$"`), one symbol for one term, as the paper writes it.
 
 ## 4. Check with the author
 
