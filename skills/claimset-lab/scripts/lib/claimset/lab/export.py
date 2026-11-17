@@ -1224,6 +1224,11 @@ class _Exporter:
                                                  "introduces, in priority order, with a line on why each; ask the "
                                                  "guarantor to choose and record what they decide, or leave the "
                                                  "field out if they prefer none (claimset §3.1, W39)"},
+            {"where": "claims[].name, claims[].summary",
+             "what": "give each claim a name, what it is called in a few words, and a summary, the claim in one or "
+                     "two plain sentences, both written from its statement; give each definition the symbol the "
+                     "paper writes for its term; ask the guarantor to approve them with the paper (claimset §3.2, "
+                     "§3.3; optional)"},
             {"where": "paper.autonomy", "what": "set autonomy (exported as unknown): autonomous, human_supervised or "
                                                 "human_assisted"},
             {"where": "paper.classification.keywords", "what": "propose keywords"},
