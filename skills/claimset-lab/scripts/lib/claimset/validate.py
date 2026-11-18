@@ -2988,6 +2988,8 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
 
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
+    check_sections(r, paper, claims)
+    check_definition_order(r, coll["definitions"])
     if not converted and not published and "highlights" not in paper:
         r.warn("W39", "paper.highlights", "ask the guarantor which principal claims and which of the paper's own "
                                           "terms a reader should take first, at most five, in order of priority "
@@ -3273,6 +3275,82 @@ def check_reading(r, claims, definitions, by_id):
                              f"own symbol, or define the term once")
         else:
             seen[key] = _h(d.get("id"))
+
+
+#: Rule 105 (§3.1): the longest title of a section.
+MAX_SECTION_TITLE_CHARS = 80
+
+
+def check_sections(r, paper, claims):
+    """The sections the claims are read in (§3.1; v0.44 as amended on 2026-11-18). Rule 105: `paper.sections`, when
+    present, is a non-empty list of `{title, claims}`: a title on one line of at most 80 characters, different from
+    every other; a non-empty list of IDs of claims of the file that are not assumptions; no claim in two sections.
+    Warning 57: a claim that is not an assumption is in no section."""
+    if "sections" not in paper:
+        return
+    sections = paper["sections"]
+    if not isinstance(sections, list) or not sections:
+        r.err("105", "paper.sections", "a non-empty list of sections, each {title, claims}, in the order they are "
+                                       "read; leave the field out for a paper without sections (§3.1)")
+        return
+    titles, placed = {}, {}
+    for i, sec in enumerate(sections):
+        w = f"paper.sections[{i}]"
+        if not isinstance(sec, dict):
+            r.err("105", w, "a section is an object {title, claims}")
+            continue
+        extra = sorted(set(sec) - {"title", "claims"})
+        if extra:
+            r.err("105", w, f"a section has a title and its claims, and nothing else (found {', '.join(extra)})")
+        title = sec.get("title")
+        if not isinstance(title, str) or not title.strip():
+            r.err("105", f"{w}.title", "the section's title: a few words that say what its claims are about")
+        elif "\n" in title or "\r" in title or len(title.strip()) > MAX_SECTION_TITLE_CHARS:
+            r.err("105", f"{w}.title", f"one line of at most {MAX_SECTION_TITLE_CHARS} characters "
+                                       f"({len(title.strip())} here)")
+        else:
+            key = " ".join(title.split()).casefold()
+            if key in titles:
+                r.err("105", f"{w}.title", f"section {titles[key]} has the same title: each section has its own")
+            else:
+                titles[key] = i + 1
+        ids = sec.get("claims")
+        if not isinstance(ids, list) or not ids:
+            r.err("105", f"{w}.claims", "a non-empty list of the IDs of the section's claims, in reading order")
+            continue
+        for cid in ids:
+            c = claims.get(cid) if isinstance(cid, str) else None
+            if c is None:
+                r.err("105", f"{w}.claims", f"{cid!r} is not a claim of this file")
+            elif is_assumption(c):
+                r.err("105", f"{w}.claims", f"{cid} is an assumption: sections hold the paper's claims; its "
+                                            f"assumptions are read with the claims that rest on them")
+            elif cid in placed:
+                r.err("105", f"{w}.claims", f"{cid} is already in section {placed[cid]}: a claim is read once")
+            else:
+                placed[cid] = i + 1
+    left = [cid for cid, c in claims.items() if cid not in placed and not is_assumption(c)]
+    if left and placed:
+        r.warn("W57", "paper.sections", f"{', '.join(left)} {'is' if len(left) == 1 else 'are'} in no section: a "
+                                        f"reader of the paper by sections does not meet "
+                                        f"{'it' if len(left) == 1 else 'them'} under a heading; place each claim in "
+                                        f"the section it belongs to (§3.1)")
+
+
+def check_definition_order(r, definitions):
+    """Warning 58 (§3.2; v0.44 as amended on 2026-11-18): a definition names, by `[[D4:term]]`, a definition that is
+    listed after it. Definitions are listed in the order a reader needs them: what the paper is about first, defined
+    in full, and a term built on another after it."""
+    at = {as_dict(d).get("id"): i for i, d in enumerate(definitions) if isinstance(as_dict(d).get("id"), str)}
+    for i, d in enumerate(definitions):
+        d = as_dict(d)
+        if not isinstance(d.get("definition"), str) or not isinstance(d.get("id"), str):
+            continue
+        later = sorted({x for x in TERM_RE.findall(d["definition"]) if at.get(x, -1) > i}, key=lambda x: at[x])
+        if later:
+            r.warn("W58", f"definitions:{d['id']}.definition",
+                   f"names {', '.join(later)}, defined after it: list definitions in the order a reader needs them, "
+                   f"what the paper is about first and in full, a term built on another after it (§3.2)")
 
 
 #: Rule 90 (§3.1): the most highlights a paper has.

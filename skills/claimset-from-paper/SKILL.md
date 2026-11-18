@@ -56,4 +56,6 @@ Where the claimset departs from the published paper, say so: a misprint you find
 
 ## 4. Check with the author
 
+**Keep the paper's order** (spec §3.1, §3.2). Give `paper.sections` from the paper's own sections: each section of the source under which claims fall becomes a section with its heading as `title` and those claims, in the order the paper states them; every claim that is not an assumption is in exactly one. List definitions in the order the paper introduces them, what it is about first and in full (its main object with its whole formula), a term built on another after it; `claimset validate` flags a definition that names one listed after it (W58).
+
 Before `claimset-submit`'s step 12, give the author the claims to check, one table or list: each claim's ID, its statement, and where in the paper it comes from (section, table, figure, equation). Ask them to check each against the paper: the wording, the numbers, the conditions, and that nothing is missing. Correct what they say, validate again, and only then hand over as `claimset-submit` describes. The author, as guarantor, signs in with ORCID to confirm the submission; nothing is published without it.

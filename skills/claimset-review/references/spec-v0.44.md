@@ -28,6 +28,12 @@ Amended on 2026-11-17 (§3.1, §3.2, §3.3, §3.6, §3.7, §8 rule 11, §10 rule
 
 Amended on 2026-11-17 (§3.13, §10.4 warning 54): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 54. A warning only: every file valid before stays valid.
 
+Amended on 2026-11-18 (§2.3, §3.1, §3.2, §10 rule 105, warnings 57 and 58): a paper may be read in sections, and its definitions come in the order a reader needs them. Readers of a paper of seventeen claims asked for the claims to be grouped as a paper's sections group its results (those that hold for positive values, those for counts), and found that the paper opened with a term derived from its subject, not with the subject itself.
+
+- §3.1: new optional `paper.sections`: the sections the claims are read in, each a title and its claims, chosen by the guarantor. New rule 105; new warning 57 (a claim in no section).
+- §3.2: definitions are listed in the order a reader needs them: what the paper is about first, defined in full, and a term built on another after it. New warning 58 (a definition that names one listed after it).
+- §2.3: the reading view lists the sections.
+
 Amended on 2026-11-17 (§2.2, §3.1, §10 warnings 55 and 56): a submission proposes the paper's subfield, and the guarantor agrees to it. The subfield was assigned by the platform's classifier at publication, where nobody saw it first: a paper on a forecast error measure was listed under Cognitive Neuroscience. A proposal was already allowed and already kept; it is now expected.
 
 - §3.1: `paper.classification.subfield` is proposed with the submission, from the list of OpenAlex subfields, and the guarantor agrees to it by name before the claimset is submitted. A platform's classifier assigns it only when a submission proposes none.
@@ -690,6 +696,7 @@ The core of this specification is what every field shares and what claims are co
 | `classification` | object | `subfield` (one OpenAlex subfield ID): proposed with the submission and agreed to by the guarantor (below; warnings 55 and 56). `topics` (1–3 OpenAlex topic IDs): platform-assigned; the agent may propose values. `keywords` (free text, for specifics the taxonomy does not reach): supplied by the agent, recommended |
 | `contributions` | list of claim IDs | Required. Ordered by priority; principal claims only |
 | `highlights` | list of IDs | Optional. One to five IDs, ordered by priority: principal claims (each in `contributions`) and terms the paper introduces (definitions without `source`), chosen by the guarantor (below; rule 90) |
+| `sections` | list of objects | Optional. The sections the claims are read in, in order: each `{title, claims}` (below; rule 105, warning 57) |
 | `summary` | string | Optional. The paper in a few sentences of plain language, for a reader outside its field (below; rule 94, warning 45) |
 | `published_as` | object | Native papers only, optional: the published paper this claimset restates, when its authors converted it (below; rule 97) |
 | `autonomy` | enum | Native papers only, required: `autonomous` (agents ran the work end to end) · `human_supervised` (humans oversaw the agents' work and approved it) · `human_assisted` (humans carried out substantial parts of the research) · `unknown` |
@@ -732,6 +739,14 @@ Disagreements with the source that are not evident errors are not corrections: t
 | Any licence with NoDerivatives (`ND`), all rights reserved, or no licence | not allowed | — |
 
 A claimset under a non-commercial licence may be used only for non-commercial purposes. Platforms and tools that use claimsets commercially (for example to train, tune or promote a commercial service) exclude claimsets whose `paper.licence` contains `NC`.
+
+**`sections`** (from v0.44 as amended on 2026-11-18). The sections the paper's claims are read in, as a paper groups its results under headings: `[{"title": "Positive actuals and forecasts", "claims": ["C1", "C2", "C3"]}, {"title": "Zeros and counts", "claims": ["C7", "C11"]}]`.
+- Each section has a `title`, a few words on one line that say what its claims are about (at most 80 characters, no two sections alike), and `claims`, the IDs of its claims in the order they are read. A section has no other field.
+- Sections hold the paper's claims, not its assumptions, which a reader meets with the claims that rest on them. A claim is in one section; every claim that is not an assumption is in one (warning 57).
+- The order of the sections and of the claims in them is the order the paper is read in. It may differ from the order of the IDs, which never change after publication (§9).
+- Native papers: the agent proposes the sections once the claims exist, and the guarantor approves them with the paper (principle 10). Converted papers: the sections follow the source's own sections, with its headings as titles, where its claims fall under them.
+- The reading view lists the sections, each with its claims, after the highlights (§2.3).
+- A paper of a few claims needs none: the field is left out.
 
 **`highlights`.** What a reader should take from the paper first: at most five of its principal claims and of the terms it introduces, in order of priority. The platform shows them at the top of the paper's page, and the reading view lists them after the contributions. A highlight selects; it adds nothing: it is an ID, never new text, and the claim or definition it names says what it is.
 - A claim is highlighted only if it is principal: it is listed in `contributions`. A claim the guarantor wants to highlight that is not principal is a contribution, and its `role` says so.
@@ -836,6 +851,12 @@ Retracted papers are never deleted. All their claims inherit the retraction stat
 | `measures` | list | A `variable` only: the IDs of the constructs it measures, definitions of kind `concept`: a trust item `D6` with `"measures": ["D9"]`, `D9` being trust (rule 83) |
 | `unit` | string | A `variable` or `setting` only: the unit of its values, a UCUM code (`GeV`, `Cel`, `mg/L`) or text. A condition keyed by the definition has this unit: `{"D9": 126.5}` with D9 the mass in GeV (rule 88) |
 | `targets` | list | An `intervention` only: the IDs of what it acts on, definitions of kind `substance`, `organism`, `biological_material`, `entity` or `process`: a knockdown `D7` with `"targets": ["D13"]`, D13 being the gene (rule 88) |
+
+**Order** (from v0.44 as amended on 2026-11-18). Definitions are listed in the order a reader needs them, since a reader, and a page made from the file, meets them in that order.
+- What the paper is about comes first, defined in full as its field knows it: a paper on an error measure opens with the measure and its whole formula, not with a term derived from it.
+- A term built on another comes after it and names it by reference: the contribution of one observation to the measure is defined after the measure, as "one term of the sum of [[D1:sMAPE]]". A definition that names one listed after it is flagged (warning 58).
+- A definition gives what it defines in full where a reader meets it: it does not leave its formula to a later definition.
+- The order of the list may differ from the order of the IDs: after publication IDs never change (§9), and a new or moved definition takes its place in the list.
 
 **`symbol`** (from v0.44 as amended on 2026-11-17). Where the paper writes a symbol for a term, the definition gives it: one inline formula, written as in statements (§8 rule 6), such as `"$s(y,f)$"` for the term `sMAPE term`. One symbol, one meaning: the paper writes the symbol for this term only and writes the term with this symbol only, in every claim, definition and proof step, and no two definitions give the same symbol (warning 53). A quantity written in two ways in one paper (an upper-case letter in one claim and a lower-case one in another) reads as two quantities. A term the paper writes no symbol for has no `symbol`.
 
@@ -1825,6 +1846,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 102. A claim's `summary` (§3.3), when present, is a string with text.
 103. A definition's `symbol` (§3.2), when present, is a string that holds one inline formula, `$…$`, and nothing else.
 104. `results` in a relation (§3.7) appears only where the relation's `id_type` is `local`. It is a non-empty list of strings, each of which resolves, as a support entry's `results` do (rule 38), to a result, a table, a table row or rows of a bulk data artefact of evidence that a support entry of the same claim points to.
+105. `paper.sections` (§3.1), when present, is a non-empty list of objects with the fields `title` and `claims` and no others. `title` is a non-empty string on one line, of at most 80 characters; no two sections of the file have the same title, compared without regard to case and to spaces. `claims` is a non-empty list of IDs of claims of the file that are not assumptions; no claim is in two sections. (From v0.44 as amended on 2026-11-18.)
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -1884,6 +1906,8 @@ The file records identifier type and venue facts for cited works only. Trust in 
 54. The paper cites no work: `references` is missing or empty (§3.13). A paper places its findings in its field by citing the works they build on, test or depart from: at the least, the works that define the methods it uses and the results it tests. Relations to claimsets do not count, since a claimset is cited by its claims' global IDs in relations, not listed in `references`; when a paper tests or extends a claimset, the works that claimset cites are where to start. From v0.44 as amended on 2026-11-17.
 55. A submission proposes no subfield (`paper.classification.subfield`, §3.1): choose the paper's OpenAlex subfield from the list, tell the guarantor its name, and give its ID once they agree. (From v0.44 as amended on 2026-11-17, as warning 56.)
 56. A submission's `paper.classification.subfield` is not the ID of an OpenAlex subfield (§3.1): a platform cannot use it.
+57. `paper.sections` is given and a claim that is not an assumption is in no section (§3.1): place each claim in the section it belongs to. (From v0.44 as amended on 2026-11-18, as warning 58.)
+58. A definition names, by `[[D4:term]]`, a definition listed after it (§3.2): list definitions in the order a reader needs them, what the paper is about first and in full, a term built on another after it.
 
 ## 11. Platform dependencies
 

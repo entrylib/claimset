@@ -477,6 +477,12 @@ def render(doc):
     if isinstance(p.get("highlights"), list) and p["highlights"]:
         meta.append("highlights " + ", ".join(str(x) for x in p["highlights"]))
     out.append(_join(meta))
+    sections = [s for s in p.get("sections") or [] if isinstance(s, dict) and isinstance(s.get("title"), str)
+                and isinstance(s.get("claims"), list)] if isinstance(p.get("sections"), list) else []
+    if sections:                                       # the order the paper is read in (§3.1)
+        out.append("sections")
+        out += [f"  {i}. {' '.join(sec['title'].split())}: {', '.join(str(x) for x in sec['claims'])}"
+                for i, sec in enumerate(sections, 1)]
     if p.get("declarations"):
         out.append("declarations " + _declarations(p["declarations"]))
     if isinstance(p.get("collaborations"), list):
