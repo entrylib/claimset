@@ -1241,7 +1241,13 @@ class _Exporter:
                                              "equation that defines it as the code of the runs implements it (a "
                                              "variant with its own equations in full), checked against that code "
                                              "(claimset §3.2, W26); remove definitions this paper does not use; the "
-                                             "supervisor's approval covers the definitions too"},
+                                             "supervisor's approval covers the definitions too; list them in "
+                                             "the order a reader needs them, what the paper is about first and in "
+                                             "full, a term built on another after it (claimset §3.2, W58)"},
+            {"where": "paper.sections",
+             "what": "for a paper of more than a handful of claims, propose the sections the claims are read in, "
+                     "each a short title and its claims in reading order, and ask the guarantor to approve them "
+                     "with the paper (claimset §3.1; optional)"},
             {"where": "paper.contribution_record", "what": "confirm that every contributor is listed (exported from "
                                                            "everyone who wrote to the lab record)"},
         ]
