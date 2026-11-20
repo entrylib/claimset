@@ -372,9 +372,9 @@ A published claimset that has been reviewed is revised with the `claimset-revise
 
 ## Corrections
 
-To correct a published claimset, start from its published file and produce a complete corrected submission:
-- Keep `paper.id` set to the existing claimset's identifier (its DOI or `entrylib:` identifier) and add `paper.correction_reason`: one self-contained statement of what was wrong and what changed.
-- Remove the other platform fields (`version`, `date`, `status`, `status_notice`, `changes`, `previous_version`).
+To correct a published claimset, start from the file of its current version, never an older one, and produce a complete corrected submission:
+- Fetch the current version first (on EntryLib, `https://entrylib.org/p/<year>.<number>.json`; its `versions.json` lists them) and run `claimset correct current.json -o correction.json`. It removes the platform fields (`version`, `date`, `status`, `status_notice`, `changes`, `previous_version`, the earlier `correction_reason`, `topics`, verifiability), keeps `paper.id` and records the version you started from in `paper.based_on`. A correction made from an older version would undo every version after it, so the platform refuses one whose `based_on` is not the current version (spec §9); if the claimset gets a new version while you work, start again from it.
+- Add `paper.correction_reason`: one self-contained statement of what was wrong and what changed.
 - Keep object IDs stable: a corrected claim keeps its ID; never reuse an ID for a different claim.
 - If the correction restructures evidence (result entries made into a table), rebind every test quantity that bound them in the same correction (spec §9, *Restructured evidence*); `claimset migrate` lists the quantities that bind nothing.
 - Validate as usual. The platform computes the diff, assigns the next version and marks the paper as corrected; the identifier stays the same.

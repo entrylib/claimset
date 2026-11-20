@@ -450,6 +450,24 @@ def validate(doc, published=False, local_root=None, revision=False, file_name=No
         return r
 
 
+
+BASED_ON_RE = re.compile(r"^(?P<id>.+)@v(?P<n>[1-9]\d*)$")
+
+
+def check_based_on(r, paper, published):
+    """Rule 107: `paper.based_on`, the version a correction or revision was made from (§9)."""
+    if "based_on" not in paper:
+        return
+    value = paper.get("based_on")
+    m = BASED_ON_RE.match(value) if isinstance(value, str) else None
+    if not m or m["id"] != paper.get("id"):
+        r.err("107", "paper.based_on", f"must be the file's own paper.id followed by @v and a version number "
+                                       f"({paper.get('id')!s}@v<n>), the version this correction or revision was made from")
+        return
+    version = paper.get("version")
+    if published and isinstance(version, int) and not isinstance(version, bool) and int(m["n"]) >= version:
+        r.err("107", "paper.based_on", f"names version {m['n']}, not one before this version ({version})")
+
 def _validate(doc, published=False, local_root=None, revision=False, file_name=None, files_root=None):
     """Check a claimset. `local_root`: the repository's claimset/ folder, when the file lies in one, so that
     local references to other papers can be resolved (rule 57); `file_name`: the file's name there (warning 31). `revision`: the file is a revision submission,
@@ -553,6 +571,11 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
             r.err("25", "paper.id", "a revision names the claimset it revises")
         if "correction_reason" in paper and "id" not in paper:
             r.err("26", "paper.correction_reason", "a correction must name the existing claimset in paper.id")
+        if paper.get("id") and ("correction_reason" in paper or revision) and "based_on" not in paper:
+            r.warn("W62", "paper.based_on", "a correction or revision without based_on: give the global ID of the version "
+                                            "it was made from, the current one (`claimset correct` writes it), so that it "
+                                            "does not undo the versions published after it (§9)")
+    check_based_on(r, paper, published)
     check_enum(r, "1", "paper.status", paper.get("status"), "status")
     check_enum(r, "1", "paper.origin", origin, "origin")
     check_enum(r, "1", "paper.contribution_record", paper.get("contribution_record"), "contribution_record")

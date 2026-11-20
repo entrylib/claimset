@@ -18,6 +18,8 @@ Implements the rules in spec section 10, plus computed verifiability (section 5)
 and heuristic checks of statement text (section 8). Standard library only.
 """
 import ast
+import bisect
+import functools
 import json
 from pathlib import Path
 import math
@@ -191,6 +193,7 @@ class Report:
         self.warnings = []
         self.computed = {}
         self.subfield = None      # (ID, name) of the subfield a submission proposes, when it is a listed one (§3.1)
+        self.numbers = {}         # id(evidence) -> (evidence, its numbers): read once per run (warnings 17 and 24)
 
     def err(self, rule, where, msg):
         self.errors.append({"rule": rule, "where": where, "message": msg})
@@ -447,6 +450,24 @@ def validate(doc, published=False, local_root=None, revision=False, file_name=No
         return r
 
 
+
+BASED_ON_RE = re.compile(r"^(?P<id>.+)@v(?P<n>[1-9]\d*)$")
+
+
+def check_based_on(r, paper, published):
+    """Rule 107: `paper.based_on`, the version a correction or revision was made from (§9)."""
+    if "based_on" not in paper:
+        return
+    value = paper.get("based_on")
+    m = BASED_ON_RE.match(value) if isinstance(value, str) else None
+    if not m or m["id"] != paper.get("id"):
+        r.err("107", "paper.based_on", f"must be the file's own paper.id followed by @v and a version number "
+                                       f"({paper.get('id')!s}@v<n>), the version this correction or revision was made from")
+        return
+    version = paper.get("version")
+    if published and isinstance(version, int) and not isinstance(version, bool) and int(m["n"]) >= version:
+        r.err("107", "paper.based_on", f"names version {m['n']}, not one before this version ({version})")
+
 def _validate(doc, published=False, local_root=None, revision=False, file_name=None, files_root=None):
     """Check a claimset. `local_root`: the repository's claimset/ folder, when the file lies in one, so that
     local references to other papers can be resolved (rule 57); `file_name`: the file's name there (warning 31). `revision`: the file is a revision submission,
@@ -550,6 +571,11 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
             r.err("25", "paper.id", "a revision names the claimset it revises")
         if "correction_reason" in paper and "id" not in paper:
             r.err("26", "paper.correction_reason", "a correction must name the existing claimset in paper.id")
+        if paper.get("id") and ("correction_reason" in paper or revision) and "based_on" not in paper:
+            r.warn("W62", "paper.based_on", "a correction or revision without based_on: give the global ID of the version "
+                                            "it was made from, the current one (`claimset correct` writes it), so that it "
+                                            "does not undo the versions published after it (§9)")
+    check_based_on(r, paper, published)
     check_enum(r, "1", "paper.status", paper.get("status"), "status")
     check_enum(r, "1", "paper.origin", origin, "origin")
     check_enum(r, "1", "paper.contribution_record", paper.get("contribution_record"), "contribution_record")
@@ -1525,6 +1551,11 @@ def sci_text(text):
     6.5×10⁹ and 6.5 \\times 10^{9} become 6.5e9, and (6.5 ± 0.7) × 10^9 becomes 6.5e9 ± 0.7e9."""
     if not isinstance(text, str):
         return ""
+    return _sci_text(text)
+
+
+@functools.lru_cache(maxsize=1 << 16)
+def _sci_text(text):
     text = re.sub(r"10([⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺]+)", lambda m: "10^" + m.group(1).translate(_SUPERSCRIPT), text)
     exp = lambda m, g: m.group(g).replace("−", "-")   # noqa: E731
     text = re.sub(r"\(\s*([-+]?\d+(?:\.\d+)?)\s*±\s*(\d+(?:\.\d+)?)\s*\)" + _TIMES_TEN,
@@ -1532,10 +1563,11 @@ def sci_text(text):
     return re.sub(r"(?<![\w.])([-+]?\d+(?:\.\d+)?)" + _TIMES_TEN, lambda m: f"{m.group(1)}e{exp(m, 2)}", text)
 
 
-def number_matches(value, statement):
-    """True if value appears in statement at the precision written there (W12 heuristic)."""
-    if value == 0 and re.search(r"\b(no|zero|none)\b", statement, re.I):
-        return True
+@functools.lru_cache(maxsize=1 << 16)
+def _readings(statement):
+    """(whether the statement says no, zero or none; [(x, tolerance)]): what a value must be to appear in the
+    statement at the precision written there (number_matches)."""
+    readings = []
     for m in NUM_RE.finditer(sci_text(statement)):
         try:
             t = float(m.group(1))
@@ -1546,12 +1578,64 @@ def number_matches(value, statement):
         tv = t * (10 ** exp)
         tol = 0.5 * 10 ** (exp - dec)
         # a percentage matches a value given as a fraction (0.767) or in percent (76.7, unit %)
-        readings = [(tv, tol), (tv / 100, tol / 100)] if m.group(4) else [(tv, tol)]
-        for v in (value, abs(value)):
-            for x, xt in readings:
-                if abs(v - x) <= xt * (1 + 1e-9) + 1e-15:
-                    return True
+        for x, xt in ([(tv, tol), (tv / 100, tol / 100)] if m.group(4) else [(tv, tol)]):
+            readings.append((x, xt * (1 + 1e-9) + 1e-15))
+    return bool(re.search(r"\b(no|zero|none)\b", statement, re.I)), tuple(readings)
+
+
+def number_matches(value, statement):
+    """True if value appears in statement at the precision written there (W12 heuristic)."""
+    says_zero, readings = _readings(statement)
+    if value == 0 and says_zero:
+        return True
+    for v in (value, abs(value)):
+        for x, tol in readings:
+            if abs(v - x) <= tol:
+                return True
     return False
+
+
+class SortedNumbers:
+    """Numbers prepared for lookup: their values and absolute values, sorted, without NaN (NumberSet)."""
+
+    def __init__(self, numbers):
+        vals = set()
+        for v in numbers:
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and v == v:      # not NaN
+                vals.add(v)
+                vals.add(abs(v))
+        self.zero = 0 in vals
+        self.sorted = sorted(vals)
+
+    def near(self, x, tol):
+        """Whether a value is within `tol` of x, by number_matches's own comparison."""
+        a = self.sorted
+        slack = tol + 1e-9 * max(1.0, abs(x))               # a little wider, then the exact test
+        i = bisect.bisect_left(a, x - slack)
+        while i < len(a) and a[i] <= x + slack:
+            if abs(a[i] - x) <= tol:
+                return True
+            i += 1
+        return False
+
+
+class NumberSet:
+    """Numbers to look a statement's numbers up in (warnings 17 and 24): any_matches(token) is
+    any(number_matches(v, token) for v in numbers), by a search in sorted values and their absolute values instead
+    of a scan. `groups` are SortedNumbers (an evidence object's, read once per validation) or lists of numbers."""
+
+    def __init__(self, *groups):
+        self.groups = [g if isinstance(g, SortedNumbers) else SortedNumbers(g) for g in groups]
+        self.groups = [g for g in self.groups if g.sorted]
+
+    def __bool__(self):
+        return bool(self.groups)
+
+    def any_matches(self, token):
+        says_zero, readings = _readings(token)
+        if says_zero and any(g.zero for g in self.groups):
+            return True
+        return any(g.near(x, tol) for x, tol in readings for g in self.groups)
 
 
 TEST_PARAMETERS = {
@@ -1581,6 +1665,11 @@ THOUSANDS = re.compile(r"(?<![\w.,])\d{1,3}(?:[, \u2009\u202f]\d{3})+(?:\.\d+)?(
 def _numbers_text(text):
     """The text in which warnings 17 and 24 look for numbers: scientific notation read, and LaTeX, term markers,
     model notation, section numbers and names with digits (NAME_WITH_DIGITS) left out."""
+    return _numbers_text_of(text if isinstance(text, str) else "")
+
+
+@functools.lru_cache(maxsize=1 << 16)
+def _numbers_text_of(text):
     def name(m):
         t = m.group(0)
         mixed = any(ch.isalpha() for ch in t) and any(ch.isdigit() for ch in t)
@@ -1640,6 +1729,18 @@ def says_exploratory(c):
 
 
 
+@functools.lru_cache(maxsize=1 << 16)
+def _string_numbers(text):
+    """The numbers written in a string, as _numbers_in reads them."""
+    out = []
+    for m in NUM_RE.finditer(_numbers_text(text)):
+        try:
+            out.append(float(m.group(1)) * 10 ** (int(m.group(3)) if m.group(3) else 0))
+        except (ValueError, OverflowError):
+            pass
+    return tuple(out)
+
+
 def _numbers_in(x, out):
     """Every number in a value: numbers themselves, and numbers written in strings, lists and objects."""
     if isinstance(x, bool):
@@ -1647,11 +1748,7 @@ def _numbers_in(x, out):
     if isinstance(x, (int, float)):
         out.append(float(x))
     elif isinstance(x, str):
-        for m in NUM_RE.finditer(_numbers_text(x)):
-            try:
-                out.append(float(m.group(1)) * 10 ** (int(m.group(3)) if m.group(3) else 0))
-            except ValueError:
-                pass
+        out.extend(_string_numbers(x))
     elif isinstance(x, dict):
         for v in x.values():
             _numbers_in(v, out)
@@ -1661,41 +1758,63 @@ def _numbers_in(x, out):
     return out
 
 
-def unsourced_numbers(c, support, by_id):
+def _evidence_numbers(memo, e, key, read):
+    """The numbers `read(e)` gives for an evidence object, once per validation (`memo`: Report.numbers; it holds the
+    object, so its id is not reused while the entry exists)."""
+    if memo is None:
+        return read(e)
+    k = (id(e), key)
+    held = memo.get(k)
+    if held is None or held[0] is not e:
+        held = memo[k] = (e, read(e))
+    return held[1]
+
+
+def _sourced(e):
+    """The numbers an evidence object records for warning 17: its results' values, intervals, uncertainties and
+    conditions, its tables' conditions, cells and row labels, and its estimate, interval, uncertainty and n."""
+    out = []
+    for x in as_list(e.get("results")):
+        x = as_dict(x)
+        _numbers_in([x.get("value"), x.get("interval"), x.get("uncertainty"), x.get("conditions")], out)
+    for t in as_list(e.get("tables")):
+        t = as_dict(t)
+        _numbers_in([t.get("conditions"), [as_dict(row).get("values") for row in as_list(t.get("rows"))],
+                     [as_dict(row).get("label") for row in as_list(t.get("rows"))]], out)
+    _numbers_in([e.get("estimate"), e.get("interval"), e.get("uncertainty"), e.get("n")], out)
+    return out
+
+
+def unsourced_numbers(c, support, by_id, memo=None):
     """W17: numbers in the statement of an empirical or simulation claim that no structured source holds: the
     cited evidence's results (values, intervals, conditions) and table cells and conditions, the test's
     parameters, the claim's scope, and the definitions the statement references. Evidence descriptions do not
     count: a number a statement reports should be a recorded result."""
     if not {_h(s.get("kind")) for s in support} & RESULT_SUPPORT:
         return []
-    sources = []
+    groups = []
     for s in support:
         e = by_id(s.get("evidence"), "evidence") if s.get("evidence") else None
         if e is None:
             continue
-        for x in as_list(e.get("results")):
-            x = as_dict(x)
-            _numbers_in([x.get("value"), x.get("interval"), x.get("uncertainty"), x.get("conditions")], sources)
-        for t in as_list(e.get("tables")):
-            t = as_dict(t)
-            _numbers_in([t.get("conditions"), [as_dict(row).get("values") for row in as_list(t.get("rows"))],
-                         [as_dict(row).get("label") for row in as_list(t.get("rows"))]], sources)
-        _numbers_in([e.get("estimate"), e.get("interval"), e.get("uncertainty"), e.get("n")], sources)
+        groups.append(_evidence_numbers(memo, e, "sourced", lambda e: SortedNumbers(_sourced(e))))
+    sources = []
     _numbers_in([as_dict(c.get("test")).get("parameters"), c.get("scope")], sources)
     stmt = _text(c.get("statement"))
     for m in re.finditer(r"\[\[(D\d+):", stmt):
         d = by_id(m.group(1), "definitions")
         if d is not None:
             _numbers_in(d.get("definition"), sources)
+    found = NumberSet(sources, *groups)
     out = []
     for m in NUM_RE.finditer(_numbers_text(stmt)):
         token = m.group(0)
-        if not any(number_matches(v, token) for v in sources) and token.strip() not in out:
+        if token.strip() not in out and not found.any_matches(token):
             out.append(token.strip())
     return out
 
 
-def table_echo(c, support, by_id):
+def table_echo(c, support, by_id, memo=None):
     """W24: values of the cited result tables that the statement repeats. The tables are those of the evidence an
     empirical or simulation support entry points to, narrowed to the tables its `results` name when it names any.
     Numbers are found as for W17; each distinct number in the statement that equals a cell counts once."""
@@ -1706,19 +1825,25 @@ def table_echo(c, support, by_id):
         e = by_id(s.get("evidence"), "evidence") if s.get("evidence") else None
         if e is None:
             continue
-        named = {str(x).split(".")[1] for x in as_list(s.get("results")) if str(x).count(".") >= 1}
-        for t in as_list(e.get("tables")):
-            t = as_dict(t)
-            if named and t.get("id") not in named:
-                continue
-            for row in as_list(t.get("rows")):
-                _numbers_in(as_dict(row).get("values"), cells)
-    if not cells:
+        named = frozenset(str(x).split(".")[1] for x in as_list(s.get("results")) if str(x).count(".") >= 1)
+
+        def read(e, named=named):
+            out = []
+            for t in as_list(e.get("tables")):
+                t = as_dict(t)
+                if named and t.get("id") not in named:
+                    continue
+                for row in as_list(t.get("rows")):
+                    _numbers_in(as_dict(row).get("values"), out)
+            return out
+        cells.append(_evidence_numbers(memo, e, ("cells", named), lambda e, read=read: SortedNumbers(read(e))))
+    found = NumberSet(*cells)
+    if not found:
         return []
     out = []
     for m in NUM_RE.finditer(_numbers_text(_text(c.get("statement")))):
         token = m.group(0).strip()
-        if token not in out and not m.group(4) and any(number_matches(v, token) for v in cells):
+        if token not in out and not m.group(4) and found.any_matches(token):
             out.append(token)
     return out
 
@@ -4063,12 +4188,12 @@ def validate_claim(r, c, cid, ids, by_id, ref, converted, author_models=frozense
             val = rmap.get(rid, {}).get("value")
             if isinstance(val, (int, float)) and not isinstance(val, bool) and not number_matches(val, stmt):
                 r.warn("W12", f"{w}.statement", f"cited result {ref_id} = {val:.6g} does not appear in the statement at the stated precision; check the number, or cite only the results the statement reports")
-    unsourced = unsourced_numbers(c, support, by_id)
+    unsourced = unsourced_numbers(c, support, by_id, r.numbers)
     if unsourced:
         r.warn("W17", f"{w}.statement", f"{', '.join(unsourced)} in the statement match no recorded result, table "
                                         f"cell, test parameter, scope condition or referenced definition: record the "
                                         f"number as a result (or the setting in the scope), or check it")
-    echoed = table_echo(c, support, by_id)
+    echoed = table_echo(c, support, by_id, r.numbers)
     if len(echoed) >= 3:
         r.warn("W24", f"{w}.statement", f"repeats {len(echoed)} values of the tables it cites ({', '.join(echoed)}): "
                                         f"state the pattern the paper concludes and cite the table or rows, repeating a "

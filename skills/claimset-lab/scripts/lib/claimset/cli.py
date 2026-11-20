@@ -239,6 +239,56 @@ def _cmd_migrate(args):
     return 1 if rep["errors"] else 0
 
 
+def start_correction(doc):
+    """A published claimset made into the start of a correction or revision (spec §9): the fields the platform assigns,
+    the previous correction's reason and the computed verifiability removed, paper.id kept, and paper.based_on set to
+    the version it is made from. Returns (submission, based_on)."""
+    out = json.loads(json.dumps(doc))
+    paper = out.get("paper") if isinstance(out.get("paper"), dict) else {}
+    if not paper.get("id") or not isinstance(paper.get("version"), int):
+        raise ValueError("not a published claimset: it needs paper.id and paper.version")
+    based_on = f"{paper['id']}@v{paper['version']}"
+    for f in _validate.PLATFORM_PAPER_FIELDS + ("correction_reason",):
+        paper.pop(f, None)
+    if isinstance(paper.get("classification"), dict):
+        paper["classification"].pop("topics", None)             # platform-assigned (§3.1)
+    for c in out.get("claims") or []:
+        if isinstance(c, dict):
+            c.pop("verifiability", None)                        # computed by the platform (§5)
+            c.pop("verifiability_flags", None)
+    paper["based_on"] = based_on
+    return out, based_on
+
+
+def _cmd_correct(args):
+    try:
+        with open(args.file, encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"ERROR: cannot read {args.file}: {exc}", file=sys.stderr)
+        return 1
+    try:
+        out, based_on = start_correction(doc)
+    except ValueError as exc:
+        print(f"ERROR: {args.file}: {exc}", file=sys.stderr)
+        return 1
+    done = []
+    if out.get("schema_version") != _validate.SCHEMA_VERSION:
+        out, done, _todo = _migrate.migrate(out)
+    with open(args.output, "w", encoding="utf-8") as fh:
+        json.dump(out, fh, indent=1, ensure_ascii=False)
+        fh.write("\n")
+    print(f"{args.output}: a correction or revision of {based_on} (paper.based_on).")
+    for x in done:
+        print(f"changed: {x}")
+    if done:
+        print(f"Run `claimset migrate {args.output}` to see what the current specification asks beyond these changes.")
+    print("Make sure it is the current version: a correction made from an older one would undo the versions after it, and "
+          "the platform refuses it. Then make the changes, add paper.correction_reason (a correction) or write the "
+          "response (a revision), and validate.")
+    return 0
+
+
 def _cmd_package(args):
     try:
         changes, files = _package.build(args.file, args.output, update_source=args.update)
@@ -391,6 +441,13 @@ def build_parser():
     st.add_argument("--portal", help="the platform (default: $CLAIMSET_PORTAL, else https://entrylib.org)")
     st.add_argument("--json", action="store_true", help="the platform's answer as JSON")
     st.set_defaults(func=_cmd_status)
+
+    cr = sub.add_parser("correct", help="start a correction or revision from a published claimset: remove the fields "
+                                        "the platform assigns, keep paper.id and record the version it is made from "
+                                        "in paper.based_on")
+    cr.add_argument("file", help="the published claimset JSON file (the current version)")
+    cr.add_argument("-o", "--output", required=True, help="write the correction's starting file here")
+    cr.set_defaults(func=_cmd_correct)
 
     mg = sub.add_parser("migrate", help="bring a claimset to the current specification: make the mechanical changes, "
                                         "then report what the new version requires that the file's own did not "
