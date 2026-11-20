@@ -656,7 +656,8 @@ class _Exporter:
                 self.test_counts[outcome] += 1
                 version = self.hypothesis_at(h["id"], st.pos[pv["id"]]) or st.latest(h["id"])
                 if root in formal and root != chosen:
-                    entry = {"lab_event": version["id"], "lab_plan": pv["id"], "outcome": outcome}
+                    entry = {"lab_event": version["id"], "lab_plan": pv["id"], "outcome": outcome,
+                             "_statement": version["body"].get("statement")}
                     if dropped:
                         entry.update(because=dropped["body"]["to"], why=dropped["body"].get("rationale"),
                                      _into=dropped["body"].get("revised_to"))
@@ -741,6 +742,13 @@ class _Exporter:
             if cid and x["because"] != "abandoned":
                 entry["into"] = cid
             entry["why"] = x.get("why") or ""
+            said = " ".join(re.sub(r"\[\[[^\]:]+:([^\]]*)\]\]", r"\1", str(x.get("_statement") or "")).split())
+            if said:
+                entry["statement"] = said
+                if len(said) > 200:
+                    self.todo("paper.exploration.not_claimed", f"shorten the statement of {x['lab_event']}'s verdict "
+                                                               f"under {x['lab_plan']} to one line of at most 200 "
+                                                               f"characters: what it decided, in a few words")
             if not entry["why"]:
                 self.todo("paper.exploration.not_claimed", f"say why {x['lab_event']}'s verdict under "
                                                            f"{x['lab_plan']} gives no claim")

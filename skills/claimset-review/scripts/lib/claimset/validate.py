@@ -1143,6 +1143,14 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
                     r.err("99", f"{w}.into", "a reworded verdict names the claim that states the final wording")
                 if because == "abandoned" and "into" in x:
                     r.err("99", f"{w}.into", "an abandoned hypothesis went into no claim")
+                st = x.get("statement")
+                if "statement" in x and not (isinstance(st, str) and st.strip() and "\n" not in st
+                                             and len(st) <= 200 and "[[" not in st):
+                    r.err("99", f"{w}.statement", "what the verdict decided, in a few words: non-empty text on one "
+                                                  "line, at most 200 characters, with no term marks")
+                elif "statement" not in x:
+                    r.warn("W59", w, "no statement: say in a few words what this verdict decided (at most 200 "
+                                     "characters), so that a reader sees more than a lab ID (§3.1.1)")
 
     # ---------- Studies and papers in a repository (rules 55-57) ----------
     if paper.get("study") is not None and not (isinstance(paper["study"], str) and NAME_RE.match(paper["study"])):

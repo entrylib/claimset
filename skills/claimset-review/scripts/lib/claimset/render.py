@@ -417,9 +417,21 @@ def _counted(name, counts):
     return head + (": " + ", ".join(parts) if parts else "")
 
 
-def exploration_words(e):
+def not_claimed_line(x):
+    """One formal verdict that gives no claim, in one line (spec §3.1.1): what it decided (its `statement`, when the
+    file gives one), its verdict, why it gives no claim and the claim it went into; its lab IDs last."""
+    tail = f"{str(x.get('outcome', '')).replace('_', ' ')}; {x.get('because')}" + (
+        f" into {x['into']}" if x.get("into") else "")
+    ids = f"{x.get('lab_event')} under {x.get('lab_plan')}"
+    if isinstance(x.get("statement"), str) and x["statement"].strip():
+        return f"{x['statement'].strip()} ({tail}; lab {ids})"
+    return f"{ids} ({tail})"
+
+
+def exploration_words(e, listed=False):
     """The reading view's exploration line, in words (spec §2.3): questions, hypotheses, tests and runs counted,
-    the lab record, and what the paper covers of its lab."""
+    the lab record, and what the paper covers of its lab. `listed`: leave out the verdicts that give no claim, which
+    the reading view lists one per line after it."""
     out = []
     q = e.get("questions")
     if isinstance(q, int) and not isinstance(q, bool):
@@ -440,10 +452,8 @@ def exploration_words(e):
                    + (f"; other papers from the lab: {others}" if others else ""))
     nc = [x for x in e.get("not_claimed") or [] if isinstance(x, dict)] if isinstance(e.get("not_claimed"), list) \
         else []
-    if nc:      # the formal verdicts that give no claim (spec §3.1.1, as amended on 2026-11-17)
-        out.append("not claimed: " + ", ".join(
-            f"{x.get('lab_event')} under {x.get('lab_plan')} ({str(x.get('outcome', '')).replace('_', ' ')}; "
-            f"{x.get('because')}" + (f", into {x['into']}" if x.get("into") else "") + ")" for x in nc))
+    if nc and not listed:      # the formal verdicts that give no claim (spec §3.1.1, as amended on 2026-11-17)
+        out.append("not claimed: " + ", ".join(not_claimed_line(x) for x in nc))
     return "; ".join(out)
 
 
@@ -496,7 +506,12 @@ def render(doc):
     if isinstance(doc.get("extensions"), dict) and doc["extensions"]:
         out.append("extensions " + ", ".join(f"{k} {v}" for k, v in doc["extensions"].items()) + _ext(p))
     if isinstance(p.get("exploration"), dict):
-        out.append("exploration " + exploration_words(p["exploration"]))
+        out.append("exploration " + exploration_words(p["exploration"], listed=True))
+        nc = p["exploration"].get("not_claimed")
+        nc = [x for x in nc if isinstance(x, dict)] if isinstance(nc, list) else []
+        if nc:      # one line each (spec §2.3, as amended on 2026-11-20)
+            out.append(f"not claimed ({len(nc)} formal verdicts that give no claim):")
+            out += [f"  - {not_claimed_line(x)}" for x in nc]
 
     claims = [c for c in doc.get("claims") or [] if isinstance(c, dict)]
     defs = {d.get("id"): d for d in doc.get("definitions") or [] if isinstance(d, dict)}

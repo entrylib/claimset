@@ -214,10 +214,16 @@ class TestFormalExport(ExportCase):
     def test_the_reading_view_names_them(self):
         d = copy.deepcopy(self.out["draft"])
         cid = self.claim(self.out, self.final)["id"]
-        line = next(x for x in render_lines(d) if x.startswith("exploration "))
-        self.assertIn(f"not claimed: {self.h} under {self.pl1} (supported; reworded, into {cid}), "
-                      f"{self.merged} under {self.pl1} (inconclusive; revised, into {cid}), "
-                      f"{self.dropped} under {self.pl1} (inconclusive; abandoned)", line)
+        lines = render_lines(d)
+        self.assertNotIn("not claimed", next(x for x in lines if x.startswith("exploration ")))
+        start = lines.index("not claimed (3 formal verdicts that give no claim):")
+        listed = lines[start + 1:start + 4]                  # one line each, its wording first (amended 2026-11-20)
+        nc = d["paper"]["exploration"]["not_claimed"]
+        self.assertTrue(all(isinstance(x.get("statement"), str) and x["statement"] for x in nc))
+        self.assertEqual(listed, [
+            f"  - {nc[0]['statement']} (supported; reworded into {cid}; lab {self.h} under {self.pl1})",
+            f"  - {nc[1]['statement']} (inconclusive; revised into {cid}; lab {self.merged} under {self.pl1})",
+            f"  - {nc[2]['statement']} (inconclusive; abandoned; lab {self.dropped} under {self.pl1})"])
 
     def test_renumbered_claims_still_match_the_record(self):
         doc = copy.deepcopy(self.out["draft"])
