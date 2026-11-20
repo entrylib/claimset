@@ -135,6 +135,14 @@ class TestValidator(unittest.TestCase):
         build(src, pkg2, update_source=True)
         self.assertTrue([e for e in validate_path(str(pkg2)).errors if e["rule"] == "106"])
 
+    def test_scoring_reads_the_rows_beside_the_file(self):
+        from claimset.score import _load
+        src = Path(self.tmp.name) / "paper.claimset.json"
+        src.write_text(json.dumps(self.d))
+        rep, doc = _load(src)
+        self.assertEqual(rep.errors, [])
+        self.assertEqual(len(doc["evidence"][0]["tables"][0]["rows"]), 2)
+
     def test_the_reading_view_says_where_the_rows_are(self):
         text = render(self.d)
         self.assertIn("(2 rows, held in the file of artefact A4)", text)
