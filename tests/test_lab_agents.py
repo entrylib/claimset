@@ -10,7 +10,7 @@ from claimset.lab import anchor as anchor_mod
 from claimset.lab.core import LabError, canonical, content_hash, header_hash, verify
 from claimset.lab.run import run_command
 
-from test_lab import DECISION, PlanRunCase, TestCli, run_body
+from test_lab import DECISION, PlanRunCase, TestCli, legacy, run_body
 from test_lab_protect import HAVE_GIT, make_repo, rewrite_consistently
 
 
@@ -104,7 +104,7 @@ class TestAgentLogs(AgentCase):
         rn = out["run"]["id"]
         self.assertEqual(rn, f"{self.a}.RN1")
         self.assertTrue((self.lab.root / "runs" / rn / "out.txt").is_file())
-        self.assertEqual(out["results"][0]["id"], f"{self.a}.RS1")
+        self.assertEqual(out["results"][0]["id"], f"{self.a}.RN1.1")      # row 1 of its results file (§5.10)
         self.assertVerifies()
         (self.lab.root / "runs" / rn / "out.txt").write_text("changed")
         self.assertIn("L13", [r for r, _, _ in self.errors()])
@@ -182,6 +182,7 @@ class TestMerge(AgentCase):
         self.assertEqual(cm.exception.rule, "L10")
         self.assertVerifies()
 
+    @legacy
     def test_conflicting_merge_is_refused_whole(self):
         rn = self.lab.append("run", run_body(), by=self.human)["id"]
         rs = self.lab.append("result", {"run": rn, "variable": "q", "value": 1, "source": "results.json"},

@@ -138,7 +138,7 @@ def build(events):
                       "awaiting_approval": bool(cur["body"].get("requires_approval")) and not plan_approved(st, cur["id"]),
                       "runs": [r["id"] for r in under],
                       "done": any(r["body"].get("exit_status") == "success" for r in under)})
-    results = [e for e in st.events if e["type"] == "result" and not is_withheld(e)]
+    results = [e for e in st.result_events() if not is_withheld(e)]
 
     return {
         "title": _text(init) if init else None,

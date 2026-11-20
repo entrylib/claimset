@@ -116,9 +116,16 @@ def _write_draft(args, lab, etype, body, by, supersedes=False):
 
 def cmd_init(args):
     explicit = args.lab or os.environ.get("CLAIMSET_LAB")
+    continues = None
+    if getattr(args, "continues", None) or getattr(args, "continues_head", None):
+        if not (args.continues and args.continues_head):
+            raise LabError("schema", "init: --continues names the earlier record's log, and --continues-head the "
+                                     "header hash of its last event; give both")
+        continues = {"record": args.continues, "head": args.continues_head}
     if not explicit and args.study and _layout.repo_top() is not None:
         # in a git repository a study lives on its own branch (§3)
-        lab, what, notes = _record.setup(args.study, title=args.title, repository=args.repository)
+        lab, what, notes = _record.setup(args.study, title=args.title, repository=args.repository,
+                                         continues=continues)
         print(f"INIT {lab.log_path} (on branch {_record.PREFIX}{args.study})")
         for n in notes:
             print(n)
@@ -132,7 +139,7 @@ def cmd_init(args):
                                  "claimset/NAME/lab (or give the directory with --lab)")
     if args.study:
         _layout.check_name(args.study, "study")
-    lab = Lab.create(root, args.title, args.repository, study=args.study)
+    lab = Lab.create(root, args.title, args.repository, study=args.study, continues=continues)
     print(f"INIT {lab.log_path}")
     top = _layout.studies_top(lab.root)
     if top is not None:
@@ -162,8 +169,8 @@ def cmd_move(args):
 
     lab = _lab(args)
     st = lab.state()
-    if any(a not in st.merged and lab.read_agent(a) for a in lab.agent_logs()):
-        raise LabError("move", "merge the open agent logs before moving the lab")
+    if any(a not in st.merged and lab.read_side(a) for a in lab.side_logs()):
+        raise LabError("move", "merge the open agent and contributor logs before moving the lab")
     study = args.study or st.study
     if args.to:
         dest = Path(args.to)
@@ -236,6 +243,8 @@ def _parse_model(spec):
 def cmd_actor(args):
     lab = _lab(args)
     st = lab.state()
+    if getattr(args, "contributor", None):      # an agent registering in a contributor's open log (§3.7)
+        st = lab.view(f"{args.contributor}.AC1")
     new_id = st.next_id("actor")
     by = _actor(args, required=False) or new_id
     if args.words and by == new_id:
@@ -845,8 +854,12 @@ def cmd_run(args):
                          ensure_ascii=False, indent=2))
     msg = (f"claimset: recorded {run['id']} ({run['body']['label']}, {run['body']['exit_status']}, "
            f"exit code {out['exit_code']})")
-    if out["results"]:
+    if out["results"] and not out.get("rows"):
         msg += "; results " + " ".join(r["id"] for r in out["results"])
+    if out.get("rows"):
+        path = run["body"]["results"]["path"]
+        msg += (f"; {out['rows']} results in runs/{run['id']}/{path} "
+                f"({run['id']}.1 to {run['id']}.{out['rows']})")
     print(msg, file=sys.stderr)
     for p in out["problems"]:
         print(f"claimset: results.json {p}", file=sys.stderr)
@@ -951,6 +964,61 @@ def cmd_protect(args):
     return 0 if out["ok"] else 1
 
 
+def cmd_view(args):
+    """The reading view of the record, or the trail of a hypothesis or of an exported claim (lab record §11)."""
+    from . import view as _view
+    lab = _lab(args)
+    events = lab.read()
+    if args.claim:
+        paper = args.paper or None
+        from . import layout as _lay
+        path = Path(args.claimset) if args.claimset else None
+        if path is None:
+            st = lab.state()
+            name = paper or (next(iter(st.papers.values()))["body"].get("name") if len(st.papers) == 1 else st.study)
+            path = lab.root.parent / f"{name}.claimset.json"
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        text = _view.claim_trail(events, doc, args.claim)
+        if text is None:
+            raise LabError("view", f"{args.claim} of {path} names no hypothesis of the record (hypothesis.lab_event)")
+    elif args.hypothesis:
+        try:
+            text = _view.trail(events, args.hypothesis)
+        except KeyError:
+            raise LabError("view", f"no event {args.hypothesis} in the record") from None
+    else:
+        text = _view.render(events)
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8")
+        print(f"claimset: wrote {args.output} ({len(text.encode('utf-8')):,} bytes)", file=sys.stderr)
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def cmd_contribute(args):
+    """Open a contributor's log (lab record §3.7). Run by the person, in a terminal of their own."""
+    from .. import agents as _agents
+    harness = _agents.detect()
+    if harness is not None:
+        raise LabError("harness", f"`claimset lab contribute` registers you, a person, and runs inside {harness.name}, "
+                                  f"where an agent writes as itself (lab record §4.6): run it in a terminal of your "
+                                  f"own, outside {harness.name}")
+    lab = _lab(args)
+    log, event = lab.contribute(orcid=args.orcid, github=args.github, name=args.name)
+    from .core import log_prefix, side_log_rel
+    key = log_prefix(log)
+    if args.json:
+        print(json.dumps({"log": side_log_rel(log), "registration": event}, ensure_ascii=False, indent=2))
+        return 0
+    print(f"claimset: opened {side_log_rel(log)}" + (f"; registered you as {event['id']}" if event else ""))
+    print(f"Write as {key}.AC1 (--by {key}.AC1, or CLAIMSET_ACTOR={key}.AC1). An agent working for you registers "
+          f"itself in your log: `claimset lab actor --kind agent --name … --model … --contributor {key}`. Commit "
+          f"lab/contributors/ and your runs' folders to the study branch; the record's owner merges your log with "
+          f"`claimset lab merge {key}`.")
+    return 0
+
+
 def cmd_start(args):
     lab = _lab(args)
     by = _actor(args)
@@ -966,7 +1034,8 @@ def cmd_merge(args):
         print(json.dumps(event, ensure_ascii=False, indent=2))
     else:
         b = event["body"]
-        print(f"{event['id']}: merged {b['events_merged']} events from {', '.join(b['agents'])}")
+        print(f"{event['id']}: merged {b['events_merged']} events from "
+              f"{', '.join(list(b['agents']) + list(b.get('contributors') or []))}")
     _auto_anchor(lab, event)
     return 0
 
@@ -1196,7 +1265,7 @@ def cmd_summary(args):
         s["view"] = {"actor": st.owner, "own_events": len(st.agent_events), "base": st.base,
                      "newer_main_events": len(main) - st.base}
     merged = lab.view(main=main).merged
-    s["agent_logs"] = {a: {"events": len(lab.read_agent(a)), "merged_by": merged.get(a)} for a in lab.agent_logs()}
+    s["agent_logs"] = {a: {"events": len(lab.read_side(a)), "merged_by": merged.get(a)} for a in lab.side_logs()}
     drafts = {name: len(_draft.load(lab, name)) for name in _draft.names(lab)}
     if drafts:
         s["drafts"] = drafts
@@ -1234,6 +1303,9 @@ def add_parser(subparsers):
     p = lab_sub.add_parser("init", help="create a lab record", parents=[common])
     p.add_argument("--title", required=True, help="working title of the research")
     p.add_argument("--repository", help="URI of the project repository")
+    p.add_argument("--continues", metavar="URL",
+                   help="the record this one carries on: its log at a fixed version (a commit) (§5.1)")
+    p.add_argument("--continues-head", metavar="HASH", help="the header hash of that record's last event (sha256:…)")
     p.set_defaults(func=cmd_init)
 
     p = cmd("paper", cmd_paper, "record a paper drawn from the record and the questions it reports")
@@ -1257,6 +1329,9 @@ def add_parser(subparsers):
     p.add_argument("--label", help="an agent: what it does here, in a few words (drafting, proof checking); "
                                    "--name stays the system's name")
     p.add_argument("--orcid")
+    p.add_argument("--contributor", metavar="KEY",
+                   help="register in this contributor's open log (their ORCID iD, or github-ACCOUNT): an agent "
+                        "working for a contributor (§3.7)")
     p.add_argument("--record-source", choices=["harness", "user_reported", "self_reported"])
     p.add_argument("--words", help="an agent registering a person: the person's reply giving their name (and ORCID "
                                    "iD), verbatim")
@@ -1538,8 +1613,25 @@ def add_parser(subparsers):
 
     p = cmd("start", cmd_start, "start an agent log: this actor's events go there until it is merged")
 
-    p = cmd("merge", cmd_merge, "merge finished agent logs into the main log")
-    p.add_argument("actors", nargs="*", metavar="ACTOR", help="agent logs to merge (default: all open ones)")
+    p = cmd("merge", cmd_merge, "merge finished agent logs and contributors' logs into the main log")
+    p.add_argument("actors", nargs="*", metavar="LOG",
+                   help="agent logs (AC2) and contributors (their key: an ORCID iD, or github-ACCOUNT) to merge "
+                        "(default: all open ones)")
+
+    p = cmd("view", cmd_view, "the record as plain text to read, or the trail of one hypothesis or claim (§11)",
+            parents=(common,))
+    p.add_argument("--hypothesis", metavar="ID", help="the trail of this hypothesis")
+    p.add_argument("--claim", metavar="ID", help="the trail of this claim of an exported paper (its hypothesis)")
+    p.add_argument("--paper", help="the paper whose claim (default: the only one)")
+    p.add_argument("--claimset", metavar="FILE", help="the claimset file whose claim (default: the paper's)")
+    p.add_argument("-o", "--output", metavar="FILE", help="write it to FILE")
+
+    p = cmd("contribute", cmd_contribute, "a person adding to the record: open your own log (lab record §3.7)",
+            parents=(common,))
+    who = p.add_mutually_exclusive_group(required=True)
+    who.add_argument("--orcid", help="your ORCID iD: your log's key and the prefix of your IDs")
+    who.add_argument("--github", metavar="ACCOUNT", help="your GitHub account, if you have no ORCID iD")
+    p.add_argument("--name", help="your name, for your registration (your first log only)")
 
 
     p = cmd("show", cmd_show, "show one event, with corrections resolved", parents=(viewer,))

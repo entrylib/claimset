@@ -274,15 +274,19 @@ def heads_at(lab, rev):
     if not isinstance(head, dict) or not isinstance(head.get("seq"), int):
         return None
     out = {"seq": head["seq"], "head_hash": header_hash(head)}
-    names = git(["ls-tree", "--name-only", f"{rev}:{lab_rel}/agents"], cwd=top, check=False)
+    from .core import SIDE_LOG_RE, is_agent_log, side_log_order
     agents = {}
-    for name in (names.stdout.split() if names.returncode == 0 else []):
-        if name.endswith(".jsonl") and re.match(r"^AC\d+\.jsonl$", name):
-            e = _last_event(top, rev, f"{lab_rel}/agents/{name}")
+    for folder in ("agents", "contributors"):                # agents' and contributors' logs (§3.5, §3.7)
+        names = git(["ls-tree", "--name-only", f"{rev}:{lab_rel}/{folder}"], cwd=top, check=False)
+        for name in (names.stdout.split() if names.returncode == 0 else []):
+            log = name[:-len(".jsonl")] if name.endswith(".jsonl") else None
+            if log is None or not SIDE_LOG_RE.match(log) or is_agent_log(log) != (folder == "agents"):
+                continue
+            e = _last_event(top, rev, f"{lab_rel}/{folder}/{name}")
             if isinstance(e, dict) and isinstance(e.get("seq"), int):
-                agents[name[:-len(".jsonl")]] = {"seq": e["seq"], "head_hash": header_hash(e)}
+                agents[log] = {"seq": e["seq"], "head_hash": header_hash(e)}
     if agents:
-        out["agents"] = dict(sorted(agents.items(), key=lambda kv: int(kv[0][2:]) if kv[0][2:].isdigit() else 0))
+        out["agents"] = dict(sorted(agents.items(), key=lambda kv: side_log_order(kv[0])))
     return out
 
 
@@ -414,7 +418,7 @@ def _remote_has(top, remote, branch):
 
 
 def setup(study, title=None, repository=None, remote="origin", adopt=False, by=None, cwd=None, clock=None,
-          desk=False, upgrade=False):
+          desk=False, upgrade=False, continues=None):
     """Create, attach or adopt the study branch of `study`; returns (Lab, what was done, notes). `desk`: keep a
     new study without a remote (desk mode, §7.1); `upgrade`: give a desk-mode study the remote `remote`."""
     if desk:
@@ -467,7 +471,8 @@ def setup(study, title=None, repository=None, remote="origin", adopt=False, by=N
     root = git(["commit-tree", EMPTY_TREE, "-m", f"claimset: study {study}"], cwd=top, env=_ident()).stdout.strip()
     git(["branch", branch, root], cwd=top)
     git(["worktree", "add", "-q", str(path), branch], cwd=top)
-    lab = Lab.create(path / "lab", title, repository, study=study, **({"clock": clock} if clock else {}))
+    lab = Lab.create(path / "lab", title, repository, study=study, continues=continues,
+                     **({"clock": clock} if clock else {}))
     _save_record_config(lab, remote, branch)
     save(lab, 0, f"claimset: study {study}")
     return lab, "created", notes

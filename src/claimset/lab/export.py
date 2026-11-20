@@ -103,9 +103,9 @@ class _Exporter:
         st = self.st = State()
         for e in self.events:
             st.apply(e)
-        unmerged = [a for a in lab.agent_logs() if a not in st.merged and lab.read_agent(a)]
+        unmerged = [a for a in lab.side_logs() if a not in st.merged and lab.read_side(a)]
         if unmerged:
-            raise LabError("export", f"agent logs of {', '.join(unmerged)} are not merged; run `claimset lab merge`")
+            raise LabError("export", f"the logs of {', '.join(unmerged)} are not merged; run `claimset lab merge`")
         self.roots = [e for e in st.events if e["id"] == st.root(e["id"])]
         self.all_hyps = [e for e in self.roots if e["type"] == "hypothesis"]
         self.paper = paper
@@ -153,8 +153,8 @@ class _Exporter:
         self.limitations, self.artefacts, self.references = [], [], []
         self.person, self.evidence_of_run = {}, {}
         self.results_of = {}
-        for e in st.events:
-            if e["type"] == "result" and not is_withheld(e):
+        for e in st.result_events():          # result events, or from v0.23 the rows of results files (§5.10)
+            if not is_withheld(e):
                 self.results_of.setdefault(e["body"].get("run"), []).append(e)
 
     # -- helpers
@@ -183,7 +183,8 @@ class _Exporter:
         if not isinstance(o, dict):
             return v["seq"] < run["seq"]
         agent = run["id"].split(".")[0]
-        base = self.bases.get(agent)
+        log = o.get("log")
+        base = self.bases.get(log.split("/")[-1][:-len(".jsonl")] if isinstance(log, str) else agent)
         if base is not None and v["seq"] <= base:
             return True
         vo = v.get("origin")
@@ -206,13 +207,19 @@ class _Exporter:
     # -- parts of the draft
     def export_contributors(self):
         st = self.st
-        writes, active = {}, {}
+        writes, active, credited = {}, {}, {}
         for e in st.events:
             a = self.actor_of(e["by"])
             if a:
                 writes.setdefault(a, set()).add(e["type"])
                 first, last = active.get(a, (e["at"], e["at"]))
                 active[a] = (min(first, e["at"]), max(last, e["at"]))
+            role = credit_role(e)
+            if role is not None:                      # §9, Credit: an approval or check on a person's behalf is theirs
+                body = e.get("body") if isinstance(e.get("body"), dict) else {}
+                who = self.actor_of(body.get("on_behalf_of")) if body.get("on_behalf_of") else a
+                if who:
+                    credited.setdefault(who, set()).add(role)
         self.writes = writes
         model_ids = {}
         self.withheld_actors = []
@@ -229,6 +236,9 @@ class _Exporter:
             self.mapping[pid] = cur["id"]
             kind = b.get("kind")
             c = {"id": pid, "type": kind, "name": b.get("name")}
+            roles = [r for r in CREDIT_ORDER if r in credited.get(a["id"], set())]
+            if roles:
+                c["credit_roles"] = roles
             if kind == "agent":
                 authored = writes.get(a["id"], set()) - {"check", "actor"}
                 c["positions"] = ["author"] if authored else ["contributor"]
@@ -263,6 +273,15 @@ class _Exporter:
                 c["positions"] = ["contributor"]
                 if b.get("orcid"):
                     c["orcid"] = b["orcid"]
+                elif b.get("github"):
+                    self.todo(f"contributors.{pid}", f"{c['name']} is registered by their GitHub account "
+                                                     f"({b['github']}); a claimset records a person by their ORCID iD: "
+                                                     f"ask for it")
+                if roles:
+                    self.todo(f"contributors.{pid}.credit_roles",
+                              f"{c['name']}'s credit roles ({', '.join(roles)}) are drawn from the events they wrote "
+                              f"or that were written on their behalf; ask them to confirm, and to add the roles no "
+                              f"event shows (writing, funding acquisition, project administration)")
                 self.todo(f"contributors.{pid}", f"{c['name']} ({a['id']}) is exported as a contributor; ask whether "
                                                  f"they supervised the work and whether they are the guarantor")
             self.contributors.append(c)
@@ -1395,7 +1414,7 @@ class _Exporter:
         """Every result of the record, at full precision, as a CSV beside the claimset (§9), named by the evidence
         objects and tables that hold results; or nothing, when no evidence holds a result."""
         import hashlib
-        events = [e for e in self.st.events if e["type"] == "result" and not is_withheld(e)]
+        events = [e for e in self.st.result_events() if not is_withheld(e)]
         users = [ev for ev in self.evidence if RESULTS_CSV in (ev.get("artefacts") or [])]
         aid = None
         if events and users:
@@ -1467,6 +1486,25 @@ class _Exporter:
         walk(draft)
         from .. import extensions as _ext
         return {n: self.st.extensions.get(n) or _ext.latest(n) for n in sorted(names)}
+
+
+#: Lab record §9, Credit: the CRediT role the events of each type show, in the order roles are listed.
+CREDIT_BY_TYPE = {"question": "conceptualization", "hypothesis": "conceptualization", "plan": "methodology",
+                  "term": "methodology", "assumption": "methodology", "run": "formal_analysis",
+                  "source": "data_curation", "coding": "investigation", "check": "validation",
+                  "approval": "supervision"}
+CREDIT_ORDER = ("conceptualization", "methodology", "formal_analysis", "data_curation", "investigation",
+                "validation", "supervision")
+
+
+def credit_role(event):
+    """The CRediT role an event shows for whoever it is credited to (§9), or None. A withheld event shows none."""
+    if not isinstance(event, dict) or is_withheld(event):
+        return None
+    if event.get("type") == "artefact":
+        body = event.get("body") if isinstance(event.get("body"), dict) else {}
+        return "data_curation" if body.get("kind") == "data" else None
+    return CREDIT_BY_TYPE.get(event.get("type"))
 
 
 def export(lab, paper=None, results_path=None):

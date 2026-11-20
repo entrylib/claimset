@@ -198,7 +198,7 @@ class TestCommandLine(TestCli):
         self.assertEqual((code, out), (0, "PL1"), err)
         self.run_cli("lab", "run", "--plan", "PL1", "--", sys.executable, script)
         code, out, _ = self.run_cli("lab", "verdict", "PL1")
-        self.assertIn("acc = 0.9 (RS2)", out)
+        self.assertIn("acc = 0.9 (RN2.1)", out)
         self.assertIn("flag: diagnostic missing", out)
         code, out, _ = self.run_cli("lab", "summary")
         self.assertIn("PL1 [estimation] estimates acc for Q1", out)

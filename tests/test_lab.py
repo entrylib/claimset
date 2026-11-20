@@ -28,11 +28,19 @@ def ticking_clock():
     return lambda: f"2026-10-15T10:{next(counter):02d}:00Z"
 
 
+def legacy(test):
+    """Run a test on a record begun under lab record v0.22, whose results are events (§5.10): it tests what such
+    records still do."""
+    test.lab_spec_version = "0.22"
+    return test
+
+
 class LabCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name) / "lab"
-        self.lab = Lab.create(self.dir, "Test study", clock=ticking_clock())
+        version = getattr(getattr(self, self._testMethodName, None), "lab_spec_version", None)
+        self.lab = Lab.create(self.dir, "Test study", clock=ticking_clock(), lab_spec_version=version)
         self.human = self.lab.append("actor", {"kind": "human", "name": "A. Researcher",
                                                "orcid": "0000-0000-0000-0000"}, by="AC1")["id"]
         self.agent = self.lab.append("actor", {"kind": "agent", "name": "Agent",
@@ -190,6 +198,7 @@ class TestRules(LabCase):
         h = self.hyp(origin="from_exploration", prompted_by=[n])
         self.assertRefused("L6", "status", {"target": h, "to": "supported", "rationale": "r", "evidence": [n]})
 
+    @legacy
     def test_l6_results_of_prompting_run_cannot_confirm(self):
         run = self.add("run", run_body())
         res = self.add("result", {"run": run, "variable": "q", "value": 1.0, "source": "results.json"})
@@ -518,6 +527,7 @@ class TestRunRules(PlanRunCase):
         rn = self.add("run", run_body())
         self.assertRefused("L4", "result", {"run": rn, "variable": "q", "value": 1, "source": "other.json"})
 
+    @legacy
     def test_result_value_is_number(self):
         rn = self.add("run", run_body())
         self.assertRefused("schema", "result", {"run": rn, "variable": "q", "value": "1",
@@ -535,7 +545,7 @@ class TestRunCommand(PlanRunCase):
         self.assertEqual(len(out["problems"]), 1)
         rdir = self.dir / "runs" / run["id"]
         self.assertEqual(sorted(p.name for p in rdir.iterdir()),
-                         ["out.txt", "results.json", "stderr.txt", "stdout.txt"])
+                         ["out.txt", "results.csv", "results.json", "stderr.txt", "stdout.txt"])
         self.assertEqual((rdir / "stdout.txt").read_text().strip(), "done")
         self.assertTrue(verify(self.lab)["ok"])
 

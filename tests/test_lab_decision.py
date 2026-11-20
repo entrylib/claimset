@@ -12,7 +12,7 @@ from claimset.lab.export import export
 from claimset.lab.run import run_command
 from claimset.validate import validate
 
-from test_lab import LabCase, TestCli, ticking_clock
+from test_lab import LabCase, TestCli, legacy, ticking_clock
 
 SCRIPT = """
 import json, os, sys
@@ -328,6 +328,7 @@ class TestWithheldAndMalformed(RuleCase):
                 e["body"] = {"withheld": True, "reason": "commercial"}
         self.write_lines([canonical(e).decode("utf-8") for e in events])
 
+    @legacy
     def test_withheld_deciding_result_or_run_is_not_a_violation(self):
         pl = self.plan()
         rn, rs = self.run_(plan=pl)
@@ -456,11 +457,11 @@ class TestCliRules(TestCli):
         code, out, _ = self.run_cli("lab", "verdict", "PL1")
         self.assertIn("Verdict: supported", out)
         self.assertIn("p = 0.01", out)
-        code, _, err = self.run_cli("lab", "status", "H1", "inconclusive", "--why", "w", "--evidence", "RS1", "RS2",
+        code, _, err = self.run_cli("lab", "status", "H1", "inconclusive", "--why", "w", "--evidence", "RN1.1", "RN1.2",
                                     "--plan", "PL1")
         self.assertEqual(code, 1)
         self.assertIn("[L17]", err)
-        code, _, err = self.run_cli("lab", "status", "H1", "supported", "--why", "w", "--evidence", "RS1", "RS2",
+        code, _, err = self.run_cli("lab", "status", "H1", "supported", "--why", "w", "--evidence", "RN1.1", "RN1.2",
                                     "--plan", "PL1")
         self.assertEqual(code, 0, err)
 

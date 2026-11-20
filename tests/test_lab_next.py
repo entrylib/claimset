@@ -23,7 +23,8 @@ class TestSteps(unittest.TestCase):
         from pathlib import Path
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.lab = Lab.create(Path(self.tmp.name) / "lab", "Study", clock=ticking_clock())
+        # begun under v0.22: the steps are written with a result event (§5.10)
+        self.lab = Lab.create(Path(self.tmp.name) / "lab", "Study", clock=ticking_clock(), lab_spec_version="0.22")
 
     def add(self, etype, body, by="AC1"):
         return self.lab.append(etype, body, by=by)["id"]

@@ -242,6 +242,12 @@ SOURCE_PREFIX_RE = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/|https?://arxiv\.
 #: Rule 76: a claimset's identifier (§7): its DOI, or the platform's provisional identifier.
 CLAIMSET_ID = r"(?:doi:10\.\d{4,9}/claimset\.|entrylib:)\d{4}\.\d{6,}"
 CLAIMSET_ID_RE = re.compile(rf"^{CLAIMSET_ID}$")
+#: The prefix of a lab-record ID written outside the main log (§3.4, `lab_runs`; lab record §4.2): an agent's actor
+#: ID (`AC2`), or a contributor's key: an ORCID iD, or `github-` and an account name (amended on 2026-11-20).
+ORCID_PATTERN = r"\d{4}-\d{4}-\d{4}-\d{3}[\dX]"
+CONTRIBUTOR_KEY = rf"(?:{ORCID_PATTERN}|github-[a-z0-9](?:[a-z0-9-]{{0,38}}))"
+LAB_LOG_PREFIX = rf"(?:AC\d+|{CONTRIBUTOR_KEY})"
+LAB_RUN_RE = re.compile(rf"^(?:{LAB_LOG_PREFIX}\.)?RN\d+$")
 CLAIMSET_TARGET_RE = re.compile(rf"^{CLAIMSET_ID}(?:@v[1-9]\d*)?(?:#[A-Z]+[1-9]\d*(?:\.[A-Za-z0-9]+)*)?$")
 
 
@@ -876,7 +882,7 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
                 if p is not None and p.get("kind") != "prompt":
                     r.err("1", f"{dw}.prompts", "must point to an artefact of kind prompt")
         for lr in as_list(e.get("lab_runs")):
-            if not re.match(r"^(AC\d+\.)?RN\d+$", str(lr)):
+            if not LAB_RUN_RE.match(str(lr)):
                 r.err("1", f"{w}.lab_runs", f"'{lr}' is not a lab-record run ID (RN1, RN2, …)")
         if e.get("profile") in ("quant", "simulation"):
             if e.get("estimate") is None and not as_list(e.get("results")) and not as_list(e.get("tables")):
@@ -2120,7 +2126,7 @@ def _coord_ok(k, v):
 
 
 LOCATOR_FIELDS = {"artefact", "start", "end", "lab_event"}
-LAB_EVENT_RE = re.compile(r"^(AC\d+\.)?[A-Z]{2}\d+$")
+LAB_EVENT_RE = re.compile(rf"^(?:{LAB_LOG_PREFIX}\.)?[A-Z]{{2}}\d+$")
 
 
 def check_locator(r, w, loc, ref):

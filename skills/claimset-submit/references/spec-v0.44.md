@@ -26,6 +26,8 @@ Amended on 2026-11-17 (§3.1, §3.2, §3.3, §3.6, §3.7, §8 rule 11, §10 rule
 - §3.6: a figure's `description` says what the figure shows, as a caption does; how it was made is not part of it.
 - §2.3: the reading view gives a claim's name and summary, a definition's symbol and the results of a relation.
 
+Amended on 2026-11-20 (§3.4, rules 1 and 78): a lab-record ID may carry a contributor's key. Lab record v0.23 lets a second person add to a record in a log of their own, whose IDs carry their ORCID iD (or `github-` and an account name) as a prefix (`0000-0002-1825-0097.RN4`), so that IDs written by different people never collide; `lab_runs` and an excerpt's `lab_event` accepted only an agent's prefix (`AC2.RN4`). Every file valid before stays valid.
+
 Amended on 2026-11-17 (§3.13, §10.4 warning 54): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 54. A warning only: every file valid before stays valid.
 
 Amended on 2026-11-18 (§2.3, §3.1, §3.2, §10 rule 105, warnings 57 and 58): a paper may be read in sections, and its definitions come in the order a reader needs them. Readers of a paper of seventeen claims asked for the claims to be grouped as a paper's sections group its results (those that hold for positive values, those for counts), and found that the paper opened with a term derived from its subject, not with the subject itself.
@@ -1146,7 +1148,7 @@ Prior work that the paper cites as an example or an illustration ("used, e.g., i
 
 ### 3.4 Evidence
 
-Common fields: `id`, `profile`, `description`, `artefacts` (list of artefact IDs), `data_origin` (`primary` · `secondary`), `preregistered` (boolean), `availability` (§3.10), `models` (list, below), `results` (list, below), `execution` (object, below), `lab_runs` (list of lab-record run IDs, e.g. `RN4` or `AC2.RN4`, that produced this evidence), `tables` (list, below), `derived_from` (list, below), `source_spans` (locations of the evidence in the source text, for converted papers).
+Common fields: `id`, `profile`, `description`, `artefacts` (list of artefact IDs), `data_origin` (`primary` · `secondary`), `preregistered` (boolean), `availability` (§3.10), `models` (list, below), `results` (list, below), `execution` (object, below), `lab_runs` (list of lab-record run IDs, e.g. `RN4`, `AC2.RN4` or `0000-0002-1825-0097.RN4`, that produced this evidence; a lab-record ID is its type prefix and number, after the prefix of the log that wrote it, if any: an agent's actor ID, or a contributor's key, an ORCID iD or `github-` and an account name, lab record §4.2), `tables` (list, below), `derived_from` (list, below), `source_spans` (locations of the evidence in the source text, for converted papers).
 
 **Derived evidence** (`derived_from`, optional): the evidence objects of this paper whose data this evidence re-uses, each `{evidence, how}`, `how` one of `reanalysis` (the same cases analysed differently: a robustness check, a sensitivity analysis, another model), `subset` (part of the cases: a subgroup analysis, a restriction), `pooled` (several evidence objects combined: a pooled analysis, a meta-analysis within the paper), `extension` (the same cases with more added). Two results whose evidence derives from the same evidence are not independent, whatever their number; the platform counts them once (§11).
 
@@ -1791,7 +1793,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 
 76. Claimset identifiers. `paper.id`, where present, is a claimset identifier: `doi:` followed by a DOI prefix (`10.` and four to nine digits) and `/claimset.<year>.<number>`, or `entrylib:<year>.<number>`; `<year>` is four digits and `<number>` at least six. A `target` with `id_type: claimset` is a claimset identifier, optionally followed by `@v<n>` (n ≥ 1) and then optionally by `#` and a local ID.
 77. Package limits. A package (§2.5) keeps within the limits of §2.5: the number of files, the size of each file and of the payload, the form of every path, the manifest listing exactly the files of `data/`, and the file types. A zip is checked before it is unpacked: its entries' sizes and paths, and that it holds no links.
-78. Excerpt locators. A structured excerpt `locator` has only `artefact`, `start`, `end` and `lab_event`; `artefact` resolves to an artefact; `start` and `end` are integers with 0 ≤ `start` < `end`; `lab_event`, if present, is a lab record event ID (`CD3`, `AC2.CD3`). When the claimset is validated as part of a package and the artefact is a packaged text file, the excerpt's `text` is that file's characters `start` to `end`.
+78. Excerpt locators. A structured excerpt `locator` has only `artefact`, `start`, `end` and `lab_event`; `artefact` resolves to an artefact; `start` and `end` are integers with 0 ≤ `start` < `end`; `lab_event`, if present, is a lab record event ID (`CD3`, `AC2.CD3`, `0000-0002-1825-0097.CD3`; §3.4, `lab_runs`). When the claimset is validated as part of a package and the artefact is a packaged text file, the excerpt's `text` is that file's characters `start` to `end`.
 
 ### 10.25 Rules added in v0.37 (errors: file rejected)
 
