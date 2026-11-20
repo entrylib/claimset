@@ -205,6 +205,9 @@ ASK_VOID = ("A defect in the code made this plan's runs meaningless, and the new
             "the same analysis and rule. I will show you the defect and both plans. Do you agree that the first plan "
             "is void, and its repeat gives the result? Please answer in your own words; I record them as you give "
             "them.")
+ASK_REWORDED = ("The new plan's analysis is worded differently from the first plan's. I will show you both texts. Do they "
+                "describe the same steps? If they do, and you agree that the first plan is void, please say so in your "
+                "own words; I record them as you give them, and the paper quotes both texts.")
 ASK_L6 = ("The result that suggested this hypothesis cannot also be the evidence that confirms it. Shall I plan a new "
           "test on new data, or report the finding as exploration?")
 
@@ -1523,10 +1526,13 @@ def check_void(state, body, by):
     the same data in the same way, for defects recorded before the repeat was planned, on a person's word
     (§5.7.4, *Void plans*; §5.11)."""
     v = body["void"]
-    if not isinstance(v, dict) or set(v) - {"plan", "repeated_by", "defects"} \
-            or not isinstance(v.get("plan"), str) or not isinstance(v.get("repeated_by"), str):
-        raise LabError("L37", "decision: void is {plan, repeated_by, defects}: the void plan, the plan that repeats "
-                              "it, and the deviations that record its defects")
+    if not isinstance(v, dict) or set(v) - {"plan", "repeated_by", "defects", "analysis_reworded"} \
+            or not isinstance(v.get("plan"), str) or not isinstance(v.get("repeated_by"), str) \
+            or v.get("analysis_reworded") not in (None, True):
+        raise LabError("L37", "decision: void is {plan, repeated_by, defects, analysis_reworded}: the void plan, the "
+                              "plan that repeats it, the deviations that record its defects, and, only when the "
+                              "repeat words its analysis differently, analysis_reworded: true")
+    reworded = v.get("analysis_reworded") is True
     _ref(state, v["plan"], "decision", "void.plan", {"plan"})
     _ref(state, v["repeated_by"], "decision", "void.repeated_by", {"plan"})
     p, r = state.root(v["plan"]), state.root(v["repeated_by"])
@@ -1560,6 +1566,20 @@ def check_void(state, body, by):
                                   f"run of {state.label(p)}; a repeat is planned after the void runs, when their defect "
                                   f"is known")
         diffs = repeat_differences(state, pv, rv)
+        if reworded and "analysis" not in diffs:
+            raise LabError("L37", f"decision: {state.label(r)}'s analysis is word for word {state.label(pv['id'])}'s; "
+                                  f"leave out --analysis-reworded")
+        if diffs == ["analysis"] and not reworded:
+            raise LabError("L37", f"decision: {state.label(r)} words its analysis differently from "
+                                  f"{state.label(pv['id'])}.\n  {state.label(pv['id'])}: {pv['body'].get('analysis')}\n"
+                                  f"  {state.label(r)}: {rv['body'].get('analysis')}\nIf the two describe the same "
+                                  f"steps, show both to the person giving their word for the void, and record it with "
+                                  f"--analysis-reworded; the paper then quotes both texts. If they differ in what is "
+                                  f"computed, {state.label(r)} is a different test and the void plan's verdict stays a "
+                                  f"claim. Never edit a plan after its runs to make the texts match.",
+                           ask=ASK_REWORDED)
+        if reworded:
+            diffs = [d for d in diffs if d != "analysis"]
         if diffs:
             raise LabError("L37", f"decision: {state.label(r)} does not repeat {state.label(pv['id'])}: its "
                                   f"{', '.join(diffs)} differ{'s' if len(diffs) == 1 else ''}. A repeat asks the same "
