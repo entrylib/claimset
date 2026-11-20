@@ -490,7 +490,7 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
     doc, problems = load_table_files(doc, files_root)
     for where, msg in problems:
         r.err("106", where, msg)
-    check_table_files(r, doc)
+    check_table_files(r, doc, published)
     for key in ("paper", "contributors", "models", "claims"):
         if key not in doc:
             r.err("19", key, "missing required top-level section")
@@ -2379,8 +2379,19 @@ def load_table_files(doc, root):
     return doc, problems
 
 
-def check_table_files(r, doc):
-    """Rule 106: a table held in a file names a data artefact whose URI is a relative CSV path, and its row count."""
+def _csv_location(uri, published):
+    """Where a table held in a file may be (rule 106): a relative path ending in .csv in the package, or, in a
+    published file, the https location the platform stored it at (§3.13; erratum of 2026-11-20)."""
+    if not isinstance(uri, str) or not uri.lower().split("?")[0].split("#")[0].endswith(".csv"):
+        return False
+    if is_relative_uri(uri):
+        return True
+    return bool(published) and uri.startswith("https://")
+
+
+def check_table_files(r, doc, published=False):
+    """Rule 106: a table held in a file names a data artefact whose URI is a relative CSV path (in a published file,
+    the location the platform stored it at), and its row count."""
     arts = {a.get("id"): a for a in as_list(doc.get("artefacts")) if isinstance(a, dict) and isinstance(a.get("id"), str)}
     for e in as_list(doc.get("evidence")):
         for t in as_list(as_dict(e).get("tables")):
@@ -2396,10 +2407,11 @@ def check_table_files(r, doc):
             a = arts.get(t["rows_file"]) if isinstance(t.get("rows_file"), str) else None
             if a is None:
                 r.err("106", f"{tw}.rows_file", "the ID of the data artefact whose CSV file holds the table's rows")
-            elif a.get("kind") != "data" or not is_relative_uri(a.get("uri")) \
-                    or not str(a.get("uri")).lower().endswith(".csv"):
+            elif a.get("kind") != "data" or not _csv_location(a.get("uri"), published):
                 r.err("106", f"{tw}.rows_file", f"{t['rows_file']} must be an artefact of kind data whose uri is a "
-                                                 f"CSV file of the package (a relative path ending in .csv)")
+                                                 f"CSV file of the package (a relative path ending in .csv"
+                                                 + ("; in a published file, its https location" if published else "")
+                                                 + ")")
             n = t.get("n_rows")
             if not isinstance(n, int) or isinstance(n, bool) or n < 1:
                 r.err("106", f"{tw}.n_rows", "a positive integer: the number of rows the file holds")
