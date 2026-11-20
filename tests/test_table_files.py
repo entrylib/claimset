@@ -83,6 +83,18 @@ class TestValidator(unittest.TestCase):
         self.d["evidence"][0]["tables"][0]["rows_file"] = "A9"
         self.assertTrue(errors(self.d, rule="106"))
 
+    def test_a_published_file_gives_the_location_the_platform_stored_it_at(self):
+        """Erratum of 2026-11-20: the platform replaces a packaged file's relative uri at publication (§3.13), and
+        rule 106 then refused the published file, so a claimset with a table held in a file could not be published."""
+        a = next(a for a in self.d["artefacts"] if a["id"] == "A4")
+        stored = "https://entrylib.org/p/2026.000011/v1/files/files/e1-t1.csv"
+        a["uri"] = stored
+        self.assertFalse([e for e in validate(self.d, published=True).errors if e["rule"] == "106"])
+        self.assertTrue(errors(self.d, rule="106"))                    # before publication: a file of the package
+        for wrong in ("https://entrylib.org/p/2026.000011/v1/files/e1-t1.json", "http://example.org/e1-t1.csv"):
+            a["uri"] = wrong
+            self.assertTrue([e for e in validate(self.d, published=True).errors if e["rule"] == "106"], wrong)
+
     def test_each_line_has_one_field_per_label_and_column(self):
         with open(Path(self.tmp.name) / "files" / "e1-t1.csv", "a", newline="") as fh:
             csv.writer(fh).writerow(["extra", 1])
