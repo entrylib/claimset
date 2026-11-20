@@ -32,6 +32,8 @@ Amended on 2026-11-20 (§3.4, §8 rule 6, §10 rules 38 and 106): a large table 
 
 Amended on 2026-11-20 (§3.1.1, §2.3, §10 rule 99, warning 59): each formal verdict that gives no claim says what it decided, in a few words. A paper's list of them read "H1 → C1, H2 → C2, H3 → C3, H23 → C3, …": lab IDs its reader cannot look up, the same hypothesis listed once per verdict. An entry of `not_claimed` may give `statement`, the wording its verdict decided, shortened to one line of at most 200 characters; export fills it from the record, and a list without it is warned. The reading view gives one line per entry. Optional; every file valid before stays valid.
 
+Amended on 2026-11-20 (§3.1, §3.3, warnings 60 and 61): a paper without a summary, and claims without names, are warned. Both stay optional, so that every file valid before stays valid; but a reader outside the field starts from the summary, and readers find their way through the claims by their names, and a claimset completed without them gave neither. New warnings 60 (no `paper.summary`) and 61 (the claims that have no `name`, assumptions aside, in one warning).
+
 Amended on 2026-11-17 (§3.13, §10.4 warning 54): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 54. A warning only: every file valid before stays valid.
 
 Amended on 2026-11-18 (§2.3, §3.1, §3.2, §10 rule 105, warnings 57 and 58): a paper may be read in sections, and its definitions come in the order a reader needs them. Readers of a paper of seventeen claims asked for the claims to be grouped as a paper's sections group its results (those that hold for positive values, those for counts), and found that the paper opened with a term derived from its subject, not with the subject itself.
@@ -1920,6 +1922,8 @@ The file records identifier type and venue facts for cited works only. Trust in 
 57. `paper.sections` is given and a claim that is not an assumption is in no section (§3.1): place each claim in the section it belongs to. (From v0.44 as amended on 2026-11-18, as warning 58.)
 58. A definition names, by `[[D4:term]]`, a definition listed after it (§3.2): list definitions in the order a reader needs them, what the paper is about first and in full, a term built on another after it.
 59. An entry of `paper.exploration.not_claimed` without `statement` (§3.1.1): say in a few words what its verdict decided, so that a reader sees more than a lab ID. (From v0.44 as amended on 2026-11-20.)
+60. A paper without `summary` (§3.1): give the paper in a few sentences of plain language, at most 250 words, for a reader outside its field. (From v0.44 as amended on 2026-11-20.)
+61. Claims without `name` (§3.3), assumptions aside, listed in one warning: give each a name, what its statement says in a few words. (From v0.44 as amended on 2026-11-20.)
 
 ## 11. Platform dependencies
 

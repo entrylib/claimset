@@ -3327,8 +3327,11 @@ def check_number_format(r, claims):
 
 
 def check_summary(r, paper):
-    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 250 words."""
+    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 250 words. Warning 60
+    (v0.44 as amended on 2026-11-20): no summary."""
     if "summary" not in paper:
+        r.warn("W60", "paper.summary", "no summary: give the paper in a few sentences of plain language, at most "
+                                       f"{MAX_SUMMARY_WORDS} words, for a reader outside its field (§3.1)")
         return
     text = paper["summary"]
     if not isinstance(text, str) or not text.strip():
@@ -3347,9 +3350,11 @@ def check_reading(r, claims, definitions, by_id):
     string with text; warning 52: more than 50 words. Rule 103: a definition's `symbol` is one inline formula;
     warning 53: two definitions give the same symbol. Rule 104: `results` in a relation, only within the paper,
     resolve in evidence the claim's own support points to."""
-    named = {}
+    named, unnamed = {}, []
     for cid, c in claims.items():
         w = f"claims:{cid}"
+        if "name" not in c and not all(as_dict(s).get("kind") == "assumption" for s in as_list(c.get("support")) or [{}]):
+            unnamed.append(cid)
         if "name" in c:
             name = c["name"]
             if not isinstance(name, str) or not name.strip():
@@ -3400,6 +3405,10 @@ def check_reading(r, claims, definitions, by_id):
                            if not m or eid == m.group(1)):
                     r.err("104", rw, f"'{x}' does not resolve to a result, table, table row or bulk data rows of "
                                      f"evidence this claim's support points to")
+    if unnamed:         # warning 61 (v0.44 as amended on 2026-11-20)
+        r.warn("W61", "claims", f"{', '.join(str(x) for x in unnamed)} {'has' if len(unnamed) == 1 else 'have'} no name: give each "
+                                f"claim a name, what its statement says in a few words, as the heading of a result "
+                                f"does (§3.3); readers find their way by them")
     seen = {}
     for d in definitions:
         d = as_dict(d)

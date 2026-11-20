@@ -44,7 +44,7 @@ class TestRule82(unittest.TestCase):
                             "interval": {"level": 0.683, "lower": 125.5, "upper": 126.5, "kind": "confidence"}})
         r = validate(d)
         self.assertEqual(r.errors, [])
-        self.assertEqual(r.warnings, [])
+        self.assertEqual([w for w in r.warnings if w["rule"] not in ("W60", "W61")], [])   # a bare fixture
 
     def test_bad_uncertainty(self):
         for bad in ([], [{"kind": "sem", "value": 1}], [{"kind": "se"}], [{"kind": "se", "value": -1}],
@@ -90,7 +90,7 @@ class TestWarning35(unittest.TestCase):
                             "interval": {"level": 0.95, "lower": 125, "upper": 127}})
         r = validate(d)
         self.assertEqual(r.errors, [])
-        self.assertEqual(warnings(r), ["W35"])
+        self.assertEqual([x for x in warnings(r) if x not in ("W60", "W61")], ["W35"])     # a bare fixture
         self.assertEqual(len([w for w in r.warnings if w["rule"] == "W35"]), 2)
 
     def test_converted_papers_may_not_know(self):
