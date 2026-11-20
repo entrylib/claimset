@@ -1602,14 +1602,19 @@ def _model_keys(doc, kind="agent"):
 
 def _by_event(exploration, doc):
     """The exploration summary with each `not_claimed[].into` named by its claim's lab event, so renumbering claims
-    while completing the claimset does not read as a change of what the record gives."""
+    while completing the claimset does not read as a change of what the record gives, and without each entry's
+    `statement`, which completing it shortens (claimset §3.1.1, as amended on 2026-11-20)."""
     if not isinstance(exploration, dict) or not isinstance(exploration.get("not_claimed"), list):
         return exploration
     events = {c.get("id"): (c.get("hypothesis") or {}).get("lab_event") for c in doc.get("claims") or []
               if isinstance(c, dict)}
-    return dict(exploration, not_claimed=[dict(x, into=events.get(x["into"], x["into"]))
-                                          if isinstance(x, dict) and "into" in x else x
-                                          for x in exploration["not_claimed"]])
+
+    def entry(x):
+        if not isinstance(x, dict):
+            return x
+        x = {k: v for k, v in x.items() if k != "statement"}
+        return dict(x, into=events.get(x["into"], x["into"])) if "into" in x else x
+    return dict(exploration, not_claimed=[entry(x) for x in exploration["not_claimed"]])
 
 
 def check(lab, doc, paper=None):

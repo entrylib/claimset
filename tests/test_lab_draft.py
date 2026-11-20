@@ -238,6 +238,14 @@ class TestFormalExport(ExportCase):
         doc["paper"]["exploration"]["not_claimed"].pop()
         self.assertTrue([m for m in export_check(self.lab, doc) if "exploration" in m])
 
+    def test_a_shortened_statement_still_matches_the_record(self):
+        doc = copy.deepcopy(self.out["draft"])
+        for x in doc["paper"]["exploration"]["not_claimed"]:
+            x["statement"] = "In a few words"                  # completing the claimset shortens it (2026-11-20)
+        self.assertFalse([m for m in export_check(self.lab, doc) if "exploration" in m])
+        doc["paper"]["exploration"]["not_claimed"][0]["outcome"] = "not_supported"
+        self.assertTrue([m for m in export_check(self.lab, doc) if "exploration" in m])
+
     def test_other_frameworks_keep_one_claim_per_test(self):
         h = self.hyp("Z helps.", independence="The brief.")
         for _ in range(2):
