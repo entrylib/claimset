@@ -420,8 +420,10 @@ def _counted(name, counts):
 def not_claimed_line(x):
     """One formal verdict that gives no claim, in one line (spec §3.1.1): what it decided (its `statement`, when the
     file gives one), its verdict, why it gives no claim and the claim it went into; its lab IDs last."""
-    tail = f"{str(x.get('outcome', '')).replace('_', ' ')}; {x.get('because')}" + (
-        f" into {x['into']}" if x.get("into") else "")
+    verdict = str(x.get("outcome") or "").replace("_", " ")
+    tail = (f"{verdict}; " if verdict else "") + f"{x.get('because')}" + (
+        f" into {x['into']}" if x.get("into") else "") + (
+        f"; runs {', '.join(str(v) for v in x['runs'])}" if isinstance(x.get("runs"), list) and x["runs"] else "")
     ids = f"{x.get('lab_event')} under {x.get('lab_plan')}"
     if isinstance(x.get("statement"), str) and x["statement"].strip():
         return f"{x['statement'].strip()} ({tail}; lab {ids})"

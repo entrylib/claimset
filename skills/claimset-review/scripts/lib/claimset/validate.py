@@ -1127,20 +1127,27 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
             for i, x in enumerate(nc):
                 w = f"paper.exploration.not_claimed[{i}]"
                 if not isinstance(x, dict):
-                    r.err("99", w, "must be an object {lab_event, lab_plan, outcome, because, into, why}")
+                    r.err("99", w, "must be an object {lab_event, lab_plan, outcome, because, into, runs, why, "
+                                   "statement}")
                     continue
                 for k in ("lab_event", "lab_plan", "why"):
                     if not (isinstance(x.get(k), str) and x[k].strip()):
                         r.err("99", f"{w}.{k}", "must be a non-empty string")
-                if x.get("outcome") not in tkeys:
-                    r.err("99", f"{w}.outcome", "must be supported, not_supported or inconclusive")
                 because = x.get("because")
-                if because not in ("reworded", "revised", "abandoned"):
-                    r.err("99", f"{w}.because", "must be reworded, revised or abandoned")
+                if x.get("outcome") not in tkeys and not (because == "defective" and "outcome" not in x):
+                    r.err("99", f"{w}.outcome", "must be supported, not_supported or inconclusive (absent only for "
+                                                "a void plan, because: defective)")
+                if because not in ("reworded", "revised", "abandoned", "defective"):
+                    r.err("99", f"{w}.because", "must be reworded, revised, abandoned or defective")
                 if "into" in x and not (isinstance(x["into"], str) and _h(x["into"]) in claims):
                     r.err("99", f"{w}.into", "must be the ID of a claim of this file")
                 if because == "reworded" and "into" not in x:
                     r.err("99", f"{w}.into", "a reworded verdict names the claim that states the final wording")
+                if because == "defective" and "into" not in x:
+                    r.err("99", f"{w}.into", "a void plan names the claim of the plan that repeated it")
+                if "runs" in x and not (isinstance(x["runs"], list)
+                                        and all(isinstance(v, str) and v.strip() for v in x["runs"])):
+                    r.err("99", f"{w}.runs", "a list of the plan's deciding runs, each a lab run ID (non-empty string)")
                 if because == "abandoned" and "into" in x:
                     r.err("99", f"{w}.into", "an abandoned hypothesis went into no claim")
                 st = x.get("statement")
