@@ -323,6 +323,23 @@ class TestReadingView(Case):
         self.assertIn("TRAIL OF H1 (claim C1)", lab_view.claim_trail(self.lab.read(), claimset, "C1"))
         self.assertIsNone(lab_view.claim_trail(self.lab.read(), {"claims": [{"id": "C2"}]}, "C2"))
 
+    def test_the_trail_of_a_planned_estimate(self):
+        estimands = {"d": {"variable": "mean difference"}}
+        body = {"kind": "estimation", "question": self.q, "design": "d", "analysis": "a", "estimands": estimands}
+        first = self.lab.append("plan", body, by=self.agent)["id"]
+        pl = self.lab.append("plan", {**body, "design": "d, worded better"}, by=self.agent, supersedes=first)["id"]
+        self.lab.append("hypothesis", {"statement": "Unrelated.", "question": self.q, "origin": "a_priori"},
+                        by=self.agent)
+        run = self.run_(plan=pl)["run"]["id"]
+        self.lab.append("note", {"text": "Seed chosen at random.", "refers_to": [run]}, by=self.owner)
+        ids = lab_view.plan_trail_ids(self.lab.read(), pl)
+        self.assertEqual([i[:2] for i in ids], ["Q1", "PL", "PL", "RN", "NT"])
+        claimset = {"claims": [{"id": "C1", "planning": "planned_estimate", "estimate": {"lab_plan": pl}}]}
+        text = lab_view.claim_trail(self.lab.read(), claimset, "C1")
+        self.assertIn(f"TRAIL OF {first} (claim C1; plan as revised in {pl})", text)
+        self.assertIn("estimands: d", text)
+        self.assertIn("3 results in runs/RN1/results.csv", text)
+
     def test_records_before_v023(self):
         with tempfile.TemporaryDirectory() as d:
             lab = Lab.create(Path(d) / "lab", "Old", clock=ticking_clock(), lab_spec_version="0.22")

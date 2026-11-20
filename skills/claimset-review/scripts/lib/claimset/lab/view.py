@@ -273,13 +273,19 @@ def trail_ids(events, hid, st=None):
                 elif ev.get("type") == "hypothesis":
                     keep.add(st.root(ev["id"]))          # a premise (§5.5)
     keep |= runs
+    return _with_links(events, st, keep, plans, runs, hyp_versions)
+
+
+def _with_links(events, st, keep, plans, runs, linked):
+    """`keep` with the runs of its results and what refers to any of it: approvals, deviations, checks, decisions and
+    notes (§11). Returns the IDs in log order, results left out (they are given by number and file)."""
+    keep = set(keep)
     for x in list(keep):
         ev = st.get(x)
         if ev is not None and ev.get("type") == "result" and isinstance(ev["body"].get("run"), str):
             keep.add(ev["body"]["run"])
-    # what refers to any of these: approvals, deviations, checks, decisions, notes, corrections
     changed = True
-    linked = set(keep) | plans | runs | hyp_versions
+    linked = set(keep) | plans | runs | set(linked)
     while changed:
         changed = False
         for e in events:
@@ -306,11 +312,31 @@ def trail_ids(events, hid, st=None):
     return sorted(out, key=lambda x: order.get(x, 0))
 
 
-def trail_lines(events, hid, st=None, results=None):
+def plan_trail_ids(events, pid, st=None):
+    """The IDs of the events the trail of plan `pid` holds (§11: a planned estimate's trail), in log order."""
+    st = st or _state(events)
+    if st.get(pid) is None or st.get(pid).get("type") != "plan":
+        raise KeyError(pid)
+    root = st.root(pid)
+    keep = set(st.chain(root))
+    latest = st.latest(root)
+    pb = latest["body"] if not is_withheld(latest) else {}
+    keep |= {st.root(x) for x in _ids(pb.get("question")) if st.get(x)}
+    keep |= {st.root(x) for x in _ids(pb.get("assumptions")) if st.get(x)}
+    keep |= {st.root(m) for m in re.findall(r"\[\[([^:\]]+):", " ".join(
+        str(pb.get(f) or "") for f in ("design", "analysis"))) if st.get(m)}
+    runs = {e["id"] for e in events if e.get("type") == "run" and not is_withheld(e)
+            and isinstance(e["body"].get("plan"), str) and st.get(e["body"]["plan"])
+            and st.root(e["body"]["plan"]) == root}
+    keep |= runs
+    return _with_links(events, st, keep, {root}, runs, set())
+
+
+def trail_lines(events, hid, st=None, results=None, ids=None):
     st = st or _state(events)
     results = results if results is not None else results_of_runs(st, events)
     out = []
-    for x in trail_ids(events, hid, st=st):
+    for x in (ids if ids is not None else trail_ids(events, hid, st=st)):
         e = st.get(x)
         at = str(e.get("at") or "")[:16].replace("T", " ")
         out.append(f"{at}  {e['id']} {e['type']} by {_who(st, e.get('by'))}: {describe(st, e, results)}")
@@ -332,11 +358,35 @@ def trail(events, hid, title=None):
     return "\n".join(lines) + "\n"
 
 
+def plan_trail(events, pid, title=None):
+    """The trail of plan `pid` (§11), the trail of a planned estimate. Returns text."""
+    events = [e for e in events if isinstance(e, dict) and isinstance(e.get("id"), str)]
+    st = _state(events)
+    ids = plan_trail_ids(events, pid, st=st)
+    p = st.latest(pid)
+    pb = {} if is_withheld(p) else p["body"]
+    estimands = pb.get("estimands") if isinstance(pb.get("estimands"), dict) else {}
+    named = [title] if title else []
+    if p["id"] != st.root(pid):
+        named.append(f"plan as revised in {p['id']}")
+    lines = [f"TRAIL OF {st.root(pid)}" + (f" ({'; '.join(named)})" if named else ""),
+             f"Plan: {pb.get('kind') or 'plan'}" + (f"; estimands: {', '.join(map(str, estimands))}" if estimands
+                                                   else ""),
+             "In log order: the question, each version of the plan with its approvals and deviations, its runs, and "
+             "the checks, decisions and notes that refer to them. Results are given by number and file.", ""]
+    lines += trail_lines(events, pid, st=st, ids=ids)
+    return "\n".join(lines) + "\n"
+
+
 def claim_trail(events, claimset, claim_id):
-    """The trail of an exported claim: the trail of its `hypothesis.lab_event` (§11), or None if it has none."""
+    """The trail of an exported claim (§11): of its `hypothesis.lab_event`, or of its `estimate.lab_plan` for a planned
+    estimate; None if it has neither."""
     claim = next((c for c in claimset.get("claims") or [] if isinstance(c, dict) and c.get("id") == claim_id), None)
-    hyp = (claim or {}).get("hypothesis") if isinstance((claim or {}).get("hypothesis"), dict) else {}
-    hid = hyp.get("lab_event")
-    if not isinstance(hid, str):
-        return None
-    return trail(events, hid, title=f"claim {claim_id}")
+    claim = claim or {}
+    hyp = claim.get("hypothesis") if isinstance(claim.get("hypothesis"), dict) else {}
+    if isinstance(hyp.get("lab_event"), str):
+        return trail(events, hyp["lab_event"], title=f"claim {claim_id}")
+    est = claim.get("estimate") if isinstance(claim.get("estimate"), dict) else {}
+    if isinstance(est.get("lab_plan"), str):
+        return plan_trail(events, est["lab_plan"], title=f"claim {claim_id}")
+    return None
