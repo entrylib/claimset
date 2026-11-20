@@ -31,6 +31,7 @@ claimset render claimset.json --claim C4       # one claim and what it rests on 
 claimset renumber claimset.json                # before the first submission: IDs in reading order
 claimset subfields statistics                  # the OpenAlex subfields whose name holds the words: one is proposed
 claimset migrate claimset.json                 # bring a file from an earlier version (below)
+claimset correct current.json -o fix.json     # start a correction or revision from the current published version
 claimset package claimset.json -o paper.zip    # the submission package: the claimset and its files (BagIt)
 claimset validate paper.zip                    # validate a package: files, checksums and the claimset
 ```
@@ -38,6 +39,8 @@ claimset validate paper.zip                    # validate a package: files, chec
 The report lists errors (the file is rejected), warnings (accepted and recorded) and the verifiability the platform will compute for each claim. A file is checked by the rules of the specification version it declares, from the baseline (v0.39) on.
 
 `claimset migrate` brings a file to the current specification. It makes the changes that need no judgement, then validates the file under the version it declared and the migrated file under the current one, and reports the difference: **must change** (errors the current version raises that the file did not have), **should change** (new warnings), **to decide** (what no rule checks, such as assumptions a claim no longer inherits), and what the file **already** had under its own version. It exits with 1 while the migrated file has errors; `--json` gives the report to an agent. A published file is refused, as published versions never change; a correction or revision submission, which names the claimset in `paper.id` without the fields the platform assigns, is migrated like any other file.
+
+`claimset correct` starts a correction or revision from the published file of the current version: it removes the fields the platform assigns, keeps `paper.id`, records the version in `paper.based_on` (spec §9, rule 107) and migrates the file to the current specification. The platform refuses a correction or revision whose `based_on` is not the current version, because its difference from the current version would undo the versions in between.
 
 ## Submitting to EntryLib
 
