@@ -189,6 +189,32 @@ def binds(quantity, body):
     return var == variable_of(body) and all(k in conds and _key(conds[k]) == _key(v) for k, v in want.items())
 
 
+def column_name(col):
+    """A table column's header in the file that holds the table (claimset §3.4): its variable, then its conditions
+    and statistic."""
+    if isinstance(col, str):
+        return col
+    parts = [str(col.get("variable"))]
+    if col.get("conditions"):
+        parts.append("{" + ", ".join(f"{k}: {v}" for k, v in col["conditions"].items()) + "}")
+    if col.get("statistic") is not None:
+        st = col["statistic"]
+        parts.append(f"({st if isinstance(st, str) else json.dumps(st, ensure_ascii=False)})")
+    return " ".join(parts)
+
+
+def csv_field(value):
+    """A cell or label as a field of the file that holds a table (claimset §3.4): null empty, booleans true and
+    false, numbers as written, anything else as text (an object as JSON)."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, str)):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
 def csv_text(events):
     """Every result of the record, at full precision: lab_result, run, quantity, conditions (JSON), value (JSON)."""
     import csv

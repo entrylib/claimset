@@ -328,6 +328,10 @@ def _table(eid, t):
     if isinstance(units, list):
         cols = [f"{c} ({u})" if u else c for c, u in zip(cols, units)]
     lines.append("  | " + " | ".join(["row"] + list(t.get("row_labels") or []) + cols) + " |")
+    if t.get("rows_file") and not t.get("rows"):
+        n = t.get("n_rows")
+        lines.append(f"  ({n} rows, held in the file of artefact {t['rows_file']})" if n is not None
+                     else f"  (rows held in the file of artefact {t['rows_file']})")
     for r in t.get("rows") or []:
         if isinstance(r, dict):
             cells = ([f"{r.get('id', '')}{_stat_note(r)}"] + [_s(x) for x in r.get("label") or []]

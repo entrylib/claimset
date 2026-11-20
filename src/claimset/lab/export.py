@@ -87,6 +87,8 @@ def select_paper(lab, name=None):
 
 #: Stands for the artefact of the results CSV until the artefacts are numbered
 RESULTS_CSV = "__results_csv__"
+#: A table of more rows than this is held in a file (claimset §3.4, *Tables held in a file*; lab record §9).
+TABLE_ROWS_INLINE = 20
 
 
 class _Exporter:
@@ -1391,6 +1393,7 @@ class _Exporter:
             c.pop("_linked", None)
         lab_aid = self.export_artefacts()
         self.round_values()
+        self.tables_to_files()
         paper = self.export_paper(lab_aid)
         not_claimed = self.resolve_not_claimed()
         if not_claimed:
@@ -1443,6 +1446,61 @@ class _Exporter:
                         tb["artefact"] = aid
                     else:
                         del tb["artefact"]
+
+    def tables_to_files(self):
+        """A table of more than TABLE_ROWS_INLINE rows, none of whose cells a test's quantity binds, is held in a file
+        (claimset §3.4, *Tables held in a file*): its rows go to files/<paper>.<evidence>.<table>.csv, an artefact of
+        kind data, and the table gives rows_file and n_rows in place of rows (§9)."""
+        import csv
+        import hashlib
+        import io
+        evidence = {ev["id"]: ev for ev in self.evidence}
+        bound = set()                                    # (evidence, table) holding a cell a test's quantity binds
+        for c in self.claims:
+            quantities = list(((c.get("test") or {}).get("quantities") or {}).values()) + [
+                q for q in ((c.get("estimate") or {}).get("estimands") or {}).values()
+                if isinstance(q, dict) and q.get("table") is not True]
+            for s in c.get("support") or []:
+                ev = evidence.get(s.get("evidence"))
+                if not ev or not quantities:
+                    continue
+                for where, var, conds, _value, _unit in _claimset.observations(ev):
+                    if where.startswith("tables[") and any(
+                            isinstance(q, dict) and q.get("variable") == var and all(
+                                k in conds and conds[k] == v for k, v in (q.get("conditions") or {}).items())
+                            for q in quantities):
+                        bound.add((ev["id"], int(where[len("tables["):where.index("]")])))
+        stem = self.results_path[:-len(".results.csv")] if self.results_path.endswith(".results.csv") \
+            else self.results_path.rsplit(".", 1)[0]
+        for ev in self.evidence:
+            for i, tb in enumerate(ev.get("tables") or []):
+                rows = tb.get("rows") or []
+                if len(rows) <= TABLE_ROWS_INLINE or (ev["id"], i) in bound or any(
+                        isinstance(x, (dict, list)) for row in rows for x in (row.get("label") or [])
+                        + (row.get("values") or [])):
+                    continue                             # small, bound by a test, or a cell a CSV field cannot hold
+                labels, cols = tb.get("row_labels") or [], tb.get("columns") or []
+                out = io.StringIO()
+                w = csv.writer(out, lineterminator="\n")
+                w.writerow([str(x) for x in labels] + [_tables.column_name(c) for c in cols])
+                for row in rows:
+                    w.writerow([_tables.csv_field(x) for x in (row.get("label") or []) + (row.get("values") or [])])
+                text = out.getvalue()
+                path = f"{stem}.{ev['id']}.{tb['id']}.csv"
+                self.files[path] = text
+                aid = f"A{len(self.artefacts) + 1}"
+                self.artefacts.append({
+                    "id": aid, "kind": "data", "uri": path,
+                    "version": "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                    "availability": {"level": "public"},
+                    "description": f"The {len(rows)} rows of table {ev['id']}.{tb['id']}: {tb.get('description', '')}",
+                    "columns": [{"name": str(x), "dimension": str(x)} for x in labels]
+                               + [{"name": _tables.column_name(c),
+                                   "variable": c if isinstance(c, str) else c.get("variable")} for c in cols]})
+                self.mapping[aid] = path
+                tb.pop("rows")
+                tb["rows_file"], tb["n_rows"] = aid, len(rows)
+                ev["artefacts"] = list(dict.fromkeys((ev.get("artefacts") or []) + [aid]))
 
     def round_values(self):
         """Table values and results to four significant digits, except those a test's quantity binds, which keep the
