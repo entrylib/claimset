@@ -21,6 +21,9 @@ def protect(lab, undo=False, chattr="chattr"):
             f.touch()
     agents = lab.root / "agents"
     agents.mkdir(exist_ok=True)
+    contributors = lab.root / "contributors"               # contributors' logs (lab record §3.7)
+    if contributors.is_dir():
+        files += sorted(contributors.glob("*.jsonl")) + [contributors]
     # On a directory the attribute allows new agent logs to be created but none to be removed or renamed.
     files += sorted(agents.glob("*.jsonl")) + [agents]
     flag = "-a" if undo else "+a"

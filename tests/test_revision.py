@@ -655,7 +655,7 @@ class TestLabAnswersAReview(RecordCase):
                                     str(self.script))
         self.assertEqual(code, 0, err)
         self.assertEqual(json.loads(self.run_cli("lab", "verdict", "PL1", "--json")[1])["verdict"], "supported")
-        self.assertEqual(self.run_cli("lab", "status", "H1", "supported", "--plan", "PL1", "--evidence", "RS1",
+        self.assertEqual(self.run_cli("lab", "status", "H1", "supported", "--plan", "PL1", "--evidence", "RN1.1",
                                       "--why", "Rule of PL1: rho = 0.12.", "--by", "AC2")[0], 0)
         from claimset.lab.export import export
         out = export(Lab(self.lab))

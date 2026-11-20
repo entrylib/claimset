@@ -19,6 +19,7 @@ from pathlib import Path
 from .. import LAB_SPEC_VERSION
 from .. import validate as _claimset
 from . import decision as _decision
+from . import results as _results
 
 HEADER_FIELDS = ("seq", "id", "type", "at", "by", "prev", "content_hash", "supersedes", "origin")
 
@@ -53,6 +54,53 @@ IMPLEMENTED = {"init", "actor", "question", "hypothesis", "status", "assumption"
 #: Event types that are written only to the main log, never to an agent log (§3.5).
 MAIN_ONLY = {"init", "actor", "merge", "paper", "relocation", "extension"}
 AGENTS_DIR = "agents"
+#: Where contributors' logs are kept (§3.7, from v0.23).
+CONTRIBUTORS_DIR = "contributors"
+#: The prefix of an ID written outside the main log: an agent's actor ID, or a contributor's key (§4.2); defined by
+#: the claimset specification (§3.4, `lab_runs`), whose vocabulary the record uses.
+LOG_PREFIX = _claimset.LAB_LOG_PREFIX
+CONTRIBUTOR_KEY_RE = re.compile(rf"^{_claimset.CONTRIBUTOR_KEY}$")
+#: The name of a side log: an agent's (`AC2`) or a contributor's (`0000-0002-1825-0097`, then `….2`, `….3`).
+SIDE_LOG_RE = re.compile(rf"^(?:AC\d+|{_claimset.CONTRIBUTOR_KEY}(?:\.(?:[2-9]|[1-9]\d+))?)$")
+GITHUB_ACCOUNT_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+
+
+def is_agent_log(name):
+    return bool(re.match(r"^AC\d+$", str(name)))
+
+
+def log_prefix(name):
+    """The prefix the IDs of a side log carry: the agent's actor ID, or the contributor's key (§3.5, §3.7)."""
+    return str(name).split(".")[0]
+
+
+def log_segment(name):
+    """1 for an agent log and a contributor's first log; n for their n-th log (`….n`)."""
+    parts = str(name).split(".")
+    return int(parts[1]) if len(parts) > 1 else 1
+
+
+def side_log_rel(name):
+    """A side log's path in the lab: `agents/AC2.jsonl`, `contributors/0000-0002-1825-0097.jsonl`."""
+    return f"{AGENTS_DIR if is_agent_log(name) else CONTRIBUTORS_DIR}/{name}.jsonl"
+
+
+def side_log_order(name):
+    """Agent logs by actor number, then contributors' logs by key and number."""
+    return (0, int(name[2:]), 0) if is_agent_log(name) else (1, log_prefix(name), log_segment(name))
+
+
+def contributor_key(orcid=None, github=None):
+    """A contributor's key (§3.7): their ORCID iD, or `github-` and their account name in lower case."""
+    if orcid:
+        if not ORCID_RE.match(str(orcid)):
+            raise LabError("schema", "contribute: an ORCID iD looks like 0000-0002-1825-0097")
+        return str(orcid)
+    if github:
+        if not GITHUB_ACCOUNT_RE.match(str(github)):
+            raise LabError("schema", "contribute: a GitHub account name is letters, digits and hyphens")
+        return f"github-{str(github).lower()}"
+    raise LabError("schema", "contribute: give your ORCID iD (--orcid), or your GitHub account (--github)")
 
 # The claimset specification is the record's vocabulary (§2.1): every list the two share is the claimset's.
 _C = _claimset.ENUM
@@ -83,8 +131,8 @@ ABOUT_SLOTS = _claimset.ABOUT_SLOTS
 SETUP_PART_KINDS = _claimset.SETUP_PART_KINDS | {"measure"}
 #: Term kinds of lab record v0.12 and their names since v0.13.
 RENAMED_KINDS = {"measure": "variable"}
-TERM_ID_RE = re.compile(r"^(?:AC\d+\.)?TM\d+$")
-TERM_MARK_RE = re.compile(r"\[\[((?:AC\d+\.)?TM\d+):[^\]]+\]\]")
+TERM_ID_RE = re.compile(rf"^(?:{_claimset.LAB_LOG_PREFIX}\.)?TM\d+$")
+TERM_MARK_RE = re.compile(rf"\[\[((?:{_claimset.LAB_LOG_PREFIX}\.)?TM\d+):[^\]]+\]\]")
 
 #: The first version of this specification with decision rules (L15-L17).
 STRICT_VERSION = (0, 5)
@@ -94,6 +142,25 @@ EXTENSIONS_VERSION = (0, 20)
 IMPLICIT_EXTENSIONS = {"qualitative": "0.1"}
 #: The first version with estimation plans, a plan's diagnostics and rule L31 (§5.4, §5.7, §5.7.8).
 ESTIMATION_VERSION = (0, 22)
+#: The first version whose results are rows of a run's results file, not events, and that has contributor logs
+#: (§3.7, §5.10, L34-L36).
+RESULTS_FILE_VERSION = (0, 23)
+
+
+def carry_results(source, event):
+    """`event`, a copy of the run event `source` (merged, or rebuilt), with the rows of its results file."""
+    if isinstance(source, RunEvent):
+        event = RunEvent(event)
+        event.results_rows, event.results_problem = source.results_rows, source.results_problem
+    return event
+
+
+class RunEvent(dict):
+    """A run event as read from a log, with the rows of its results file (§5.10) when the record keeps its results
+    in files and the file could be read: `results_rows` is the list of observations, or None (`results_problem`
+    says why). The rows are not part of the event: they are never written back or hashed with it."""
+    results_rows = None
+    results_problem = None
 #: Where a choice of a plan came from (§5.7, `choices`): the task the agent was given, the person who supervises,
 #: good practice for planning a study, the literature, or the agent alone (not yet agreed with anyone).
 CHOICE_SOURCES = ("brief", "supervisor", "good-practice", "literature", "agent")
@@ -109,9 +176,9 @@ def version_tuple(v):
 
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
-ID_RE = re.compile(r"^(?:(AC\d+)\.)?([A-Z]+)(\d+)$")
+ID_RE = re.compile(rf"^(?:({_claimset.LAB_LOG_PREFIX})\.)?([A-Z]+)(\d+)$")
 # a revision label (§4.3): ROOT.Rk is the k-th event of the correction chain whose root is ROOT (R1 is the root)
-REVISION_RE = re.compile(r"^((?:AC\d+\.)?[A-Z]+\d+)\.R([1-9]\d*)$")
+REVISION_RE = re.compile(rf"^((?:{_claimset.LAB_LOG_PREFIX}\.)?[A-Z]+\d+)\.R([1-9]\d*)$")
 #: Names of studies and papers: lower-case letters, digits and hyphens, starting with a letter (§3).
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,59}$")
 AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
@@ -191,6 +258,17 @@ def is_withheld(event):
     return isinstance(event.get("body"), dict) and event["body"].get("withheld") is True
 
 
+def result_run(event):
+    """The run a result came from: its body's `run`, or, for a row of a results file whose values are not here,
+    the run its ID names (§5.10). None for anything else."""
+    if not isinstance(event, dict) or event.get("type") != "result":
+        return None
+    if isinstance(event.get("run_of"), str):
+        return event["run_of"]
+    body = event.get("body") if isinstance(event.get("body"), dict) else {}
+    return body.get("run") if not is_withheld(event) and isinstance(body.get("run"), str) else None
+
+
 # ---------------------------------------------------------------- state
 
 class State:
@@ -201,8 +279,9 @@ class State:
     the agent's own events, and new IDs carry the actor prefix (§3.5).
     """
 
-    def __init__(self, owner=None):
-        self.owner = owner
+    def __init__(self, owner=None, log=None):
+        self.owner = owner       # the prefix of this log's IDs: an agent's actor ID or a contributor's key
+        self.log = log or owner  # the side log's name (`AC2`, `0000-0002-1825-0097.2`), None for the main log
         self.base = None
         self.agent_events = []
         self.merged = {}
@@ -213,7 +292,9 @@ class State:
         self.plan_roots = []     # plan roots in order
         self.has_withheld = False
         self.checking = {}       # the event being checked: {"id", "supersedes"}
-        self.results_of = {}     # run ID -> result events
+        self.results_of = {}     # run ID -> result events (or, from v0.23, the rows of its results file)
+        self.file_results = []   # results read from runs' results files, in log order (§5.10)
+        self.results_unread = {} # run ID -> why its results file could not be read
         self.events = []
         self.by_id = {}
         self.max_num = {}
@@ -404,6 +485,8 @@ class State:
             self.plan_runs.setdefault(self.root(body["plan"]), []).append(event)
         if event["type"] == "result" and visible and isinstance(body.get("run"), str):
             self.results_of.setdefault(body["run"], []).append(event)
+        if event["type"] == "run" and visible and isinstance(body.get("results"), dict):
+            self._apply_results(event, body)
         m = ID_RE.match(eid)
         if m:
             key, n = (m.group(1), m.group(2)), int(m.group(3))
@@ -427,9 +510,71 @@ class State:
                 for a in body["agents"]:
                     if isinstance(a, str):
                         self.merged[a] = eid
+            if isinstance(body, dict) and not is_withheld(event) and isinstance(body.get("contributors"), list):
+                for c in body["contributors"]:
+                    if isinstance(c, str):
+                        self.merged[Path(c).name[:-len(".jsonl")] if c.endswith(".jsonl") else c] = eid
         if isinstance(event.get("origin"), dict) and m and m.group(1):
-            # A merged event marks its agent log as merged even if the merge event is unreadable.
-            self.merged.setdefault(m.group(1), self._last_merge or "an earlier merge")
+            # A merged event marks its log as merged even if the merge event is unreadable.
+            log = event["origin"].get("log")
+            name = Path(log).name[:-len(".jsonl")] if isinstance(log, str) and log.endswith(".jsonl") else m.group(1)
+            self.merged.setdefault(name, self._last_merge or "an earlier merge")
+
+    def _apply_results(self, event, body):
+        """The results of a run kept in its results file (§5.10): each row stands as a result event `RN4.k` at
+        the run's position in the log."""
+        rows = getattr(event, "results_rows", None)
+        eid = event["id"]
+        path = body["results"].get("path")
+        if rows is None:
+            # The file is not here (a log read without its run folders) or could not be read: each row the run
+            # counts stands as a result whose content is not available, as withheld content is (§8), so that
+            # references to it resolve and checks that need its values are not made.
+            self.results_unread[eid] = getattr(event, "results_problem", None) or "its results file was not read"
+            self.has_withheld = True                # checks that need the values are not made (§8)
+            n = body["results"].get("rows")
+            rows = [None] * (n if isinstance(n, int) and not isinstance(n, bool) and 0 < n <= 10_000_000 else 0)
+        for k, row in enumerate(rows, start=1):
+            rid = _results.result_id(eid, k)
+            content = dict(row, run=eid, source=path) if row is not None else \
+                {"withheld": True, "reason": "other", "comment": f"row {k} of runs/{eid}/{path}, not read"}
+            res = {"seq": event.get("seq"), "id": rid, "type": "result", "at": event.get("at"),
+                   "by": event.get("by"), "supersedes": None, "origin": event.get("origin"), "body": content,
+                   "run_of": eid}
+            self.by_id[rid] = res
+            self.pos[rid] = self.pos[eid]
+            self.results_of.setdefault(eid, []).append(res)
+            self.file_results.append(res)
+
+    def check_contributor_start(self, etype, eid, by, body):
+        """Rule L34: a contributor's first log begins with their own registration, a person with the identifier
+        their key comes from."""
+        key = self.owner
+        if any(isinstance(i, str) and i.startswith(key + ".") for i in self.by_id):
+            return                                  # registered already, in this log or an earlier merged one
+        if not self.results_in_files:
+            raise LabError("L34", "contributor logs are from lab record v0.23; this record was begun under an "
+                                  "earlier version")
+        github = key[len("github-"):] if key.startswith("github-") else None
+        ok = (etype == "actor" and by == eid and body.get("kind") == "human"
+              and (body.get("orcid") == key if github is None else str(body.get("github", "")).lower() == github))
+        if not ok:
+            ident = f"orcid {key}" if github is None else f"github {github}"
+            raise LabError("L34", f"a contributor's log begins with their own registration: a person ({ident}), "
+                                  f"written by themselves (`claimset lab contribute`)")
+
+    def result_events(self):
+        """Every result of the log so far, in log order: result events, and from v0.23 the rows of runs' results
+        files, each at its run's position (§5.10)."""
+        events = [e for e in self.events if isinstance(e, dict) and e.get("type") == "result"]
+        if not self.file_results:
+            return events
+        return sorted(events + self.file_results, key=lambda e: self.pos.get(e["id"], 0))
+
+    @property
+    def results_in_files(self):
+        """True for records begun under v0.23 or later: results are rows of results files, not events (§5.10)."""
+        return self.spec_version is not None and self.spec_version >= RESULTS_FILE_VERSION
 
     # -- checks for a new event (rules L6-L12 and body schemas)
     def check(self, etype, eid, by, body, supersedes):
@@ -437,6 +582,8 @@ class State:
         self.check_header(etype, eid, by, supersedes)
         if not isinstance(body, dict):
             raise LabError("schema", "body must be an object")
+        if self.owner is not None and not is_agent_log(self.owner):
+            self.check_contributor_start(etype, eid, by, body)
         checker = BODY_CHECKS.get(etype)
         if checker:
             checker(self, body, by, eid)
@@ -474,7 +621,17 @@ class State:
         """The checks that need only the header; they apply to withheld events too."""
         if etype not in PREFIX and etype != "init":
             raise LabError("L12", f"unknown event type '{etype}'")
-        if self.owner is not None:
+        if self.owner is not None and not is_agent_log(self.owner):       # a contributor's log (§3.7)
+            if etype in MAIN_ONLY and etype != "actor":
+                raise LabError("L35", f"{etype} events are written to the main log, by its owner, not to a "
+                                      f"contributor's log")
+            if not (isinstance(by, str) and by.startswith(self.owner + ".")):
+                raise LabError("L35", f"the log of contributor {self.owner} is written only by its own actors "
+                                      f"({self.owner}.AC1, …)")
+            if supersedes is not None and not str(supersedes).startswith(self.owner + "."):
+                raise LabError("L35", f"a contributor's log corrects only the contributor's events; {supersedes} is "
+                                      f"corrected by its writer")
+        elif self.owner is not None:
             if etype in MAIN_ONLY:
                 raise LabError("L10", f"{etype} events are written to the main log, not to an agent log")
             if by != self.owner:
@@ -618,6 +775,17 @@ def check_init(state, body, by, eid):
                               f"record may be valid: read it with a current tool (update the claimset package)")
     _req(body, "working_title", "init")
     _name(body, "study", "init", required=False)
+    cont = body.get("continues")
+    if cont is not None:                                    # §5.1, from v0.23
+        if version_tuple(body["lab_spec_version"]) < RESULTS_FILE_VERSION:
+            raise LabError("schema", "init: continues is from lab record v0.23")
+        if not (isinstance(cont, dict) and set(cont) <= {"record", "head", "study"}
+                and isinstance(cont.get("record"), str) and re.match(r"^https?://\S+$", cont["record"])
+                and HASH_RE.match(str(cont.get("head", "")))):
+            raise LabError("schema", "init: continues is {record, head, study}: the address of the earlier "
+                                     "record's log at a fixed version, the header hash of its last event "
+                                     "(sha256:…), and optionally its study's name")
+        _name(cont, "study", "init", required=False)
 
 
 def check_paper(state, body, by, eid):
@@ -670,6 +838,9 @@ def check_actor(state, body, by, eid):
                 raise LabError("schema", "actor: each model needs provider, name and version")
     if body.get("orcid") and not ORCID_RE.match(str(body["orcid"])):
         raise LabError("schema", "actor: orcid must look like 0000-0002-1825-0097")
+    if body.get("github") is not None:                      # a contributor without an ORCID iD (§3.7)
+        if kind == "agent" or not GITHUB_ACCOUNT_RE.match(str(body["github"])):
+            raise LabError("schema", "actor: github is a person's GitHub account name (letters, digits, hyphens)")
     system = body.get("system")
     if system is not None:
         if kind != "agent":
@@ -895,8 +1066,8 @@ def check_status(state, body, by, eid):
                 raise LabError("L6", f"status: {e} suggested hypothesis {target} and cannot also confirm it; "
                                      f"confirm it with a new run", ask=ASK_L6)
             ev = state.get(e)
-            if ev and ev["type"] == "result" and not is_withheld(ev) and ev["body"].get("run") in prompted_runs:
-                raise LabError("L6", f"status: {e} comes from run {ev['body']['run']}, which suggested "
+            if ev and result_run(ev) in prompted_runs:
+                raise LabError("L6", f"status: {e} comes from run {result_run(ev)}, which suggested "
                                      f"hypothesis {target}; confirm it with a new run", ask=ASK_L6)
 
 
@@ -1196,12 +1367,12 @@ def _cited_runs(state, evidence):
     out = set()
     for ref in evidence:
         e = state.get(ref) if isinstance(ref, str) else None
+        if e is not None and result_run(e):
+            out.add(result_run(e))
         if e is None or is_withheld(e):
             continue
         if e["type"] == "run":
             out.add(e["id"])
-        elif e["type"] == "result" and isinstance(e["body"].get("run"), str):
-            out.add(e["body"]["run"])
     return out
 
 
@@ -1701,6 +1872,17 @@ def check_run(state, body, by, eid):
         for o in body.get(f) or []:
             if not isinstance(o, dict) or not o.get("path") or not HASH_RE.match(str(o.get("hash", ""))):
                 raise LabError("schema", f"run: each {f} entry needs a path and a sha256 hash")
+    res = body.get("results")
+    if res is not None:
+        if not state.results_in_files:
+            raise LabError("schema", "run: results files are from lab record v0.23; this record keeps its results "
+                                     "as result events")
+        if not (isinstance(res, dict) and set(res) == {"path", "rows"} and isinstance(res.get("path"), str)
+                and isinstance(res.get("rows"), int) and not isinstance(res.get("rows"), bool) and res["rows"] > 0):
+            raise LabError("schema", "run: results is {path, rows}, the run's results file and its number of rows, "
+                                     "written by the tool (§5.10)")
+        if res["path"] not in {o.get("path") for o in body.get("outputs") or [] if isinstance(o, dict)}:
+            raise LabError("L36", f"run: its results file {res['path']} is not among its outputs")
     plan_id = body.get("plan")
     if plan_id is not None:
         _ref(state, plan_id, "run", "plan", {"plan"})
@@ -1729,6 +1911,9 @@ def check_run(state, body, by, eid):
 
 
 def check_result(state, body, by, eid):
+    if state.results_in_files:
+        raise LabError("L4", "result: in records begun under lab record v0.23 or later, a run's results are the rows "
+                             "of its results file, written by `claimset lab run`; no result event is written")
     run_id = _ref(state, _req(body, "run", "result"), "result", "run", {"run"})
     _req(body, "quantity" if state.legacy else "variable", "result")
     v = body.get("value")
@@ -1750,14 +1935,29 @@ def check_deviation(state, body, by, eid):
 
 
 def check_merge(state, body, by, eid):
-    agents = _req(body, "agents", "merge")
+    agents = body.get("agents")
     if not isinstance(agents, list) or not all(isinstance(a, str) for a in agents):
         raise LabError("schema", "merge: 'agents' must be a list of actor IDs")
+    if not agents and not body.get("contributors"):
+        raise LabError("schema", "merge: 'agents' is required: the agent logs merged")
     for a in agents:
         if a not in state.actors:
             raise LabError("L12", f"merge: '{a}' is not a registered actor")
         if a in state.merged:
             raise LabError("L10", f"merge: the log of {a} was already merged by {state.merged[a]}")
+    contributors = body.get("contributors")
+    if contributors is not None:
+        if not state.results_in_files:
+            raise LabError("schema", "merge: contributor logs are from lab record v0.23")
+        if not isinstance(contributors, list) or not contributors:
+            raise LabError("schema", "merge: 'contributors' is a list of the contributor logs merged, by path")
+        for c in contributors:
+            name = c[len(CONTRIBUTORS_DIR) + 1:-len(".jsonl")] if isinstance(c, str) and \
+                c.startswith(CONTRIBUTORS_DIR + "/") and c.endswith(".jsonl") else None
+            if name is None or not SIDE_LOG_RE.match(name) or is_agent_log(name):
+                raise LabError("schema", f"merge: '{c}' is not a contributor log (contributors/<key>.jsonl)")
+            if name in state.merged:
+                raise LabError("L10", f"merge: {c} was already merged by {state.merged[name]}")
     n = body.get("events_merged")
     if not isinstance(n, int) or isinstance(n, bool) or n < 0:
         raise LabError("schema", "merge: 'events_merged' must be a non-negative integer")
@@ -1786,7 +1986,9 @@ class Lab:
 
     # -- creation and reading
     @classmethod
-    def create(cls, root, title, repository=None, clock=utc_now, study=None):
+    def create(cls, root, title, repository=None, clock=utc_now, study=None, lab_spec_version=None, continues=None):
+        """A new record. `lab_spec_version`: begin it under an earlier version of the specification than the
+        tool's, whose rules it then follows (for tests, and for tools that write records of that version)."""
         lab = cls(root, clock=clock)
         if lab.log_path.exists():
             raise LabError("init", f"{lab.log_path} already exists")
@@ -1798,10 +2000,13 @@ class Lab:
         now = clock()
         if study is None and lab.root.resolve().parent.parent.name == "claimset" and lab.root.name == "lab":
             study = lab.root.resolve().parent.name          # claimset/<study>/lab (§3)
-        body = {"lab_spec_version": LAB_SPEC_VERSION, "working_title": title, "repository": repository,
+        body = {"lab_spec_version": lab_spec_version or LAB_SPEC_VERSION, "working_title": title,
+                "repository": repository,
                 "started_at": now}
         if study is not None:
             body["study"] = study
+        if continues:
+            body["continues"] = continues                   # §5.1: the record this one carries on
         lab.append("init", body, by=None)
         return lab
 
@@ -1826,7 +2031,31 @@ class Lab:
         if not self.log_path.exists():
             raise LabError("init", f"no lab record at {self.log_path}; create one with `claimset lab init --study "
                                    f"NAME --title …`, or name the lab with --study or --lab")
-        return self._read_path(self.log_path, "lab.jsonl")
+        return self.attach_results(self._read_path(self.log_path, "lab.jsonl"))
+
+    def attach_results(self, events):
+        """Give each run event that names a results file (§5.10) the file's rows, read from its run's folder."""
+        out = []
+        for e in events:
+            body = e.get("body") if isinstance(e, dict) else None
+            if isinstance(body, dict) and e.get("type") == "run" and isinstance(body.get("results"), dict) \
+                    and isinstance(e.get("id"), str) and isinstance(body["results"].get("path"), str):
+                e = RunEvent(e)
+                path = self.root / "runs" / e["id"] / body["results"]["path"]
+                try:
+                    e.results_rows = self._rows(path)
+                except (OSError, ValueError) as exc:
+                    e.results_problem = f"its results file {path} could not be read ({exc})"
+            out.append(e)
+        return out
+
+    def _rows(self, path):
+        cache = self.__dict__.setdefault("_rows_cache", {})
+        st = path.stat()
+        key = (str(path), st.st_mtime_ns, st.st_size)
+        if key not in cache:
+            cache[key] = _results.read(path)
+        return cache[key]
 
     def state(self):
         """State of the main log."""
@@ -1840,7 +2069,10 @@ class Lab:
         return self.root / AGENTS_DIR / f"{actor}.jsonl"
 
     def agent_log_name(self, actor):
-        return f"{AGENTS_DIR}/{actor}.jsonl"
+        return side_log_rel(actor)
+
+    def side_log_path(self, name):
+        return self.root / side_log_rel(name)
 
     def agent_logs(self):
         """Actor IDs that have an agent log, in actor order."""
@@ -1848,36 +2080,108 @@ class Lab:
         names = [p.stem for p in d.glob("*.jsonl")] if d.is_dir() else []
         return sorted((n for n in names if re.match(r"^AC\d+$", n)), key=lambda a: int(a[2:]))
 
-    def read_agent(self, actor):
-        path = self.agent_log_path(actor)
+    def contributor_logs(self):
+        """The names of the contributors' logs (§3.7), by key and number."""
+        d = self.root / CONTRIBUTORS_DIR
+        names = [p.name[:-len(".jsonl")] for p in d.glob("*.jsonl")] if d.is_dir() else []
+        return sorted((n for n in names if SIDE_LOG_RE.match(n) and not is_agent_log(n)), key=side_log_order)
+
+    def side_logs(self):
+        """Every agent log and contributor log, agents first (§3.5, §3.7)."""
+        return self.agent_logs() + self.contributor_logs()
+
+    def read_side(self, name):
+        path = self.side_log_path(name)
         if not path.exists():
-            raise LabError("L10", f"{actor} has no agent log")
-        return self._read_path(path, self.agent_log_name(actor))
+            raise LabError("L10", f"{name} has no log" if is_agent_log(name) else f"there is no log {side_log_rel(name)}")
+        return self.attach_results(self._read_path(path, side_log_rel(name)))
+
+    def read_agent(self, actor):
+        return self.read_side(actor)
+
+    def open_log(self, by, st):
+        """The side log `by` writes to (its name), or None for the main log. An agent with an open agent log
+        writes there; a contributor's actor writes to the contributor's open log, and to no other (L35)."""
+        if not isinstance(by, str):
+            return None
+        if is_agent_log(by):
+            return by if by not in st.merged and self.agent_log_path(by).exists() else None
+        key = by.split(".")[0] if "." in by else None
+        if key is None or not CONTRIBUTOR_KEY_RE.match(key):
+            return None
+        mine = [n for n in self.contributor_logs() if log_prefix(n) == key]
+        open_ = [n for n in mine if n not in st.merged]
+        if not open_:
+            raise LabError("L35", f"{by} is a contributor's actor, and {key} has no open log: open your next one "
+                                  f"with `claimset lab contribute`")
+        return open_[-1]
 
     def view(self, by=None, main=None):
-        """The state a writer sees: its open agent log on top of the main log where it started,
-        or the main log if `by` has no open agent log."""
+        """The state a writer sees: its open side log (an agent's, or a contributor's) on top of the main log where
+        it started, or the main log if `by` writes to the main log."""
         main = self.read() if main is None else main
         st = State()
         for e in main:
             st.apply(e)
-        if by is None or by in st.merged or not self.agent_log_path(by).exists():
+        name = self.open_log(by, st) if by is not None else None
+        if name is None:
             return st
-        agent = self.read_agent(by)
-        base = agent_base(main, agent)
+        return self.side_state(main, name)
+
+    def side_state(self, main, name):
+        """The state of a side log: the main log up to its base, and its own events."""
+        side = self.read_side(name)
+        base = agent_base(main, side)
         if base is None:
-            raise LabError("L10", f"the agent log of {by} does not start from an event of the main log")
-        v = State(owner=by)
+            raise LabError("L10", f"the log {side_log_rel(name)} does not start from an event of the main log")
+        v = State(owner=log_prefix(name), log=name)
         for e in main[:base]:
             v.apply(e)
-        for e in agent:
+        for e in side:
             v.apply(e)
-        v.base, v.agent_events = base, agent
+        v.base, v.agent_events = base, side
         return v
 
     def open_agent_logs(self, main=None):
+        """The side logs not yet merged: agents' and contributors'."""
         st = self.view(main=main)
-        return [a for a in self.agent_logs() if a not in st.merged]
+        return [a for a in self.side_logs() if a not in st.merged]
+
+    def contribute(self, orcid=None, github=None, name=None):
+        """Open a contributor's next log (§3.7); for their first, register them in it. Returns (log name, the
+        registration event or None)."""
+        key = contributor_key(orcid, github)
+        with self._lock():
+            main = self.read()
+            st = State()
+            for e in main:
+                st.apply(e)
+            if not st.results_in_files:
+                raise LabError("L34", f"contributor logs are from lab record v0.23; this record was begun under "
+                                      f"{'.'.join(map(str, st.spec_version or ()))}")
+            mine = [n for n in self.contributor_logs() if log_prefix(n) == key]
+            if any(n not in st.merged for n in mine):
+                open_ = next(n for n in mine if n not in st.merged)
+                raise LabError("L35", f"{key} already has an open log, {side_log_rel(open_)}: write there until the "
+                                      f"owner merges it")
+            n = len(mine) + 1
+            log = key if n == 1 else f"{key}.{n}"
+            registered = any(isinstance(i, str) and i.startswith(key + ".AC") for i in st.by_id)
+            if not registered and not name:
+                raise LabError("schema", "contribute: give your name (--name) for your registration")
+            path = self.side_log_path(log)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        event = None
+        if not registered:
+            body = {"kind": "human", "name": name}
+            body.update({"orcid": key} if orcid else {"github": github})
+            try:
+                event = self.append("actor", body, by=f"{key}.AC1")
+            except LabError:
+                path.unlink()
+                raise
+        return log, event
 
     def start_agent(self, actor):
         """Start an agent log for `actor`; its writes go there until it is merged."""
@@ -1907,7 +2211,7 @@ class Lab:
             eid = st.next_id(etype)
             st.check(etype, eid, by, body, supersedes)
             head = st.head()
-            path = self.agent_log_path(by) if st.owner else self.log_path
+            path = self.side_log_path(st.log) if st.owner else self.log_path
             seq = len(st.agent_events) + 1 if st.owner else len(st.events) + 1
             event = {
                 "seq": seq,
@@ -1936,26 +2240,39 @@ class Lab:
             st = State()
             for e in main:
                 st.apply(e)
-            available = [a for a in self.agent_logs() if a not in st.merged]
-            actors = list(actors) if actors else available
-            if not actors:
-                raise LabError("merge", "there are no unmerged agent logs")
+            available = [a for a in self.side_logs() if a not in st.merged]
+            names = []
+            for a in (list(actors) if actors else available):
+                if not is_agent_log(a) and CONTRIBUTOR_KEY_RE.match(a):     # a contributor's key: their open log
+                    open_ = [n for n in available if log_prefix(n) == a]
+                    if not open_:
+                        raise LabError("merge", f"{a} has no open log to merge")
+                    a = open_[-1]
+                names.append(a)
+            if not names:
+                raise LabError("merge", "there are no unmerged agent or contributor logs")
             logs = {}
-            for a in actors:
+            for a in names:
                 if a in st.merged:
                     raise LabError("L10", f"the log of {a} was already merged by {st.merged[a]}")
-                events = self.read_agent(a)
+                events = self.read_side(a)
                 problems = verify_agent_log(main, a, events)
                 if problems:
                     p = problems[0]
-                    raise LabError("L10", f"the log of {a} does not verify (seq {p['seq']} {p['id'] or ''}: "
-                                          f"[{p['rule']}] {p['message']}); nothing was merged")
+                    raise LabError(p["rule"] if p["rule"] in ("L34", "L35") else "L10",
+                                   f"the log {side_log_rel(a)} does not verify (seq {p['seq']} {p['id'] or ''}: "
+                                   f"[{p['rule']}] {p['message']}); nothing was merged")
                 logs[a] = events
-            actors = sorted(set(actors), key=lambda a: int(a[2:]))
-            streams = [[(e["at"], int(a[2:]), e["seq"], a, i) for i, e in enumerate(logs[a])] for a in actors]
+            names = sorted(set(names), key=side_log_order)
+            rank = {a: i for i, a in enumerate(names)}
+            streams = [[(e["at"], rank[a], e["seq"], a, i) for i, e in enumerate(logs[a])] for a in names]
             order = [(a, logs[a][i]) for _, _, _, a, i in heapq.merge(*streams)]
 
-            body = {"agents": actors, "events_merged": len(order)}
+            agents = [a for a in names if is_agent_log(a)]
+            contributors = [side_log_rel(a) for a in names if not is_agent_log(a)]
+            body = {"agents": agents, "events_merged": len(order)}
+            if contributors:
+                body["contributors"] = contributors
             mid = st.next_id("merge")
             st.check("merge", mid, by, body, None)
             out = [{"seq": len(st.events) + 1, "id": mid, "type": "merge", "at": self.clock(), "by": by,
@@ -1970,8 +2287,9 @@ class Lab:
                 m = {"seq": len(st.events) + 1, "id": e["id"], "type": e["type"], "at": e["at"], "by": e["by"],
                      "prev": header_hash(st.head()), "content_hash": e["content_hash"],
                      "supersedes": e["supersedes"],
-                     "origin": {"log": self.agent_log_name(a), "seq": e["seq"], "header_hash": header_hash(e)},
+                     "origin": {"log": side_log_rel(a), "seq": e["seq"], "header_hash": header_hash(e)},
                      "body": e["body"]}
+                m = carry_results(e, m)
                 st.apply(m)
                 out.append(m)
             self._write_lines(self.log_path, out)
@@ -2111,7 +2429,9 @@ def verify_events(events, base=(), owner=None, log=None):
         origin = e.get("origin")
         if owner is not None:
             if ns != owner:
-                err("L10", f"events in the agent log of {owner} have IDs starting {owner}.")
+                err("L10" if is_agent_log(owner) else "L34",
+                    f"events in the {'agent' if is_agent_log(owner) else 'contributor'} log of {owner} have IDs "
+                    f"starting {owner}.")
             if origin is not None:
                 err("L10", "events in an agent log have origin null")
         else:
@@ -2121,11 +2441,16 @@ def verify_events(events, base=(), owner=None, log=None):
                 if ns is not None:
                     err("L10", f"'{eid}' has an agent-log ID but no origin: only merged events carry one")
             else:
+                olog = origin.get("log") if isinstance(origin, dict) else None
+                oname = olog.split("/", 1)[1][:-len(".jsonl")] if isinstance(olog, str) and "/" in olog \
+                    and olog.endswith(".jsonl") else None
                 ok = (isinstance(origin, dict) and isinstance(origin.get("seq"), int)
                       and HASH_RE.match(str(origin.get("header_hash", ""))) and ns is not None
-                      and origin.get("log") == f"{AGENTS_DIR}/{ns}.jsonl")
+                      and oname is not None and SIDE_LOG_RE.match(oname) and log_prefix(oname) == ns
+                      and olog == side_log_rel(oname))
                 if not ok:
-                    err("L10", "origin must be {log: agents/<actor>.jsonl, seq, header_hash} matching the ID")
+                    err("L10", "origin must be {log: agents/<actor>.jsonl or contributors/<key>.jsonl, seq, "
+                               "header_hash} matching the ID")
                 if group is None or group["left"] <= 0 or ns not in group["agents"]:
                     err("L10", f"merged event '{eid}' does not belong to the merge before it")
                 else:
@@ -2151,7 +2476,11 @@ def verify_events(events, base=(), owner=None, log=None):
         if etype == "merge" and owner is None:
             n = e["body"].get("events_merged") if isinstance(e["body"].get("events_merged"), int) else 0
             agents = e["body"].get("agents") if isinstance(e["body"].get("agents"), list) else []
-            group = {"id": eid, "agents": {a for a in agents if isinstance(a, str)}, "left": n, "n": n, "items": []}
+            contribs = e["body"].get("contributors") if isinstance(e["body"].get("contributors"), list) else []
+            members = {a for a in agents if isinstance(a, str)}
+            members |= {log_prefix(c.split("/")[-1][:-len(".jsonl")]) for c in contribs
+                        if isinstance(c, str) and c.endswith(".jsonl")}
+            group = {"id": eid, "agents": members, "left": n, "n": n, "items": []}
         st.apply(e)
     if owner is None:
         close_group(len(events))
@@ -2167,7 +2496,7 @@ def _actor_num(actor):
 
 
 def _merge_order_key(e, actor, seq):
-    return (e.get("at") or "", _actor_num(actor), seq)
+    return (e.get("at") or "", side_log_order(actor) if SIDE_LOG_RE.match(str(actor)) else (2, str(actor), 0), seq)
 
 
 def _merge_order_errors(group):
@@ -2186,7 +2515,7 @@ def _merge_order_errors(group):
         return errors
     expected = [e["id"] for _, _, _, e in heapq.merge(
         *[[(*_merge_order_key(e, a, s), e) for e, s in xs] for a, xs in sorted(
-            streams.items(), key=lambda kv: _actor_num(kv[0]))], key=lambda t: t[:3])]
+            streams.items(), key=lambda kv: _merge_order_key({}, kv[0], 0)[1])], key=lambda t: t[:3])]
     if expected != [e["id"] for e, _, _ in items]:
         errors.append({"seq": items[0][0]["seq"], "id": group["id"], "rule": "L10",
                        "message": f"the events merged by {group['id']} are not in the order of §3.5 "
@@ -2195,17 +2524,19 @@ def _merge_order_errors(group):
 
 
 def verify_agent_log(main, actor, events, log=None):
-    """Errors in one agent log, checked on its own (rule L10 and L2-L12 within the log)."""
-    log = log or f"{AGENTS_DIR}/{actor}.jsonl"
+    """Errors in one side log, an agent's or a contributor's (`actor`: the log's name), checked on its own (rules
+    L10, L34, L35 and L2-L12 within the log)."""
+    log = log or side_log_rel(actor)
     base = agent_base(main, events)
     if base is None:
         return [{"seq": 1, "id": None, "rule": "L10", "log": log,
                  "message": "the first event's prev is not the header of any main-log event"}]
-    return verify_events(events, base=main[:base], owner=actor, log=log)["errors"]
+    return verify_events(events, base=main[:base], owner=log_prefix(actor), log=log)["errors"]
 
 
 def verify_agents(lab, main, check_files=True):
-    """Rule L10 across logs: every agent log verifies, and merged events match their agent log."""
+    """Rules L10, L34 and L35 across logs: every agent and contributor log verifies, and merged events match the
+    log they came from."""
     errors = []
     st = State()
     for e in main:
@@ -2215,19 +2546,22 @@ def verify_agents(lab, main, check_files=True):
     for e in main:
         o = e.get("origin") if isinstance(e, dict) else None
         if isinstance(o, dict):
-            merged_events.setdefault(str(e.get("id")).split(".")[0], []).append(e)
-    present = set(lab.agent_logs())
-    for actor in sorted(set(st.merged) - present, key=_actor_num):
-        errors.append({"seq": None, "id": None, "rule": "L10", "log": lab.agent_log_name(actor),
+            olog = o.get("log")
+            name = olog.split("/", 1)[1][:-len(".jsonl")] if isinstance(olog, str) and "/" in olog \
+                and olog.endswith(".jsonl") else str(e.get("id")).split(".")[0]
+            merged_events.setdefault(name, []).append(e)
+    present = set(lab.side_logs())
+    for actor in sorted((a for a in set(st.merged) - present if SIDE_LOG_RE.match(a)), key=side_log_order):
+        errors.append({"seq": None, "id": None, "rule": "L10", "log": side_log_rel(actor),
                        "message": f"the log of {actor} was merged by {st.merged[actor]} but is missing"})
-    for actor in sorted(present, key=lambda a: int(a[2:])):
+    for actor in sorted(present, key=side_log_order):
         log = lab.agent_log_name(actor)
         try:
             events = lab.read_agent(actor)
         except LabError as exc:
             errors.append({"seq": None, "id": None, "rule": exc.rule, "log": log, "message": exc.message})
             continue
-        if actor not in st.actors:
+        if is_agent_log(actor) and actor not in st.actors:
             errors.append({"seq": None, "id": None, "rule": "L10", "log": log,
                            "message": f"{actor} is not a registered actor, so it cannot have an agent log"})
         errors += verify_agent_log(main, actor, events, log)
@@ -2289,6 +2623,17 @@ def verify_run_files(lab, events):
         for path in sorted(present - set(recorded)):
             errors.append({"seq": e["seq"], "id": e["id"], "rule": "L13",
                            "message": f"file {path} was added to the run directory after the run"})
+        res = e["body"].get("results")
+        if isinstance(res, dict) and isinstance(res.get("path"), str) and res["path"] in present:
+            try:
+                n = len(_results.read(rdir / res["path"]))
+            except (OSError, ValueError) as exc:
+                errors.append({"seq": e["seq"], "id": e["id"], "rule": "L36",
+                               "message": f"results file {res['path']}: {exc}"})
+                continue
+            if n != res.get("rows"):
+                errors.append({"seq": e["seq"], "id": e["id"], "rule": "L36",
+                               "message": f"results file {res['path']} has {n} rows, the run records {res.get('rows')}"})
     return errors
 
 
@@ -2362,15 +2707,15 @@ def verify(lab, check_files=True, remote=False):
         if isinstance(e, dict):
             st.apply(e)
     rep["agents"] = {}
-    for a in lab.agent_logs():
+    for a in lab.side_logs():                         # agents' and contributors' logs (§3.5, §3.7)
         try:
-            n = len(lab.read_agent(a))
+            n = len(lab.read_side(a))
         except LabError:
             n = None
         rep["agents"][a] = {"events": n, "merged_by": st.merged.get(a)}
         if a not in st.merged:
             try:
-                view = lab.view(a, events)
+                view = lab.side_state(events, a)
             except LabError:
                 continue
             for x in verify_confirmatory_anchoring(lab, view.events, owner=a):
@@ -2383,6 +2728,16 @@ def verify(lab, check_files=True, remote=False):
     rep["errors"] += verify_layout(lab, st)
     rep["notes"] += layout_notes(lab, st)
     rep["notes"] += actor_notes(st, events)
+    signed = [e.get("id") for e in events if isinstance(e, dict) and "signature" in e]
+    for name in lab.side_logs():
+        try:
+            signed += [e.get("id") for e in lab.read_side(name) if isinstance(e, dict) and "signature" in e]
+        except LabError:
+            pass
+    if signed:                                      # §4.7: kept, not checked
+        rep["notes"].append(f"{len(signed)} event(s) carry a signature ({', '.join(map(str, signed[:5]))}"
+                            f"{', …' if len(signed) > 5 else ''}): this version of the specification defines no "
+                            f"signature algorithm, so they are kept and not checked (§4.7)")
     if check_files:
         from .sources import source_notes
         rep["notes"] += source_notes(lab, events)

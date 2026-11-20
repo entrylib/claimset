@@ -1,6 +1,6 @@
-# Claimset Lab Record — Specification v0.22 (draft)
+# Claimset Lab Record — Specification v0.23 (draft)
 
-Status: working draft · Date: 2026-11-17 · Supersedes v0.21 · Companion to the claimset specification (`spec/claimset-v0.44.md`; v0.43 until 2026-11-16, v0.42 until 2026-11-14), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
+Status: working draft · Date: 2026-11-20 · Supersedes v0.22 · Companion to the claimset specification (`spec/claimset-v0.44.md`), its extensions (`spec/extensions/`) and the revision specification (`spec/claimset-revision-v0.6.md`)
 
 ## Errata
 
@@ -8,7 +8,20 @@ Bugs are corrected in the text of a version and in the tool, for every record; a
 
 - 2026-11-11. `code_changed_after_plan` was raised whenever a deciding run's commit differed from the plan's. A record kept in the code checkout commits itself when the plan is written, so a run made afterwards had a newer commit with no change of code, and its test was flagged for a change that did not happen. The flag now compares the two commits' files other than the record's own: its folder, and the folders its relocations moved it from (the code moved with it is code). Commits that cannot be compared still raise it. The claimset specification always defined the flag as a change of the analysis code (issue #93).
 
-## Changes since v0.21
+## Changes since v0.22
+
+The record of a simulation study was 9.3 MB, and 97% of it was result events: 17,182 lines, one per number its runs wrote, each with the header every event carries. The questions, hypotheses, plans, approvals, runs and decisions a reader looks for took 280 KB. The host of its repository did not display the file, and assistants given its address could not read it. And a record had one author: a second person had no way to take it up, add to it under their own name, and be credited for what they did.
+
+- §5.9, §5.9.1, §5.10, rule L4: **a run's results are a file.** The tool writes the valid entries of `results.json` to `results.csv` in the run's folder, compressed past 1 MB as any text output, and records `results: {path, rows}` on the run; it writes no `result` event. The result in row k is `RN4.k`; statuses, verdicts, quantities and export name and read results as before. New rule L36.
+- §3.7 (new), §4.2, §5.16, §7, rules L34 and L35 (new): **contributors.** A person who adds to a record writes their own log, `lab/contributors/<key>.jsonl`. The key is their ORCID iD, or `github-<account>` for a person without one. Every ID in it carries the key as a prefix (`0000-0002-1825-0097.H3`), so IDs never collide, whoever writes them, before or after the owner merges the log. Their agents write there too. A contributor who goes on after a merge opens their next log, and its numbers continue.
+- §9: **credit.** Export gives each contributor the CRediT roles the events they wrote show (for example: plans, methodology; runs, formal analysis; checks, validation; approvals, supervision), and a person their ORCID iD; the completion list asks each person to confirm theirs.
+- §5.1: `init.continues` names the record a new record carries on, at a fixed address, with the header hash of its last event.
+- §4.7 (new): an event line may carry a `signature` of its header hash, outside the header. This version defines no algorithm and the tool writes none.
+- §11 (new): **the reading view** of a record, and the **trail** of a hypothesis: what was asked, planned, approved, run, checked and decided, in order, each run with the number of its results and the file that holds them, never the results themselves. `claimset lab view` prints them, for records of every version.
+- §9: export writes claimset v0.44 as amended on 2026-11-20, whose lab IDs may carry a contributor's key.
+- Records begun before v0.23 are read as they were written: they keep their result events, and have no contributor logs, results files or `continues`. Their reading view and credit are made the same way.
+
+## Changes in v0.22 (since v0.21)
 
 A pilot ran the same study with agents of three sizes (entrylib:2026.000005). What the tool enforced, every agent did; what only the instructions asked, the smaller agents skipped. Three gaps showed. Hypotheses written after the first runs were recorded `a_priori`, as if no run had informed them. Estimates the study had planned (an accuracy, an effect size) had no form but a hypothesis with an invented threshold, or an exploratory result. And plans that required the runs to check their method (convergence, residuals) had no way to show that a run left a check out.
 
@@ -309,7 +322,8 @@ claimset/                      ignored by the code branches
       agents/<actor>.jsonl     per-agent logs while agents work concurrently (§3.5)
       anchors.jsonl            timestamp anchors of the log (§7); on a study branch, receipts of earlier pushes
       config.json              the study branch and its remote (§7.1)
-      runs/<run id>/           per-run outputs: stdout, stderr, results.json, other files
+      contributors/<key>.jsonl the logs of people adding to the record, by their key (§3.7)
+      runs/<run id>/           per-run outputs: stdout, stderr, results.json, results.csv, other files
       sources/<source id>/     captured public sources: the original file and its text (§5.20)
       private/                 kept out of git: private sources' files, the pseudonym salt (§5.20)
     drafts/<name>.json         drafts being agreed with the supervisor, ignored by the branch (§3.6)
@@ -375,6 +389,21 @@ A **draft** holds those events while they are discussed (it is not the draft cla
 
 The supervisor's approval of a recorded draft may have been given before its plans were written to the record: it approves the plans as the draft showed them, which the record then holds unchanged except for their code version.
 
+### 3.7 Contributors
+
+A record is begun by one person, its **owner**, with their agents. Another person, a **contributor**, may add to it: carry a study further, check its runs, take up a question. A contributor works in their own copy of the study branch and never writes the main log. They write a log of their own, which the owner merges into the main log, as an agent log is merged (§3.5). Records begun before v0.23 have no contributor logs.
+
+1. **Key.** A contributor is identified by a persistent identifier: their ORCID iD (`0000-0002-1825-0097`), or, for a person without one, their GitHub account (`github:alice`). Their **key** is the ORCID iD itself, or `github-` followed by the account name in lower case (`github-alice`). The key names their log, `lab/contributors/<key>.jsonl`, and prefixes the ID of every event in it: `0000-0002-1825-0097.H3`, `github-alice.RN2`. IDs written by different people therefore never collide, in their logs or after the merge, and a reader sees whose each event is.
+2. **Opening.** The contributor opens their log in their copy of the study branch with `claimset lab contribute --orcid ID --name …` (or `--github ACCOUNT`), run in a terminal of their own (§4.6). Its first event is their own registration: an `actor` of kind `human` with that identifier, written by itself (rule L34). Their agents then register themselves in the same log (§5.2), and write there as actors of the log (`0000-0002-1825-0097.AC2`).
+3. **Chain and base.** As for an agent log (§3.5, 2 and 4): the log has its own `seq` and hash chain; its first event's `prev` is the header hash of the main-log event it starts from, its base; its events refer to main-log events up to the base and to its own earlier events.
+4. **What it holds.** What an agent log may hold, and `actor` events: the registrations of the contributor and of their agents. It is written only by the actors registered in it, or in an earlier log of the same contributor (rule L35). Confirmatory runs are made under plans of the same log; a plan of the log that requires approval is approved by its contributor in the log, or by the owner in the main log after the merge (§5.8).
+5. **Merging.** The owner merges a contributor log with `claimset lab merge <key>`, as an agent log (§3.5, 7 and 8): the `merge` event names the log in `contributors` (§5.16), and each merged event keeps its ID and records its `origin`. A log is merged once and then kept unchanged.
+6. **Going on.** A contributor who goes on after a merge opens their next log, `lab/contributors/<key>.2.jsonl` (then `.3`, …), from the main log as it now is. Its numbers continue from the highest of the contributor's earlier events, so no ID is used twice; their actors are already registered and are not registered again.
+7. **Sharing.** A contributor's commits on the study branch touch only their log and the folders of their runs, which no one else writes, so the branch takes them without conflict, and the main log stays the owner's.
+8. **Credit.** Export credits each contributor, and each agent, for what the events they wrote show (§9).
+
+A study taken up by someone else as a new record, rather than added to, begins a new record that names the earlier one in `continues` (§5.1).
+
 ## 4. Event structure
 
 Each event has a **header**, written by the tool, and a **body**, specific to the event type:
@@ -388,7 +417,7 @@ Each event has a **header**, written by the tool, and a **body**, specific to th
 | Field | Notes |
 |---|---|
 | `seq` | Integer, starting at 1, increasing by exactly 1 per event |
-| `id` | Event ID, prefixed by type (§5), unique in the log |
+| `id` | Event ID, prefixed by type (§5), unique in the log; in an agent or contributor log, also by the writer's prefix (§4.2) |
 | `type` | Event type (§5) |
 | `at` | UTC time the tool wrote the event, ISO 8601 with seconds and `Z` (`2026-10-15T10:00:00Z`) |
 | `by` | Actor ID (§5.2) of whoever caused the event |
@@ -411,7 +440,8 @@ The headers form a hash chain. Because each header commits to its body only thro
 ### 4.2 Actors and IDs
 
 - `by` is an actor ID. Two exceptions: the `init` event has `by: null`, and an `actor` event may name its own ID (an actor registering itself).
-- An event ID is its type prefix (§5) followed by a positive integer: `H1`, `H2`, `RN17`. Within each prefix, numbers are allocated in order: the next number is one more than the highest used so far in the log. Events from agent logs carry the actor prefix (`AC2.H1`) and are numbered within their agent log, independently of the main log (§3.5).
+- An event ID is its type prefix (§5) followed by a positive integer: `H1`, `H2`, `RN17`. Within each prefix, numbers are allocated in order: the next number is one more than the highest used so far in the log. Events from agent logs carry the actor prefix (`AC2.H1`) and are numbered within their agent log, independently of the main log (§3.5). Events from contributor logs carry the contributor's key (`0000-0002-1825-0097.H1`, `github-alice.H1`) and are numbered within that contributor's logs, the numbers of each new log continuing from their earlier ones (§3.7).
+- In records begun under v0.23 or later, a result is not an event: it is a row of its run's results file, named by the run and the row, `RN4.12` (`AC2.RN4.12`, `0000-0002-1825-0097.RN4.12`), and is referred to by that name wherever a result event's ID was (§5.10).
 
 ### 4.3 Corrections
 
@@ -455,13 +485,19 @@ Agents run in harnesses (Claude Code, Codex CLI, Gemini CLI, Qwen Code, opencode
 - **People write from their own terminal.** Inside a harness that identifies itself, the tool refuses a writing command whose actor (`--by`) is a person: there the agent writes, as itself, and records a person's approval or registration on their behalf with their words (§5.2, §5.8). A person who wants to write as themselves runs the command in a terminal of their own. (Amended on 2026-11-12.)
 - **The network.** A harness may run commands in a sandbox without network. Anchoring (§7.1) and submission then fail; the tool says so, and how that harness lets the git host and the platform through. A study whose agent cannot reach the remote is anchored from a shell that can, or kept in desk mode (§3).
 
+### 4.7 Signatures
+
+An event line may carry, beside its header fields and `body`, a `signature`: `{key, alg, value}`, a signature of the event's header hash (§4.1) by whoever `key` names (a contributor key, §3.7, or the address of a public key), with algorithm `alg`. It is not a header field, so it is not in the header hash and does not change the chain: it may be added after the event is written, and removed, without breaking verification. This version defines no algorithm and the tool writes no signature; it keeps those it finds, and `verify` notes that it cannot check them. A later version will say how people sign their events, so that who wrote an event can be proved, not only when (§5.2).
+
 ## 5. Event types
 
 ### 5.1 `init` (one per lab, `seq` 1, ID `INIT`)
 
 `lab_spec_version` records the version of this specification the record follows. Rules introduced in a later version do not apply to records begun under an earlier one.
 
-`{lab_spec_version, working_title, repository, started_at, study}`. Its `by` is `null`. `study` is the study's name (§3); records begun before v0.6 may lack it, and a relocation can give it.
+`{lab_spec_version, working_title, repository, started_at, study, continues}`. Its `by` is `null`. `study` is the study's name (§3); records begun before v0.6 may lack it, and a relocation can give it.
+
+`continues` (optional, from v0.23): `{record, head, study}`, the record this one carries on, when a study is taken up as a new record rather than added to (§3.7): `record` is the address of the earlier record's log at a fixed version (a commit), `head` the header hash of its last event, `study` its study's name. The earlier record is not changed and is not copied; this record refers to its events by that address, and a reader verifies each record on its own.
 
 ### 5.2 `actor` (prefix `AC`)
 
@@ -691,17 +727,23 @@ An agent never approves on its own judgement. It does not treat silence, a gener
 - `exit_status`: `success` (exit code 0) · `failed` (non-zero exit code) · `crashed` (killed by a signal, or the command could not be started) · `cancelled` (interrupted by the user).
 - `exit_code`: the process's exit code, or `null`.
 - `outputs`: list of `{path, hash}` for every file in the run's directory after the run, with paths relative to that directory.
+- `results` (records begun under v0.23 or later, for a run whose `results.json` held valid entries): `{path, rows}`, the run's results file (`results.csv`, or `results.csv.gz` when compressed), which is among its `outputs`, and its number of rows (§5.10).
 
 #### 5.9.1 How the tool runs a command
 
 1. It checks rule L5 before starting. A run is confirmatory only when it names a confirmatory plan; otherwise, or when asked, it is exploratory.
 2. It creates a pending run directory under `runs/` and starts the command with two environment variables: `CLAIMSET_RUN_DIR` (the directory, for any output files) and `CLAIMSET_RESULTS` (the path of `results.json` inside it). An extension the record declares may add files and variables of its own, recorded in its block on the run: when the record has codings, the qualitative extension writes them to `codings.json` and names it in `CLAIMSET_CODINGS` (qualitative §2.3).
 3. It writes the command's standard output and standard error to `stdout.txt` and `stderr.txt` in that directory, and shows them as the command runs.
-4. When the command ends, however it ends, it compresses each text output larger than 1 MB (by its extension: `.csv`, `.tsv`, `.txt`, `.log`, `.out`, `.json`, `.jsonl`, `.ndjson`, `.md`, `.xml`, `.yaml`, `.yml`, `.dat`, `.tex`; `stdout.txt` and `stderr.txt` too) to `<name>.gz`, with no file name or time in its header, so that the same content always gives the same hash; `results.json` and the files an extension writes for itself stay as they are. Then it hashes every file in the directory, writes the `run` event, and renames the directory to `runs/<run id>/`. Run outputs are kept for the record and rarely read, and are committed on the study branch: a script's tables of tens of megabytes become a few. An output larger than 50 MB even compressed is more than a package carries (claimset §2.5); the tool warns, and the script should write less (fewer rows or columns, or Parquet). A script never compresses or changes its outputs after the run (L13).
-5. If `results.json` exists, it writes one `result` event per entry (§5.10.1).
-6. It exits with the command's exit code.
+4. When the command ends, however it ends, if `results.json` exists, it reads its entries (§5.10.1). In records begun under v0.23 or later, it writes the valid ones, in their order, to `results.csv` in the run's directory (§5.10); `results.json` is then a text output like any other.
+5. Then it compresses each text output larger than 1 MB (by its extension: `.csv`, `.tsv`, `.txt`, `.log`, `.out`, `.json`, `.jsonl`, `.ndjson`, `.md`, `.xml`, `.yaml`, `.yml`, `.dat`, `.tex`; `stdout.txt` and `stderr.txt` too) to `<name>.gz`, with no file name or time in its header, so that the same content always gives the same hash; in records begun before v0.23, `results.json` stays as it is, and so, in every record, do the files an extension writes for itself. Then it hashes every file in the directory, writes the `run` event, and renames the directory to `runs/<run id>/`. Run outputs are kept for the record and rarely read, and are committed on the study branch: a script's tables of tens of megabytes become a few. An output larger than 50 MB even compressed is more than a package carries (claimset §2.5); the tool warns, and the script should write less (fewer rows or columns, or Parquet). A script never compresses or changes its outputs after the run (L13).
+6. In records begun before v0.23, it writes one `result` event per valid entry of `results.json` (§5.10.1).
+7. It exits with the command's exit code.
 
 ### 5.10 `result` (prefix `RS`), written by the tool
+
+**From v0.23, results are rows of a file.** In records begun under v0.23 or later the tool writes no `result` event. Each valid entry of a run's `results.json` is a row of the run's results file, `results.csv`, with the columns `variable`, `value`, `unit`, `interval`, `uncertainty` and `conditions`, in the order of the entries: text and numbers as they are, objects and lists as JSON, an empty cell where the entry has none. The result in row k (counting from 1) is named `RN4.k`. It stands where a result event stood: it has its run's position in the log, its body is the row with `run` its run and `source` the file, and statuses, checks, verdicts, quantities and export name and read it as before. The file is among the run's `outputs`, so its hash is in the chain (L13, L36). A withheld run (§8) withholds its results. A reader with the log alone sees how many results each run gave and where they are, not their values: references to the rows resolve, and the checks that need their values are not made, as for withheld content (§8).
+
+In records begun before v0.23, a result is an event:
 
 `{run, variable, value, unit, interval, uncertainty, conditions, source}`
 
@@ -749,7 +791,7 @@ A claimset check comes from someone who is not an author (claimset §5): a super
 
 ### 5.16 `merge` (prefix `MG`), written by the tool
 
-`{agents, events_merged}`: records that the agent logs of the listed actors were merged into the main log (§3.5). The merge event is followed immediately by exactly `events_merged` events, each with an `origin` in one of the listed logs: every listed log whole, from its `seq` 1, in the order of §3.5. A merge event is never withheld (§8).
+`{agents, contributors, events_merged}`: records that the agent logs of the listed actors, and the contributor logs listed by path (`contributors`, from v0.23: `contributors/0000-0002-1825-0097.jsonl`), were merged into the main log (§3.5, §3.7). The merge event is followed immediately by exactly `events_merged` events, each with an `origin` in one of the listed logs: every listed log whole, from its `seq` 1, in the order of §3.5. A merge event is never withheld (§8).
 
 ### 5.17 `paper` (prefix `PA`)
 
@@ -815,7 +857,7 @@ Defined by the qualitative extension (qualitative §2.2), with the counts of cod
 L1. No line of `lab.jsonl` is modified or removed after it is written.
 L2. `seq` increases by exactly 1; every `prev` matches the previous header; every `content_hash` matches its body (or its withheld body, §8).
 L3. Every executed command started through the tool produces a `run` event, whatever its exit status.
-L4. `result` events are written only by the tool. A result names an earlier `run`, and its `source` is a path listed in that run's `outputs`.
+L4. `result` events are written only by the tool. A result names an earlier `run`, and its `source` is a path listed in that run's `outputs`. In records begun under v0.23 or later, no `result` event is written: a run's results are the rows of its results file (§5.10).
 L5. A run is labelled `confirmatory` only if it names a `confirmatory` or `estimation` plan, that plan was written earlier (lower `seq`) and, when anchoring is in use, anchored before the run started (§7). Otherwise it is `exploratory`. A run labelled `exploratory` may name any plan or none.
 L6. A `status` event moving a hypothesis to `supported` must not list as evidence any event in that hypothesis's `prompted_by`, nor results of runs listed there.
 L7. Every `status`, `decision` and `deviation` has a rationale or reason; every `revised` status names `revised_to`.
@@ -844,9 +886,12 @@ L29. A record begun under a version of this specification later than the tool's 
 L31. In records begun under v0.22 or later: a hypothesis written after a run (a run event earlier in the log, or in the main log under an agent log) has `origin: from_exploration` or a non-empty `independence`. A correction of a hypothesis first written before any run is exempt.
 L32. In records begun under v0.22 or later: an estimation plan names a question, at least one well-formed estimand (§5.7.8; with several deciding runs, each with its `run`), and no hypotheses, decision rule or criterion; `runs` is a positive integer. `question` and `estimands` appear only on estimation plans, and `diagnostics`, a list of distinct non-empty names, only on confirmatory and estimation plans. Records begun earlier have none of them.
 L33. A check's `on_behalf_of`, when present, names a human actor, the check's `by` is an agent actor, and its `words` are non-empty; a check written by a human has no `on_behalf_of` (as L22 for approvals).
+L34. In records begun under v0.23 or later: a contributor log is named by its contributor's key (§3.7), followed by `.<n>` for their n-th log (n from 2); the key is an ORCID iD or `github-` and an account name. The first event of a contributor's first log is an `actor` of kind `human`, written by itself, whose `orcid` (or `github`) is the identifier the key comes from. Every ID in the log carries the key as its prefix.
+L35. In records begun under v0.23 or later: a contributor log is written only by actors registered in it or in an earlier log of the same contributor; it holds no `init`, `merge`, `paper` or `relocation` event; it refers only to main-log events up to its base and to its own earlier events; and its numbers continue those of the contributor's earlier logs.
+L36. In records begun under v0.23 or later: a run's `results` names a file among its `outputs`, which holds exactly `rows` rows with the columns of §5.10, each a valid observation (§5.10.1).
 L30. In records begun under v0.20 or later: an event carries a block (`ext`) only of an extension declared by an earlier `extension` event, on an event type that extension allows, and is of a type an extension defines only when that extension is declared; an extension is declared once, at a version the tool knows (an extension or version it does not know is refused with a message saying so, as claimset rule 80). The extension's own rules apply to its blocks and events.
 
-The tool enforces L1–L5, L8–L23, L31 and L32 mechanically, and refuses L6 and L7 violations. L15–L17 apply to records begun under v0.5 or later, and to records whose `init` is withheld. Where a check depends on withheld content (a withheld run, result or plan), `verify` does not report it as a violation; withholding lowers verifiability instead (§8).
+The tool enforces L1–L5, L8–L23, L31, L32 and L34–L36 mechanically, and refuses L6 and L7 violations. L15–L17 apply to records begun under v0.5 or later, and to records whose `init` is withheld. Where a check depends on withheld content (a withheld run, result or plan), `verify` does not report it as a violation; withholding lowers verifiability instead (§8).
 
 ## 7. Timestamp anchoring
 
@@ -854,7 +899,7 @@ A timestamp written by the tool proves order, not time. To make "this plan exist
 
 `{seq, head_hash, service, receipt, at, agents}`
 
-`agents` (omitted when there are none) records the head of each non-empty agent log in the same way: `{"AC2": {seq, head_hash}}`. An event is covered by an anchor if the anchor's `seq` is at least the event's main-log `seq`, or, for an event written to an agent log, if the anchor's entry for that log has a `seq` at least the event's `seq` there.
+`agents` (omitted when there are none) records the head of each non-empty agent log in the same way: `{"AC2": {seq, head_hash}}`; a contributor log is recorded there too, by its name (`"0000-0002-1825-0097"`, `"0000-0002-1825-0097.2"`). An event is covered by an anchor if the anchor's `seq` is at least the event's main-log `seq`, or, for an event written to an agent log, if the anchor's entry for that log has a `seq` at least the event's `seq` there.
 
 The services are the values of a claim's `planned_at_anchor` (claimset §3.3.3), in decreasing order of strength: `platform` (the platform records the hash and returns a signed receipt), `rfc3161` (a trusted timestamp authority), `git_remote` (a commit containing the log pushed to a remote host; weaker, as the host's clock and history are trusted) and `none`.
 
@@ -903,7 +948,7 @@ Individual events can be withheld. A withheld event keeps its header and replace
 
 Withholding hides the body only: the header, including the event's type, actor and corrections, is still checked against the rules. `merge` events are never withheld.
 
-The header still carries the original `content_hash`, so the chain verifies and the platform's audit agents can check the original if it is provided to them. Run output files can be withheld the same way, keeping their hashes. Withheld events lower the verifiability of the claims that depend on them (claimset §5).
+The header still carries the original `content_hash`, so the chain verifies and the platform's audit agents can check the original if it is provided to them. Run output files can be withheld the same way, keeping their hashes; a withheld run withholds its results file. Withheld events lower the verifiability of the claims that depend on them (claimset §5).
 
 ## 9. Export to a claimset
 
@@ -923,6 +968,7 @@ Hypotheses without a final status are counted as open; they are not forced close
 | `init` | `paper.title` (the working title), `paper.origin: native` |
 | `actor`, agent | contributor of type `agent` with its models (each model defined once in `models`, `accessed` the date of the earliest event by an agent using it), `name`, `system`, `label`, `record_source`, `run_period` (dates of its first and last events) and `tools: [code_execution]` if it ran commands. Position `author` if it wrote any event other than `actor` and `check`; otherwise `contributor`, with AI task `review` |
 | `actor`, human or organisation | contributor with `name` and `orcid`, position `contributor`. Who is supervisor and guarantor is decided by people (completion list) |
+| the events each actor wrote, or that were written on a person's behalf (`on_behalf_of`) | the contributor's `credit_roles` (**Credit**, below) |
 | a verdict on a planned test (§5.7.4) | except under formal plans (below): a claim per decided plan and hypothesis it names, in the order of the hypotheses and then the plans: `statement` and `about` from the hypothesis as it stood when the plan was written, `hypothesis: {lab_event, outcome}` (`lab_event` is that version's ID, `outcome` the verdict), defaults `type: descriptive`, `role: supporting`, `novelty: no_prior_found`, `provenance: author_stated` |
 | `term` | a definition (`D1`, `D2`, … in record order, each correction chain once, its latest version) with `term`, `kind`, `definition`, `source` (as text: the completion list asks for it to become an entry of `references`) and `broader`. Term marks and term IDs in statements, `about` and `setup` are replaced by the definition IDs |
 | `hypothesis` named by no decided plan, with final status `supported`, `not_supported` or `inconclusive` | an exploratory claim, the same way, from the latest version of the hypothesis and its final status |
@@ -945,6 +991,20 @@ Hypotheses without a final status are counted as open; they are not forced close
 **Papers.** With paper events, export makes one paper at a time: `--paper NAME`, or the only paper. It exports the hypotheses of the paper's questions only. `paper.study` is the study's name; the exploration summary counts the paper's questions and hypotheses and its tests, and `covers` gives the questions it reports, the whole lab's counts (`lab`) and the other papers with their questions (`other_papers`), so readers see what the paper does not report (claimset §3.1.1). Runs are not tied to questions and are counted for the whole lab. Assumptions are exported from the whole record, and the completion list asks for those no claim of the paper rests on to be removed. The draft is written to `claimset/<study>/<paper>.claimset.json` unless another file is named.
 
 **Planned estimates.** Each decided estimation plan of the paper's questions becomes a claim, after the claims of verdicts and hypotheses: `planning: planned_estimate`, `planned_at` and `planned_at_anchor` as for a verdict, and `estimate` with the plan's `estimands`, `runs`, `lab_plan`, the core's `flags` (§5.7.5) and `not_obtained` (the estimands that bind no result with a number). Its evidence is that of the deciding runs, its support cites the rows its estimands bind, and the values they bind keep their precision. The statement is drafted from the values ("Under plan PL3, mean MASE (method SES) was 0.912; …"), and the completion list asks for it to be rewritten as a sentence a reader understands alone, with each value, its uncertainty and its scope. A deviation recorded for the plan and a deciding run becomes a limitation, as for a verdict. Records begun before v0.22 have no estimation plans.
+
+**Credit.** Each contributor, person or agent, is credited for the events written by them or on their behalf (an approval or a check with `on_behalf_of` is the person's), in every record, by the CRediT roles (claimset §3.11) these events show:
+
+| Events written | CRediT role |
+|---|---|
+| `question`, `hypothesis` | `conceptualization` |
+| `plan`, `term`, `assumption` | `methodology` |
+| `run` | `formal_analysis` |
+| `source`, an `artefact` of kind `data` | `data_curation` |
+| `coding` (qualitative extension) | `investigation` |
+| `check` | `validation` |
+| `approval` | `supervision` |
+
+The roles are listed in that order, each once. People write the paper, so `writing_original_draft` and the other roles no event shows are left to them; the completion list asks each person to confirm their roles and add those. Contributors are listed in the order their actors were registered: the owner's first, then each contributor's as their logs were merged. A person registered with an ORCID iD is exported with it; a person registered with a GitHub account alone is exported by name, and the completion list asks for their ORCID iD, which a claimset records for people (claimset §3.11).
 
 **Planning label of an exported claim.** A claim from a verdict is `confirmatory`, or `confirmatory_with_deviations` if a deviation is recorded for the plan and one of its deciding runs. Its `planned_at` is the `at` of the plan version that decides the plan (the one its first deciding run names in `plan_version`), and `planned_at_anchor` is the service of the earliest anchor that covers that plan version and was made before the first deciding run started, or `none`. A claim from a hypothesis named by no decided plan is `exploratory`.
 
@@ -991,7 +1051,7 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | `claimset lab plan --kind confirmatory --hypotheses H9 --comment doi:…@v1/RV1.c6 --review RV1.json --analysis "…"` | writes a plan that runs a review comment's resolution test: the decision rule is the comment's current test and `addresses` names the comment (§5.7.7); `--design` defaults to the test's procedure |
 | `claimset lab approve PL2 --by AC1` | approval by the human, who runs the command |
 | `claimset lab approve PL2 --by AC2 --on-behalf-of AC1 --words "Yes, go ahead with PL2." [--given-at …] [--channel conversation]` | approval recorded by an agent on the human's behalf, with their words (§5.8) |
-| `claimset lab run [--plan PL2] [--exploratory] [--param k=v] [--seed N] [--data FILE] -- <command>` | runs the command, records `run` and `result` events (§5.9.1) |
+| `claimset lab run [--plan PL2] [--exploratory] [--param k=v] [--seed N] [--data FILE] -- <command>` | runs the command and records the `run`, with its results file (§5.9.1); in records begun before v0.23, also `result` events |
 | `claimset lab capture FILE --uri URL [--retrieved-at T] [--method saved\|browser] [--title …] [--venue …] [--published-at D] [--author HANDLE [--author-as-given]] [--private\|--public] [--own] [--licence SPDX \| --terms "…"] [--archive-uri URL] [--text FILE]` | records a source the researcher saved (§5.20); `--fetch --uri URL` instead has the tool fetch a public page; `claimset lab capture --supersedes SR1 --archive-uri URL` (no file) corrects what was recorded about it |
 | `claimset lab quote SR1 "the words"` | checks that the words are in the source's text and prints their locator (§5.20) |
 | `claimset lab decide` / `deviate` / `check` / `artefact` | writes the corresponding event |
@@ -1001,6 +1061,9 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | any writing command `--supersedes ID` | writes a correction of `ID` (§4.3) |
 | `claimset lab start --by AC2` | starts an agent log for AC2: its events go there until merged (§3.5) |
 | `claimset lab merge [AC2 AC3]` | merges agent logs (default: all unmerged ones) into the main log (§3.5) |
+| `claimset lab contribute --orcid ID --name … [--github ACCOUNT]` | run by a person in their copy of the study: opens their contributor log and registers them in it (§3.7); their agents then register in it with `claimset lab actor … --by <key>.AC1` |
+| `claimset lab merge 0000-0002-1825-0097` | merges a contributor's open log into the main log (§3.7) |
+| `claimset lab view [--hypothesis H3] [--claim C2 --paper NAME]` | the reading view of the record, or the trail of a hypothesis or of an exported claim's hypothesis (§11) |
 | `claimset lab verify` | checks the main and agent chains, the rules and the run files |
 | `claimset lab anchor [--git] [--remote origin] [--branch claimset-lab] [--every plan\|event]` | anchors the head of the chain; the first use with `--git` records the configuration (§7.1) |
 | `claimset lab verify --remote` | also checks the log against the anchor branch on the remote |
@@ -1011,7 +1074,22 @@ The reference tool is part of the `claimset` package. Indicative commands:
 | `claimset lab export [--paper NAME] --check FILE` | reports what a completed claimset changed of the fields export takes from the record (§9) |
 | `claimset tag claimset/<study>/<paper>.claimset.json` | marks the committed version of a paper with the git tag `claimset/<study>/<paper>/v<n>` (claimset §2.4) |
 
-## 11. Open questions
+## 11. Reading view
+
+The log is written to be checked, not read: every event carries a header, and a study's runs may give tens of thousands of results. The **reading view** is the record as plain text for people and models, made from the log by the tool (`claimset lab view`), for records of every version. It is derived, never part of the record: it can be made again at any time, and anyone can check it against the log.
+
+It gives, in this order:
+
+1. **The record.** Study, working title, the version of this specification it was begun under, the repository, the number of events and runs, the head of the chain (`seq` and header hash), and `continues` when present.
+2. **Who.** Each actor: ID, kind, name, ORCID iD or account, models and system for an agent, the log they wrote in (main, an agent log, a contributor's), and their credit (§9).
+3. **Questions and hypotheses.** Each question with its hypotheses; each hypothesis with its latest statement and the trail below.
+4. **Timeline.** Every event except results, in log order, one line each: `seq`, time, ID, type, writer, and what it records in a few words. A run gives its label, plan, command, commit and exit status, and its results by count and file (`runs/RN4/results.csv`, 11,503 rows), never their values. For a record begun before v0.23, the count is of its result events, with their first and last IDs, and the file is the run's `results.json`.
+
+The **trail** of a hypothesis (`claimset lab view --hypothesis H3`) is what it rests on, in log order: the question; each version of the hypothesis; the terms and assumptions it names; the plans that name it, with their approvals, deviations and verdicts; the runs of those plans, and any other run a status of it cites, with their results by count and file; the checks of any of these events; the decisions and notes that refer to them; and its statuses, with their rationales. The trail of a claim exported from the record is the trail of its `hypothesis.lab_event` (§9). A planned estimate (`estimate.lab_plan`) has the trail of its plan: the plan's question; each version of the plan, with its approvals, deviations and the terms and assumptions it names; the plan's runs, with their results by count and file; and the checks, decisions and notes that refer to any of these. A trail is what a reader needs to judge one claim: what was decided before which data, and what happened after.
+
+A withheld event (§8) appears as withheld, with its type, writer and reason.
+
+## 12. Open questions
 
 1. Anchoring service: platform receipts, RFC 3161 providers, or both.
 2. Storage of large run outputs (content-addressed storage, external archives).

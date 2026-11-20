@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .core import AGENTS_DIR, LabError, header_hash
+from .core import AGENTS_DIR, CONTRIBUTORS_DIR, LabError, header_hash, log_prefix
 
 CONFIG_FILE = "config.json"
 ANCHORS_FILE = "anchors.jsonl"
@@ -89,13 +89,16 @@ def covers(entry, event, owner=None):
     agents = _agent_entries(entry)
     eid = str(event.get("id"))
     seq = _int(event.get("seq"))
-    if owner and eid.startswith(owner + "."):
+    if owner and eid.startswith(log_prefix(owner) + "."):        # `owner`: the open side log's name
         return seq > 0 and _int((agents.get(owner) or {}).get("seq")) >= seq
     if seq > 0 and _int(entry.get("seq")) >= seq:
         return True
     o = event.get("origin")
     if isinstance(o, dict) and _int(o.get("seq")) > 0:
-        return _int((agents.get(eid.split(".")[0]) or {}).get("seq")) >= _int(o.get("seq"))
+        log = o.get("log")
+        name = log.split("/")[-1][:-len(".jsonl")] if isinstance(log, str) and log.endswith(".jsonl") \
+            else eid.split(".")[0]
+        return _int((agents.get(name) or {}).get("seq")) >= _int(o.get("seq"))
     return False
 
 
@@ -123,9 +126,9 @@ def _repo_top(lab):
 
 def _lab_files(lab, top):
     files = [lab.log_path, lab.root / ANCHORS_FILE]
-    agents = lab.root / "agents"
-    if agents.is_dir():
-        files += sorted(agents.glob("*.jsonl"))
+    for d in (AGENTS_DIR, CONTRIBUTORS_DIR):                 # agents' and contributors' logs (§3.5, §3.7)
+        if (lab.root / d).is_dir():
+            files += sorted((lab.root / d).glob("*.jsonl"))
     return [(f, f.resolve().relative_to(top.resolve()).as_posix()) for f in files if f.is_file()]
 
 
@@ -182,8 +185,8 @@ def check_prefix(local_lines, remote_lines):
 
 
 def _log_files(lab, top):
-    """(path, path in the repository, name) of the main and agent logs."""
-    return [(p, rel, rel.split("/")[-1] if p == lab.log_path else f"{AGENTS_DIR}/{p.name}")
+    """(path, path in the repository, name) of the main log and the agents' and contributors' logs."""
+    return [(p, rel, rel.split("/")[-1] if p == lab.log_path else f"{p.parent.name}/{p.name}")
             for p, rel in _lab_files(lab, top) if p.name != ANCHORS_FILE]
 
 
@@ -246,8 +249,8 @@ def anchor_git(lab, remote="origin", branch=DEFAULT_BRANCH):
     entry = {"seq": head["seq"], "head_hash": header_hash(head), "service": "git_remote",
              "receipt": {"remote": remote, "branch": branch, "commit": commit}, "at": lab.clock()}
     agents = {}
-    for actor in lab.agent_logs():
-        events = lab.read_agent(actor)
+    for actor in lab.side_logs():
+        events = lab.read_side(actor)
         if events:
             agents[actor] = {"seq": events[-1]["seq"], "head_hash": header_hash(events[-1])}
     if agents:
@@ -365,7 +368,7 @@ def verify_confirmatory_anchoring(lab, events, owner=None):
         b = e.get("body") or {}
         if e.get("type") != "run" or b.get("label") != "confirmatory" or b.get("withheld"):
             continue
-        if owner and not str(e.get("id")).startswith(owner + "."):
+        if owner and not str(e.get("id")).startswith(log_prefix(owner) + "."):
             continue
         plan = by_id.get(b.get("plan"))
         if plan is None:

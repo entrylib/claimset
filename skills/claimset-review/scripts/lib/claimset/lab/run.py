@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .anchor import anchoring, ensure_covered
 from ..validate import OBSERVATION_MEASURES, measure_problems
+from . import results as _results
 from .core import PLANNED_KINDS, LabError, file_hash, is_withheld
 
 RESULTS_FILE = "results.json"
@@ -135,7 +136,9 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
                 echo=True, cwd=None):
     """Run argv under the lab record.
 
-    Returns {"run": event, "results": [events], "exit_code": int|None, "problems": [str]}.
+    Returns {"run": event, "results": [events], "rows": int, "exit_code": int|None, "problems": [str]}. `results`
+    are the result events, or, in records begun under v0.23 or later, the rows of the run's results file as the
+    record reads them (`RN4.1`, …; §5.10), `rows` their number.
     Raises LabError before starting if the run would break a rule.
     """
     if not argv:
@@ -160,7 +163,7 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
             label = "confirmatory"
     if label == "confirmatory" and anchoring(lab):
         try:
-            ensure_covered(lab, st.latest(plan), st.owner)
+            ensure_covered(lab, st.latest(plan), st.log)
         except LabError as exc:
             raise LabError("L5", f"run: plan {plan} could not be anchored before the run ({exc.message}); "
                                  f"fix anchoring or run with --exploratory") from None
@@ -219,8 +222,16 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
         proc.stdout.close()
         proc.stderr.close()
     ended = lab.clock()
-    keep = {RESULTS_FILE} | {str(b.get(k, {}).get("path")) for b in blocks.values() for k in b
-                             if isinstance(b.get(k), dict) and b[k].get("path")}
+    in_files = st.results_in_files
+    results, problems, rows = [], [], 0
+    if in_files and (rdir / RESULTS_FILE).is_file():      # §5.9.1, step 4: the results file (§5.10)
+        entries, problems = _parse_results(rdir / RESULTS_FILE, "variable")
+        if entries:
+            rows = _results.write(rdir / _results.NAME, entries)
+    keep = {str(b.get(k, {}).get("path")) for b in blocks.values() for k in b
+            if isinstance(b.get(k), dict) and b[k].get("path")}
+    if not in_files:
+        keep.add(RESULTS_FILE)                              # records before v0.23 read it after the run
     compressed = compress_outputs(rdir, keep)
 
     body = {"plan": plan, "plan_version": plan_version, "label": label, "command": list(argv), "code_version": commit, "dirty": dirty,
@@ -228,6 +239,9 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
             "environment": environment(), "started_at": started, "ended_at": ended,
             "exit_status": status, "exit_code": exit_code, "outputs": _outputs(rdir)}
     body = {k: v for k, v in body.items() if v is not None}
+    if rows:
+        name = _results.NAME + (".gz" if _results.NAME in compressed else "")
+        body["results"] = {"path": name, "rows": rows}
     if st.legacy and "codings" in blocks.get("qualitative", {}):
         body["codings"] = blocks.pop("qualitative")["codings"]     # as records begun before v0.20 have it
     if blocks:
@@ -241,14 +255,15 @@ def run_command(lab, by, argv, plan=None, exploratory=False, parameters=None, se
         raise LabError("L13", f"{final} already exists; the outputs of {run_event['id']} are kept in {rdir}")
     rdir.rename(final)
 
-    results, problems = [], []
-    if (final / RESULTS_FILE).is_file():
+    if not in_files and (final / RESULTS_FILE).is_file():
         entries, problems = _parse_results(final / RESULTS_FILE, "quantity" if st.legacy else "variable")
         for r in entries:
             r = dict(r, run=run_event["id"], source=RESULTS_FILE)
             results.append(lab.append("result", r, by=by))
+    if rows:                                    # the run's results, as the record now reads them (§5.10)
+        results = lab.view(by).results_of.get(run_event["id"], [])
     large = [o["path"] for o in run_event["body"]["outputs"] if (final / o["path"]).stat().st_size > LARGE_OUTPUT]
-    return {"run": run_event, "results": results, "exit_code": exit_code, "problems": problems,
+    return {"run": run_event, "results": results, "rows": rows, "exit_code": exit_code, "problems": problems,
             "compressed": compressed, "large": large}
 
 

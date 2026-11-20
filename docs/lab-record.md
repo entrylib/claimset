@@ -20,7 +20,7 @@ claimset lab draft show plan      # for the supervisor; revise with --draft plan
 claimset lab draft record plan --on-behalf-of AC2 --words "Agreed, go ahead." --given-at 2026-11-17T10:00:00Z
 claimset lab run --plan PL1 --seed 7 -- python3 experiment.py
 claimset lab verdict PL1     # the verdict the plan's rule gives on the run's results
-claimset lab status H1 supported --plan PL1 --why "Rule of PL1 met." --evidence RS1 RS2
+claimset lab status H1 supported --plan PL1 --why "Rule of PL1 met." --evidence RN1.1 RN1.2
 claimset lab summary         # current state, for whoever picks up the work
 claimset lab verify          # hash chain, rules and run files
 ```
@@ -36,13 +36,15 @@ claimset lab run --plan PL2 -- python3 estimate.py
 claimset lab verdict PL2     # the value each estimand binds; no verdict
 ```
 
-A hypothesis written after the first run says where it comes from: `--from-exploration --prompted-by RS3`, or `--independence "…"` (what it rests on instead).
+A hypothesis written after the first run says where it comes from: `--from-exploration --prompted-by RN1.3`, or `--independence "…"` (what it rests on instead).
 
 **Drafts.** The questions, terms, hypotheses and plans are discussed with the person who supervises before anything is recorded. With `--draft NAME`, the commands that write them add the event to a draft beside the record (`claimset/<study>/drafts/NAME.json`, ignored by the study branch), checked by every rule as if it were recorded; `--supersedes` replaces a drafted event in place. `claimset lab draft show NAME` prints the draft for the supervisor, and `claimset lab draft record NAME` writes it to the record, with their approval of its plans, once they agree. The record then holds what was agreed, not each version of the discussion, and so does the paper drawn from it.
 
 Before planning, the agent agrees the design with the person who supervises, one topic at a time, and the plan records where each choice came from (`--choice "measure|RMSSE|good-practice|study-planning/prediction#mean-forecasts"`: the brief, the supervisor, good practice for planning a study, the literature, or the agent alone; `claimset guide study-planning` prints the guides the package carries, from https://github.com/entrylib/study-planning); `plan` lists the choices nobody has agreed yet. A confirmatory plan fixes everything that decides the outcome before any run: the test, significance level, sidedness, correction for multiple tests, sample size and stopping rule, the results the decision is made on, and the rules for *supported* and *not supported* (anything else is *inconclusive*). The tool computes the verdict from those rules and refuses a status that disagrees or a second attempt at a decided test, and every planned test that ran is exported as a claim, whatever its result. A hypothesis tested by proof (`--framework formal`) gives one claim, in the wording its latest verdict decided; its earlier formal verdicts, and those of proofs merged into another or dropped, are listed in the paper's exploration summary (`not_claimed`), each with the claim it went into. Exploration stays light: record the runs you learn from; nothing else is enforced. Weaknesses that do not break a rule are flagged rather than refused: code changed after the plan, held-out data used elsewhere, a test that reproduced the result that suggested its hypothesis, a run without a diagnostic its plan requires (`--diagnostic`); `plan`, `run` and `verdict` also warn about a hypothesis from exploration without `--new-data`, exclusions without counts and the same computation run under two plans.
 
-`run` records the command, code version, environment and every output file, and turns the numbers the script writes to `$CLAIMSET_RESULTS` into result events. The tool refuses writes that break the rules, such as confirming a hypothesis with the result that suggested it.
+`run` records the command, code version, environment and every output file, and writes the numbers the script writes to `$CLAIMSET_RESULTS` to the run's results file, `runs/RN4/results.csv`, one row per result: the result in row k is `RN4.k`, and statuses and claims cite it by that name (records begun before lab record v0.23 have result events, `RS…`, instead). The tool refuses writes that break the rules, such as confirming a hypothesis with the result that suggested it.
+
+`claimset lab view` prints the record as text to read: who wrote it and their credit, each hypothesis with its trail, and every event in order, each run with its results by count and file. `--hypothesis H3` gives one hypothesis's trail, `--claim C2` the trail of an exported claim.
 
 ## Several agents at once
 
@@ -55,6 +57,18 @@ claimset lab merge              # appends both logs to the main log, interleaved
 ```
 
 An agent sees the main log as it was when it started, plus its own events. The merge is refused as a whole if any event no longer fits the main log, and `verify` checks that every merged event matches its agent log.
+
+## Another person adding to the record
+
+A record has one owner. Another person adds to it in a log of their own, named by their ORCID iD (or `github-<account>`), which prefixes every ID in it, so IDs never collide:
+
+```
+claimset lab contribute --orcid 0000-0002-1825-0097 --name "Josiah Carberry"   # run by the person; they are 0000-0002-1825-0097.AC1
+claimset lab actor --kind agent --name … --model … --contributor 0000-0002-1825-0097   # their agent, 0000-0002-1825-0097.AC2
+claimset lab merge 0000-0002-1825-0097                                           # the owner merges their log
+```
+
+A contributor who goes on after a merge opens their next log with `contribute` again, and their numbering continues. Export credits each person and agent with the CRediT roles their events show, and asks each person to confirm. A study carried on as a new record names the earlier one with `claimset lab init --continues <log at a commit> --continues-head <hash of its last event>`.
 
 ## Protecting the record
 
