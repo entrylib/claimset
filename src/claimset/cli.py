@@ -194,9 +194,14 @@ def _cmd_migrate(args):
     except (OSError, json.JSONDecodeError) as exc:
         print(f"ERROR: cannot read {args.file}: {exc}", file=sys.stderr)
         return 1
-    if _renumber.published(doc):
-        print(f"ERROR: {args.file} is a published claimset: published versions never change. Migrate a copy "
-              f"without the platform's fields and submit it as a revision (revision spec §5).", file=sys.stderr)
+    paper = doc.get("paper") if isinstance(doc.get("paper"), dict) else {}
+    assigned = [f"paper.{f}" for f in _validate.PLATFORM_PAPER_FIELDS if f in paper]
+    if assigned:
+        # A published file never changes; a correction or revision submission names the claimset in paper.id
+        # without the platform's fields (spec §9) and is migrated like any submission.
+        print(f"ERROR: {args.file} is a published claimset ({', '.join(assigned)}): published versions never "
+              f"change. Migrate a copy without the fields the platform assigns, keeping paper.id, and submit it as "
+              f"a correction or revision (spec §9).", file=sys.stderr)
         return 1
     out, done, todo = _migrate.migrate(doc)
     rep = _migrate.report(doc, out, todo)
