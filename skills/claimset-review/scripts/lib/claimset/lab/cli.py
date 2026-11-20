@@ -484,6 +484,15 @@ def cmd_decide(args):
                                      "affects": args.affects})
 
 
+def cmd_void(args):
+    """A decided plan made void, repeated by a later plan (lab record §5.7.4, *Void plans*; §5.11; rule L37)."""
+    return _write(args, "decision", {"text": args.why, "affects": [args.plan, args.repeated_by],
+                                     "void": {"plan": args.plan, "repeated_by": args.repeated_by,
+                                              "defects": list(args.defect)},
+                                     "on_behalf_of": args.on_behalf_of, "words": args.words,
+                                     "given_at": args.given_at, "channel": args.channel})
+
+
 def cmd_status(args):
     return _write(args, "status", {"target": args.target, "to": args.to, "rationale": args.why,
                                    "evidence": args.evidence, "revised_to": args.revised_to,
@@ -1490,6 +1499,21 @@ def add_parser(subparsers):
     p.add_argument("text", help="the decision and why it was taken")
     p.add_argument("--prompted-by", nargs="+", default=[], metavar="ID")
     p.add_argument("--affects", nargs="+", default=[], metavar="ID")
+
+    p = cmd("void", cmd_void, "make a decided plan void: a defect in its code made its runs meaningless, and a later "
+                              "plan repeats it on the same data, with the same analysis and rule (a person's word)")
+    p.add_argument("plan", help="the decided plan whose runs the defect made meaningless")
+    p.add_argument("--repeated-by", dest="repeated_by", required=True, metavar="PLAN",
+                   help="the decided plan that repeats it: written after its runs, same hypotheses or estimands, data, "
+                        "analysis and rule")
+    p.add_argument("--defect", nargs="+", default=[], metavar="DV",
+                   help="the deviations recording what went wrong in its deciding runs, written before the repeat")
+    p.add_argument("--why", required=True, help="what the defect was and why the runs mean nothing")
+    p.add_argument("--on-behalf-of", dest="on_behalf_of", metavar="AC",
+                   help="the person whose decision an agent records (the agent writes with --by)")
+    p.add_argument("--words", help="the person's reply, verbatim (required with --on-behalf-of)")
+    p.add_argument("--given-at", dest="given_at", metavar="TIME", help="when they gave it (ISO 8601, UTC)")
+    p.add_argument("--channel", help="where they gave it: conversation, email, meeting notes, …")
 
     p = cmd("status", cmd_status, "change a hypothesis's status")
     p.add_argument("target", help="hypothesis ID")

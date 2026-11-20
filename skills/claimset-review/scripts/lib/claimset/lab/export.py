@@ -19,7 +19,7 @@ from . import tables as _tables
 from . import record as _record
 from .core import (FLAGS, RENAMED_KINDS, SETUP_ROLES, TERM_ID_RE, TERM_MARK_RE, LabError, State, agent_base,
                    bind_estimands, estimand_matches, file_hash, final_statuses, is_table_estimand, is_withheld,
-                   plan_flags, verify)
+                   final_repeat, plan_flags, verify, void_decisions)
 
 FINAL = {"supported", "not_supported", "inconclusive", "revised", "abandoned"}
 OUTCOMES = ("supported", "not_supported", "inconclusive")
@@ -140,6 +140,8 @@ class _Exporter:
                                      f"`claimset lab status {h} … --plan {root}`. Every planned test that ran is "
                                      f"reported")
         self.anchors = read_anchors(lab)
+        self.voids = void_decisions(st)     # plans made void (§5.7.4, *Void plans*): {plan root: decision}
+        self.void_limitations = {}          # void plan root -> the limitation its repeat's claims carry
         # Where each merged agent log started in the main log (§3.5), to know what its agent saw.
         self.bases = {}
         for a in st.merged:
@@ -624,6 +626,66 @@ class _Exporter:
         self.todo(f"limitations.{lid}", f"review the category, impact and wording of {lid}, exported from "
                                         f"deviation {dv['id']}")
 
+    def void_entry(self, root, pv, runs, lab_event, statement, outcome=None, hypothesis=None):
+        """The `not_claimed` entry of a void plan's verdict, or of its estimate (§9, *Void plans*): `because:
+        defective`, its deciding runs, the decision's text followed by the deviations', and the claim of the plan
+        that stands for it, resolved once every claim exists."""
+        dc = self.voids[root]
+        texts = [dc["body"].get("text")]
+        for d in dc["body"]["void"].get("defects") or []:
+            if is_withheld(self.st.latest(d) or {}):
+                self.todo("paper.exploration.not_claimed", f"the defect {d} of void plan {root} is withheld; say in "
+                                                           f"the entry of {lab_event} under {pv['id']} what it was")
+            texts.append(self.body(d).get("text"))
+        entry = {"lab_event": lab_event, "lab_plan": pv["id"]}
+        if outcome is not None:
+            entry["outcome"] = outcome
+        entry.update(because="defective", runs=[r["id"] for r in runs],
+                     why=" ".join(t.strip() for t in texts if isinstance(t, str) and t.strip()),
+                     _statement=statement, _repeat=final_repeat(self.st, root, self.voids), _hypothesis=hypothesis)
+        return entry
+
+    def add_void_limitations(self, claim, root):
+        """The limitation a repeat's claims carry for each void plan it stands for (§9, *Void plans*): the void plan,
+        its defect and the repeat, planned after the void runs and before its own."""
+        st = self.st
+        for void, dc in self.voids.items():
+            if void == root or final_repeat(st, void, self.voids) != root:
+                continue
+            lid = self.void_limitations.get(void)
+            if lid is not None:
+                lim = next(x for x in self.limitations if x["id"] == lid)
+                lim["affects"].append(claim["id"])
+                claim.setdefault("limitations", []).append(lid)
+                continue
+            v = dc["body"]["void"]
+            decided = st.deciding_runs(void)
+            runs = ", ".join(r["id"] for r in decided[1]) if decided else "its runs"
+            defects = " ".join(f"{d}: {self.body(d).get('text') or '(withheld)'}" for d in v.get("defects") or [])
+            direct = st.root(v["repeated_by"]) if isinstance(v.get("repeated_by"), str) else root
+            through = "" if direct == root else f", through {st.label(direct)}, itself void"
+            lid = f"L{len(self.limitations) + 1}"
+            lim = {"id": lid, "category": "deviation",
+                   "statement": f"Lab plan {st.label(void)} was made void ({dc['id']}): a defect made its runs "
+                                f"({runs}) meaningless. {defects} This claim is from plan {st.label(root)}, which "
+                                f"repeats it{through} with the same analysis and decision rule on the same data. "
+                                f"{st.label(root)} was planned after the void runs and before its own, so what the "
+                                f"void runs showed could have shaped it.",
+                   "affects": [claim["id"]], "impact": "could_bias_magnitude", "mitigation": "partial"}
+            evidence = next((x.get("evidence") for x in claim.get("support") or [] if x.get("evidence")), None)
+            if evidence:
+                lim["mitigation_evidence"] = evidence
+            else:
+                self.todo(f"limitations.{lid}", f"give the evidence of {st.label(root)}'s runs as the mitigation "
+                                                f"evidence of {lid}")
+            self.limitations.append(lim)
+            self.void_limitations[void] = lid
+            claim.setdefault("limitations", []).append(lid)
+            self.todo(f"limitations.{lid}", f"say in {lid} what the void runs of {st.label(void)} ({runs}) could have "
+                                            f"shown the authors before {st.label(root)} was planned (the results they "
+                                            f"gave, anything seen in them), so a reader can judge whether the repeat "
+                                            f"was shaped by them")
+
     def export_hypotheses(self):
         st = self.st
         deviations, self.withheld_deviations = {}, []
@@ -641,8 +703,8 @@ class _Exporter:
             decided = st.decided_plans_for(h["id"]) if st.strict else {}
             # Formal tests (§5.7.4, as amended on 2026-11-17): one claim, from the latest formal verdict, unless the
             # hypothesis was revised into another or abandoned; the other formal verdicts are listed, not claimed
-            formal = {root for root, (pv, _) in decided.items()
-                      if _decision.effective(pv["body"].get("decision") or {}, h["id"], st.same_hypothesis)
+            formal = {root for root, (pv, _) in decided.items() if root not in self.voids
+                      and _decision.effective(pv["body"].get("decision") or {}, h["id"], st.same_hypothesis)
                       .get("framework") == "formal" and (h["id"], root) in self.verdicts}
             dropped = self.withdrawn(h["id"]) if formal else None
             chosen = None if dropped or not formal else max(
@@ -655,6 +717,10 @@ class _Exporter:
                 outcome = verdict["body"]["to"]
                 self.test_counts[outcome] += 1
                 version = self.hypothesis_at(h["id"], st.pos[pv["id"]]) or st.latest(h["id"])
+                if root in self.voids:             # a void plan gives no claim (§9, *Void plans*)
+                    self.not_claimed.append(self.void_entry(root, pv, runs, version["id"],
+                                                            version["body"].get("statement"), outcome, h["id"]))
+                    continue
                 if root in formal and root != chosen:
                     entry = {"lab_event": version["id"], "lab_plan": pv["id"], "outcome": outcome,
                              "_statement": version["body"].get("statement")}
@@ -694,6 +760,7 @@ class _Exporter:
                     claim["test"]["addresses"] = list(pv["body"]["addresses"])
                 for r, dv in devs:
                     self.add_deviation_limitation(claim, r, pv, dv)
+                self.add_void_limitations(claim, root)
                 self.claims.append(claim)
             if decided:
                 continue
@@ -722,15 +789,23 @@ class _Exporter:
 
     def resolve_not_claimed(self):
         """`into` of each formal verdict that gives no claim: the claim of the hypothesis it went into, following
-        further revisions (§9, as amended on 2026-11-17)."""
+        further revisions (§9, as amended on 2026-11-17); and of each void plan's verdict or estimate (as amended on
+        2026-11-20)."""
         st = self.st
-        claim_of = {}
+        claim_of, claim_of_test = {}, {}
         for c in self.claims:
             ev = (c.get("hypothesis") or {}).get("lab_event")
             if ev and st.get(ev) is not None:
                 claim_of.setdefault(st.root(ev), c["id"])
+            plan = (c.get("test") or c.get("estimate") or {}).get("lab_plan")
+            if plan and st.get(plan) is not None:
+                key = (st.root(ev) if ev and st.get(ev) is not None else None, st.root(plan))
+                claim_of_test.setdefault(key, c["id"])
         out = []
         for x in self.not_claimed:
+            if x["because"] == "defective":
+                out.append(self.resolve_void(x, claim_of, claim_of_test))
+                continue
             target, seen = x.pop("_into", None), set()
             while target and st.get(target) is not None and st.root(target) not in claim_of \
                     and st.root(target) not in seen:
@@ -741,19 +816,44 @@ class _Exporter:
             entry = {k: x[k] for k in ("lab_event", "lab_plan", "outcome", "because")}
             if cid and x["because"] != "abandoned":
                 entry["into"] = cid
-            entry["why"] = x.get("why") or ""
-            said = " ".join(re.sub(r"\[\[[^\]:]+:([^\]]*)\]\]", r"\1", str(x.get("_statement") or "")).split())
-            if said:
-                entry["statement"] = said
-                if len(said) > 200:
-                    self.todo("paper.exploration.not_claimed", f"shorten the statement of {x['lab_event']}'s verdict "
-                                                               f"under {x['lab_plan']} to one line of at most 200 "
-                                                               f"characters: what it decided, in a few words")
-            if not entry["why"]:
-                self.todo("paper.exploration.not_claimed", f"say why {x['lab_event']}'s verdict under "
-                                                           f"{x['lab_plan']} gives no claim")
-            out.append(entry)
+            out.append(self.finish_not_claimed(entry, x))
         return out
+
+    def resolve_void(self, x, claim_of, claim_of_test):
+        """A void plan's entry (§9, *Void plans*): `into` the claim of the same hypothesis's verdict, or the estimate,
+        under the plan that stands for it (its repeat, followed through repeats that are void themselves)."""
+        st = self.st
+        repeat, h = x.pop("_repeat", None), x.pop("_hypothesis", None)
+        hroot = st.root(h) if h else None
+        cid = claim_of_test.get((hroot, repeat)) if repeat else None
+        if cid is None and hroot is not None:
+            cid = claim_of.get(hroot)
+        entry = {k: x[k] for k in ("lab_event", "lab_plan", "outcome", "because") if k in x}
+        if cid:
+            entry["into"] = cid
+        else:
+            self.todo("paper.exploration.not_claimed", f"void plan {x['lab_plan']} names no claim of its repeat "
+                                                       f"{repeat or '(not found)'} for {x['lab_event']}: name it in "
+                                                       f"`into`")
+        entry["runs"] = x["runs"]
+        return self.finish_not_claimed(entry, x)
+
+    def finish_not_claimed(self, entry, x):
+        """`why` and `statement` of a `not_claimed` entry: the wording its verdict decided, without term marks, on one
+        line (claimset §3.1.1, as amended on 2026-11-20)."""
+        entry["why"] = x.get("why") or ""
+        said = " ".join(re.sub(r"\[\[[^\]:]+:([^\]]*)\]\]", r"\1", str(x.get("_statement") or "")).split())
+        what = "estimate" if "outcome" not in entry else "verdict"
+        if said:
+            entry["statement"] = said
+            if len(said) > 200:
+                self.todo("paper.exploration.not_claimed", f"shorten the statement of {x['lab_event']}'s {what} "
+                                                           f"under {x['lab_plan']} to one line of at most 200 "
+                                                           f"characters: what it decided, in a few words")
+        if not entry["why"]:
+            self.todo("paper.exploration.not_claimed", f"say why {x['lab_event']}'s {what} under "
+                                                       f"{x['lab_plan']} gives no claim")
+        return entry
 
     def anchor_before(self, pv, first_run):
         """The service of the earliest anchor that covers plan version `pv` and was made before the first deciding
@@ -796,6 +896,10 @@ class _Exporter:
                 continue
             decided.append((root, d))
         for root, (pv, runs) in sorted(decided, key=lambda x: st.pos[x[1][1][0]["id"]]):
+            if root in self.voids:                 # a void plan gives no estimate (§9, *Void plans*)
+                q = pv["body"].get("question")
+                self.not_claimed.append(self.void_entry(root, pv, runs, q, self.body(q).get("text")))
+                continue
             cid = f"C{len(self.claims) + 1}"
             self.mapping[cid] = pv["id"]
             estimands = json.loads(json.dumps(pv["body"].get("estimands") or {}))
@@ -848,6 +952,7 @@ class _Exporter:
                 dv = deviations.get((root, r["id"]))
                 if dv is not None:
                     self.add_deviation_limitation(claim, r, pv, dv)
+            self.add_void_limitations(claim, root)
             self.todo(f"claims.{cid}.statement",
                       f"{cid} reports the planned estimate of {pv['id']}: rewrite its statement as a sentence a "
                       f"reader understands alone, with each value, its uncertainty and the scope the plan fixed; it "
@@ -1606,8 +1711,13 @@ def _by_event(exploration, doc):
     `statement`, which completing it shortens (claimset §3.1.1, as amended on 2026-11-20)."""
     if not isinstance(exploration, dict) or not isinstance(exploration.get("not_claimed"), list):
         return exploration
-    events = {c.get("id"): (c.get("hypothesis") or {}).get("lab_event") for c in doc.get("claims") or []
-              if isinstance(c, dict)}
+
+    def field(c, block, name):
+        return c[block].get(name) if isinstance(c.get(block), dict) else None
+    # a claim named by what the record gives it from: its hypothesis and plan, or the plan of its estimate
+    events = {c.get("id"): [field(c, "hypothesis", "lab_event"),
+                            field(c, "test", "lab_plan") or field(c, "estimate", "lab_plan")]
+              for c in doc.get("claims") or [] if isinstance(c, dict)}
 
     def entry(x):
         if not isinstance(x, dict):

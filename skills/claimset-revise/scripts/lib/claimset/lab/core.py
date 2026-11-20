@@ -201,6 +201,10 @@ class LabError(Exception):
 ASK_APPROVAL = ("This test needs your approval of its plan before I run it. I will describe the plan: the test, the "
                 "data and the rule that decides the outcome. Do you approve it? Please answer in your own words; I "
                 "record them as you give them.")
+ASK_VOID = ("A defect in the code made this plan's runs meaningless, and the new plan repeats it on the same data, with "
+            "the same analysis and rule. I will show you the defect and both plans. Do you agree that the first plan "
+            "is void, and its repeat gives the result? Please answer in your own words; I record them as you give "
+            "them.")
 ASK_L6 = ("The result that suggested this hypothesis cannot also be the evidence that confirms it. Shall I plan a new "
           "test on new data, or report the finding as exploration?")
 
@@ -1438,6 +1442,167 @@ def check_decision(state, body, by, eid):
         raise LabError("L7", "decision: the decision and its reason are required in 'text'")
     _refs(state, body.get("prompted_by"), "decision", "prompted_by")
     _refs(state, body.get("affects"), "decision", "affects")
+    if body.get("void") is not None:
+        check_void(state, body, by)
+
+
+def void_decisions(state, skip=None):
+    """{void plan root: the decision that makes it void} (§5.7.4, *Void plans*): the latest version of each decision
+    chain, not withheld, whose `void` names a plan. `skip`: an event whose chain is left out (the one a correction
+    replaces)."""
+    out = {}
+    for e in state.events:
+        if not isinstance(e, dict) or e.get("type") != "decision" or e.get("id") in state.superseded_by \
+                or is_withheld(e) or not isinstance(e.get("body"), dict):
+            continue
+        if skip is not None and state.root(e["id"]) == state.root(skip):
+            continue
+        v = e["body"].get("void")
+        if isinstance(v, dict) and isinstance(v.get("plan"), str) and state.get(v["plan"]) is not None:
+            out.setdefault(state.root(v["plan"]), e)
+    return out
+
+
+def final_repeat(state, plan_id, voids=None):
+    """The plan whose claims stand for `plan_id`: the plan itself if it is not void, else its repeat, followed through
+    repeats that are void themselves (§9, *Void plans*). None if the chain is broken."""
+    voids = void_decisions(state) if voids is None else voids
+    cur, seen = state.root(plan_id), set()
+    while cur in voids:
+        if cur in seen:
+            return None
+        seen.add(cur)
+        nxt = voids[cur]["body"]["void"].get("repeated_by")
+        if not isinstance(nxt, str) or state.get(nxt) is None:
+            return None
+        cur = state.root(nxt)
+    return cur
+
+
+#: The parts of a plan its repeat keeps (L37): what is tested, on what, by which analysis and rule. Only the design,
+#: setup, choices and the code may differ. A plan's extension block holds part of its rule (the qualitative
+#: extension's counts), so it is compared too.
+REPEAT_FIELDS = ("analysis", "decision", "runs", "data", "holdout", "exclusions", "diagnostics", "ext")
+
+
+def repeat_differences(state, original, repeat):
+    """The fields in which a plan version `repeat` does not repeat `original` (L37): [field]."""
+    a, b = original["body"], repeat["body"]
+
+    def roots(ids):
+        return sorted({state.root(x) for x in ids if isinstance(x, str)}) if isinstance(ids, list) else ids
+
+    def norm(field, body):
+        v = body.get(field)
+        if field == "runs":
+            return 1 if v is None else v
+        if field == "decision" and isinstance(v, dict) and isinstance(v.get("rules"), dict):
+            v = dict(v, rules={state.root(k) if isinstance(k, str) else k: r for k, r in v["rules"].items()})
+        if v in (None, [], {}):
+            return None
+        return canonical(v)
+
+    out = []
+    if b.get("kind") != a.get("kind"):
+        out.append("kind")
+    if roots(a.get("hypotheses") or []) != roots(b.get("hypotheses") or []):
+        out.append("hypotheses")
+    if a.get("kind") == "estimation":
+        q = [state.root(x) if isinstance(x, str) and state.get(x) is not None else x
+             for x in (a.get("question"), b.get("question"))]
+        if q[0] != q[1]:
+            out.append("question")
+        if norm("estimands", a) != norm("estimands", b):
+            out.append("estimands")
+    out += [f for f in REPEAT_FIELDS if norm(f, a) != norm(f, b)]
+    return out
+
+
+def check_void(state, body, by):
+    """Rule L37: a decision that makes a decided plan void, repeated by a later plan that asks the same question of
+    the same data in the same way, for defects recorded before the repeat was planned, on a person's word
+    (§5.7.4, *Void plans*; §5.11)."""
+    v = body["void"]
+    if not isinstance(v, dict) or set(v) - {"plan", "repeated_by", "defects"} \
+            or not isinstance(v.get("plan"), str) or not isinstance(v.get("repeated_by"), str):
+        raise LabError("L37", "decision: void is {plan, repeated_by, defects}: the void plan, the plan that repeats "
+                              "it, and the deviations that record its defects")
+    _ref(state, v["plan"], "decision", "void.plan", {"plan"})
+    _ref(state, v["repeated_by"], "decision", "void.repeated_by", {"plan"})
+    p, r = state.root(v["plan"]), state.root(v["repeated_by"])
+    if p == r:
+        raise LabError("L37", f"decision: {p} cannot repeat itself; a void plan is repeated by a new plan, written "
+                              f"after its runs (the record keeps one attempt per plan)")
+    readable = {}
+    hidden = any(isinstance(e, dict) and is_withheld(e) and e.get("type") in ("plan", "run") for e in state.events)
+    for root in (p, r):
+        decided = state.deciding_runs(root)
+        if decided is not None:
+            readable[root] = decided
+            continue
+        if hidden:                              # a withheld plan or run: whether it is decided cannot be checked (§8)
+            continue
+        pv = state.plan_rule_version(root)
+        kind = pv["body"].get("kind") if pv is not None else None
+        if kind not in PLANNED_KINDS:
+            raise LabError("L37", f"decision: {state.label(root)} is a plan of kind {kind}; only a confirmatory or "
+                                  f"estimation plan, decided by its runs, is made void or repeats one")
+        raise LabError("L37", f"decision: {state.label(root)} is not decided; a plan is made void, and repeated, "
+                              f"once its deciding runs have been made")
+    if p in readable and r in readable:
+        pv, runs = readable[p]
+        rv, _ = readable[r]
+        if pv["body"].get("kind") != rv["body"].get("kind"):
+            raise LabError("L37", f"decision: {state.label(r)} is a plan of kind {rv['body'].get('kind')} and "
+                                  f"{state.label(p)} of kind {pv['body'].get('kind')}; a repeat is of the same kind")
+        if state.pos.get(r, -1) <= state.pos[runs[0]["id"]]:
+            raise LabError("L37", f"decision: {state.label(r)} was written before {runs[0]['id']}, the first deciding "
+                                  f"run of {state.label(p)}; a repeat is planned after the void runs, when their defect "
+                                  f"is known")
+        diffs = repeat_differences(state, pv, rv)
+        if diffs:
+            raise LabError("L37", f"decision: {state.label(r)} does not repeat {state.label(pv['id'])}: its "
+                                  f"{', '.join(diffs)} differ{'s' if len(diffs) == 1 else ''}. A repeat asks the same "
+                                  f"question of the same data in the same way: only the design, setup, choices and the "
+                                  f"code may differ. A different test is a new plan, and the void plan's verdict stays "
+                                  f"a claim")
+    voids = void_decisions(state, skip=state.checking.get("supersedes"))
+    if p in voids:
+        raise LabError("L37", f"decision: {state.label(p)} is already void, by {voids[p]['id']}")
+    if p in _repeat_chain(state, r, voids):
+        raise LabError("L37", f"decision: {state.label(r)} is void, and its repeats lead back to {state.label(p)}")
+    defects = v.get("defects")
+    if not isinstance(defects, list) or not defects:
+        raise LabError("L37", f"decision: name the defects (--defect DV…): the deviations, recorded for "
+                              f"{state.label(p)} and its deciding runs before its repeat was planned, that say what "
+                              f"went wrong (claimset lab deviate --plan {state.label(p)} --run RN… …)")
+    _refs(state, defects, "decision", "void.defects", {"deviation"})
+    for d in defects:
+        dv = state.get(d)
+        if is_withheld(dv):
+            continue
+        b = dv["body"]
+        if not isinstance(b.get("plan"), str) or state.get(b["plan"]) is None or state.root(b["plan"]) != p:
+            raise LabError("L37", f"decision: {d} is a deviation of {b.get('plan')}, not of {state.label(p)}")
+        if p in readable and b.get("run") not in {x["id"] for x in readable[p][1]}:
+            raise LabError("L37", f"decision: {d} names {b.get('run')}, which is not a deciding run of "
+                                  f"{state.label(p)} ({', '.join(x['id'] for x in readable[p][1])})")
+        if state.pos[d] >= state.pos.get(r, len(state.events)):
+            raise LabError("L37", f"decision: {d} was written after {state.label(r)}; the defects are recorded before "
+                                  f"the repeat is planned")
+    _persons_word(state, body, by, "L37", "decision", "void decisions", ask=ASK_VOID)
+
+
+def _repeat_chain(state, root, voids):
+    """The plans a void plan's repeats pass through, from `root` on."""
+    out, cur = [], state.root(root)
+    while cur in voids and cur not in out:
+        out.append(cur)
+        nxt = voids[cur]["body"]["void"].get("repeated_by")
+        if not isinstance(nxt, str) or state.get(nxt) is None:
+            break
+        cur = state.root(nxt)
+    return out + [cur]
 
 
 def check_check(state, body, by, eid):
@@ -1817,27 +1982,33 @@ def first_run_notice(state, run):
 def check_approval(state, body, by, eid):
     """Rule L22: an approval is written by a human, or by an agent on a human's behalf with the human's words."""
     _ref(state, _req(body, "target", "approval"), "approval", "target")
+    _persons_word(state, body, by, "L22", "approval", "approvals", ask=ASK_APPROVAL)
+
+
+def _persons_word(state, body, by, rule, what, plural, ask=None):
+    """A person's word (L22 for an approval, L37 for a void decision): written by a human actor as themselves, or by
+    an agent with `on_behalf_of` naming a human actor and the person's non-empty `words`."""
     actor = state.latest(by)
     kind = None if actor is None or is_withheld(actor) else actor["body"].get("kind")
     behalf = body.get("on_behalf_of")
     if kind == "human":
         if behalf is not None:
-            raise LabError("L22", "approval: a human approving writes as themselves; on_behalf_of is for an agent "
-                                  "recording a human's approval")
+            raise LabError(rule, f"{what}: a human writes {plural} as themselves; on_behalf_of is for an agent "
+                                 f"recording a human's word")
         return
     if kind != "agent":
-        raise LabError("L22", "approval: approvals are written by a human, or by an agent on a human's behalf")
+        raise LabError(rule, f"{what}: {plural} are written by a human, or by an agent on a human's behalf")
     if behalf is None:
-        raise LabError("L22", "approval: an agent never approves on its own judgement; record the supervisor's "
-                              "approval with --on-behalf-of (their actor ID) and --words (their reply, verbatim)",
-                       ask=ASK_APPROVAL)
-    _ref(state, behalf, "approval", "on_behalf_of", {"actor"})
+        raise LabError(rule, f"{what}: {plural} are a person's; an agent never writes them on its own judgement. "
+                             f"Record the supervisor's word with --on-behalf-of (their actor ID) and --words (their "
+                             f"reply, verbatim)", ask=ask)
+    _ref(state, behalf, what, "on_behalf_of", {"actor"})
     h = state.latest(behalf)
     if not is_withheld(h) and h["body"].get("kind") != "human":
-        raise LabError("L22", f"approval: {behalf} is not a human actor; approvals are given by people")
+        raise LabError(rule, f"{what}: {behalf} is not a human actor; {plural} are given by people")
     if not isinstance(body.get("words"), str) or not body["words"].strip():
-        raise LabError("L22", "approval: give the human's words, as they gave them (--words)", ask=ASK_APPROVAL)
-    _check_given(body, "approval")
+        raise LabError(rule, f"{what}: give the human's words, as they gave them (--words)", ask=ask)
+    _check_given(body, what)
 
 
 def plan_approved(state, plan_version_id):

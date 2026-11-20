@@ -512,7 +512,8 @@ def render(doc):
         nc = p["exploration"].get("not_claimed")
         nc = [x for x in nc if isinstance(x, dict)] if isinstance(nc, list) else []
         if nc:      # one line each (spec §2.3, as amended on 2026-11-20)
-            out.append(f"not claimed ({len(nc)} formal verdicts that give no claim):")
+            what = "planned tests" if any(x.get("because") == "defective" for x in nc) else "formal verdicts"
+            out.append(f"not claimed ({len(nc)} {what} that give no claim):")   # a void plan's too (2026-11-20)
             out += [f"  - {not_claimed_line(x)}" for x in nc]
 
     claims = [c for c in doc.get("claims") or [] if isinstance(c, dict)]
