@@ -328,6 +328,10 @@ def _table(eid, t):
     if isinstance(units, list):
         cols = [f"{c} ({u})" if u else c for c, u in zip(cols, units)]
     lines.append("  | " + " | ".join(["row"] + list(t.get("row_labels") or []) + cols) + " |")
+    if t.get("rows_file") and not t.get("rows"):
+        n = t.get("n_rows")
+        lines.append(f"  ({n} rows, held in the file of artefact {t['rows_file']})" if n is not None
+                     else f"  (rows held in the file of artefact {t['rows_file']})")
     for r in t.get("rows") or []:
         if isinstance(r, dict):
             cells = ([f"{r.get('id', '')}{_stat_note(r)}"] + [_s(x) for x in r.get("label") or []]
@@ -413,9 +417,23 @@ def _counted(name, counts):
     return head + (": " + ", ".join(parts) if parts else "")
 
 
-def exploration_words(e):
+def not_claimed_line(x):
+    """One formal verdict that gives no claim, in one line (spec §3.1.1): what it decided (its `statement`, when the
+    file gives one), its verdict, why it gives no claim and the claim it went into; its lab IDs last."""
+    verdict = str(x.get("outcome") or "").replace("_", " ")
+    tail = (f"{verdict}; " if verdict else "") + f"{x.get('because')}" + (
+        f" into {x['into']}" if x.get("into") else "") + (
+        f"; runs {', '.join(str(v) for v in x['runs'])}" if isinstance(x.get("runs"), list) and x["runs"] else "")
+    ids = f"{x.get('lab_event')} under {x.get('lab_plan')}"
+    if isinstance(x.get("statement"), str) and x["statement"].strip():
+        return f"{x['statement'].strip()} ({tail}; lab {ids})"
+    return f"{ids} ({tail})"
+
+
+def exploration_words(e, listed=False):
     """The reading view's exploration line, in words (spec §2.3): questions, hypotheses, tests and runs counted,
-    the lab record, and what the paper covers of its lab."""
+    the lab record, and what the paper covers of its lab. `listed`: leave out the verdicts that give no claim, which
+    the reading view lists one per line after it."""
     out = []
     q = e.get("questions")
     if isinstance(q, int) and not isinstance(q, bool):
@@ -436,10 +454,8 @@ def exploration_words(e):
                    + (f"; other papers from the lab: {others}" if others else ""))
     nc = [x for x in e.get("not_claimed") or [] if isinstance(x, dict)] if isinstance(e.get("not_claimed"), list) \
         else []
-    if nc:      # the formal verdicts that give no claim (spec §3.1.1, as amended on 2026-11-17)
-        out.append("not claimed: " + ", ".join(
-            f"{x.get('lab_event')} under {x.get('lab_plan')} ({str(x.get('outcome', '')).replace('_', ' ')}; "
-            f"{x.get('because')}" + (f", into {x['into']}" if x.get("into") else "") + ")" for x in nc))
+    if nc and not listed:      # the formal verdicts that give no claim (spec §3.1.1, as amended on 2026-11-17)
+        out.append("not claimed: " + ", ".join(not_claimed_line(x) for x in nc))
     return "; ".join(out)
 
 
@@ -492,7 +508,13 @@ def render(doc):
     if isinstance(doc.get("extensions"), dict) and doc["extensions"]:
         out.append("extensions " + ", ".join(f"{k} {v}" for k, v in doc["extensions"].items()) + _ext(p))
     if isinstance(p.get("exploration"), dict):
-        out.append("exploration " + exploration_words(p["exploration"]))
+        out.append("exploration " + exploration_words(p["exploration"], listed=True))
+        nc = p["exploration"].get("not_claimed")
+        nc = [x for x in nc if isinstance(x, dict)] if isinstance(nc, list) else []
+        if nc:      # one line each (spec §2.3, as amended on 2026-11-20)
+            what = "planned tests" if any(x.get("because") == "defective" for x in nc) else "formal verdicts"
+            out.append(f"not claimed ({len(nc)} {what} that give no claim):")   # a void plan's too (2026-11-20)
+            out += [f"  - {not_claimed_line(x)}" for x in nc]
 
     claims = [c for c in doc.get("claims") or [] if isinstance(c, dict)]
     defs = {d.get("id"): d for d in doc.get("definitions") or [] if isinstance(d, dict)}

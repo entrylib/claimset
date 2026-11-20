@@ -79,6 +79,8 @@ def _load(path):
         doc = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError, zipfile.BadZipFile) as exc:
         raise ScoreError(f"cannot read {p}: {exc}") from None
+    from .validate import load_table_files
+    doc, _ = load_table_files(doc, p.resolve().parent)   # tables held in a file are scored with their rows (§3.4)
     return validate(doc), doc
 
 

@@ -214,10 +214,16 @@ class TestFormalExport(ExportCase):
     def test_the_reading_view_names_them(self):
         d = copy.deepcopy(self.out["draft"])
         cid = self.claim(self.out, self.final)["id"]
-        line = next(x for x in render_lines(d) if x.startswith("exploration "))
-        self.assertIn(f"not claimed: {self.h} under {self.pl1} (supported; reworded, into {cid}), "
-                      f"{self.merged} under {self.pl1} (inconclusive; revised, into {cid}), "
-                      f"{self.dropped} under {self.pl1} (inconclusive; abandoned)", line)
+        lines = render_lines(d)
+        self.assertNotIn("not claimed", next(x for x in lines if x.startswith("exploration ")))
+        start = lines.index("not claimed (3 formal verdicts that give no claim):")
+        listed = lines[start + 1:start + 4]                  # one line each, its wording first (amended 2026-11-20)
+        nc = d["paper"]["exploration"]["not_claimed"]
+        self.assertTrue(all(isinstance(x.get("statement"), str) and x["statement"] for x in nc))
+        self.assertEqual(listed, [
+            f"  - {nc[0]['statement']} (supported; reworded into {cid}; lab {self.h} under {self.pl1})",
+            f"  - {nc[1]['statement']} (inconclusive; revised into {cid}; lab {self.merged} under {self.pl1})",
+            f"  - {nc[2]['statement']} (inconclusive; abandoned; lab {self.dropped} under {self.pl1})"])
 
     def test_renumbered_claims_still_match_the_record(self):
         doc = copy.deepcopy(self.out["draft"])
@@ -230,6 +236,14 @@ class TestFormalExport(ExportCase):
                 x["into"] = "C99"
         self.assertFalse([m for m in export_check(self.lab, doc) if "exploration" in m])
         doc["paper"]["exploration"]["not_claimed"].pop()
+        self.assertTrue([m for m in export_check(self.lab, doc) if "exploration" in m])
+
+    def test_a_shortened_statement_still_matches_the_record(self):
+        doc = copy.deepcopy(self.out["draft"])
+        for x in doc["paper"]["exploration"]["not_claimed"]:
+            x["statement"] = "In a few words"                  # completing the claimset shortens it (2026-11-20)
+        self.assertFalse([m for m in export_check(self.lab, doc) if "exploration" in m])
+        doc["paper"]["exploration"]["not_claimed"][0]["outcome"] = "not_supported"
         self.assertTrue([m for m in export_check(self.lab, doc) if "exploration" in m])
 
     def test_other_frameworks_keep_one_claim_per_test(self):
@@ -280,6 +294,28 @@ class TestRule99(unittest.TestCase):
                        "into": "C999", "why": "x"},
                       {"lab_event": "", "lab_plan": "PL1", "outcome": "supported", "because": "revised", "why": ""}):
             self.assertTrue(self.errors(entry), entry)
+
+    def test_a_void_plan_is_listed_with_its_runs(self):
+        """A plan a defect made void (v0.44 as amended on 2026-11-20): `because: defective`, the claim of the plan
+        that repeated it, its runs; an estimation plan's has no verdict."""
+        self.assertEqual(self.errors({"lab_event": "Q2", "lab_plan": "PL2", "because": "defective", "into": "<claim>",
+                                      "runs": ["RN3", "RN4"], "why": "The scripts skipped every coding."}), [])
+        self.assertEqual(self.errors({"lab_event": "H3", "lab_plan": "PL2", "outcome": "not_supported",
+                                      "because": "defective", "into": "<claim>", "why": "Wrong data read."}), [])
+        for entry in ({"lab_event": "Q2", "lab_plan": "PL2", "because": "defective", "why": "No repeat named."},
+                      {"lab_event": "Q2", "lab_plan": "PL2", "because": "defective", "into": "<claim>",
+                       "runs": "RN3", "why": "x"},
+                      {"lab_event": "Q2", "lab_plan": "PL2", "because": "defective", "into": "<claim>",
+                       "runs": [""], "why": "x"},
+                      {"lab_event": "H1", "lab_plan": "PL1", "because": "reworded", "into": "<claim>", "why": "x"}):
+            self.assertTrue(self.errors(entry), entry)          # the last: only a void plan may give no verdict
+
+    def test_the_reading_view_gives_a_void_plans_runs(self):
+        from claimset.render import not_claimed_line
+        self.assertEqual(not_claimed_line({"lab_event": "Q2", "lab_plan": "PL2", "because": "defective",
+                                           "into": "C3", "runs": ["RN3", "RN4"], "why": "x",
+                                           "statement": "Coders agree on the codes"}),
+                         "Coders agree on the codes (defective into C3; runs RN3, RN4; lab Q2 under PL2)")
 
 
 if __name__ == "__main__":

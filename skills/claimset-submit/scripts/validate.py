@@ -428,12 +428,13 @@ def process_warnings(r, doc, claims, coll, by_id, converted):
                                                            "commit hash")
 
 
-def validate(doc, published=False, local_root=None, revision=False, file_name=None):
+def validate(doc, published=False, local_root=None, revision=False, file_name=None, files_root=None):
     """Check a claimset (see _validate). A value of a type the specification does not allow (a list where one ID
     belongs, an object where text does) is reported, under the rule of its field where a rule checks the type and
     otherwise under rule 86; it never stops the validator."""
     try:
-        return _validate(doc, published=published, local_root=local_root, revision=revision, file_name=file_name)
+        return _validate(doc, published=published, local_root=local_root, revision=revision, file_name=file_name,
+                         files_root=files_root)
     except (TypeError, AttributeError, KeyError, ValueError) as exc:
         import traceback
         frame = traceback.extract_tb(exc.__traceback__)[-1]
@@ -446,10 +447,12 @@ def validate(doc, published=False, local_root=None, revision=False, file_name=No
         return r
 
 
-def _validate(doc, published=False, local_root=None, revision=False, file_name=None):
+def _validate(doc, published=False, local_root=None, revision=False, file_name=None, files_root=None):
     """Check a claimset. `local_root`: the repository's claimset/ folder, when the file lies in one, so that
     local references to other papers can be resolved (rule 57); `file_name`: the file's name there (warning 31). `revision`: the file is a revision submission,
-    which names the claimset it revises in paper.id (rule 25; revision spec §5.1)."""
+    which names the claimset it revises in paper.id (rule 25; revision spec §5.1). `files_root`: the folder against
+    which the artefacts' relative URIs resolve (a package's data/, or the claimset file's folder), so that tables
+    held in a file are read (§3.4, rule 106)."""
     r = Report()
     if not isinstance(doc, dict):
         r.err("2", "$", "top level must be a JSON object")
@@ -481,6 +484,10 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
                   f"to the current one (`claimset migrate`), read the current specification (`claimset spec`) "
                   f"and update the skills (`claimset skill install`)" if isinstance(got, str) and got else ""))
 
+    doc, problems = load_table_files(doc, files_root)
+    for where, msg in problems:
+        r.err("106", where, msg)
+    check_table_files(r, doc)
     for key in ("paper", "contributors", "models", "claims"):
         if key not in doc:
             r.err("19", key, "missing required top-level section")
@@ -1120,22 +1127,37 @@ def _validate(doc, published=False, local_root=None, revision=False, file_name=N
             for i, x in enumerate(nc):
                 w = f"paper.exploration.not_claimed[{i}]"
                 if not isinstance(x, dict):
-                    r.err("99", w, "must be an object {lab_event, lab_plan, outcome, because, into, why}")
+                    r.err("99", w, "must be an object {lab_event, lab_plan, outcome, because, into, runs, why, "
+                                   "statement}")
                     continue
                 for k in ("lab_event", "lab_plan", "why"):
                     if not (isinstance(x.get(k), str) and x[k].strip()):
                         r.err("99", f"{w}.{k}", "must be a non-empty string")
-                if x.get("outcome") not in tkeys:
-                    r.err("99", f"{w}.outcome", "must be supported, not_supported or inconclusive")
                 because = x.get("because")
-                if because not in ("reworded", "revised", "abandoned"):
-                    r.err("99", f"{w}.because", "must be reworded, revised or abandoned")
+                if x.get("outcome") not in tkeys and not (because == "defective" and "outcome" not in x):
+                    r.err("99", f"{w}.outcome", "must be supported, not_supported or inconclusive (absent only for "
+                                                "a void plan, because: defective)")
+                if because not in ("reworded", "revised", "abandoned", "defective"):
+                    r.err("99", f"{w}.because", "must be reworded, revised, abandoned or defective")
                 if "into" in x and not (isinstance(x["into"], str) and _h(x["into"]) in claims):
                     r.err("99", f"{w}.into", "must be the ID of a claim of this file")
                 if because == "reworded" and "into" not in x:
                     r.err("99", f"{w}.into", "a reworded verdict names the claim that states the final wording")
+                if because == "defective" and "into" not in x:
+                    r.err("99", f"{w}.into", "a void plan names the claim of the plan that repeated it")
+                if "runs" in x and not (isinstance(x["runs"], list)
+                                        and all(isinstance(v, str) and v.strip() for v in x["runs"])):
+                    r.err("99", f"{w}.runs", "a list of the plan's deciding runs, each a lab run ID (non-empty string)")
                 if because == "abandoned" and "into" in x:
                     r.err("99", f"{w}.into", "an abandoned hypothesis went into no claim")
+                st = x.get("statement")
+                if "statement" in x and not (isinstance(st, str) and st.strip() and "\n" not in st
+                                             and len(st) <= 200 and "[[" not in st):
+                    r.err("99", f"{w}.statement", "what the verdict decided, in a few words: non-empty text on one "
+                                                  "line, at most 200 characters, with no term marks")
+                elif "statement" not in x:
+                    r.warn("W59", w, "no statement: say in a few words what this verdict decided (at most 200 "
+                                     "characters), so that a reader sees more than a lab ID (§3.1.1)")
 
     # ---------- Studies and papers in a repository (rules 55-57) ----------
     if paper.get("study") is not None and not (isinstance(paper["study"], str) and NAME_RE.match(paper["study"])):
@@ -1827,12 +1849,17 @@ def check_estimate_bindings(r, claims, evidence_by_id):
                                                f"variable {q['variable']!r} with the conditions "
                                                f"{json.dumps(as_dict(q.get('conditions')), ensure_ascii=False)}, "
                                                f"which no result or table cell has")
-                bad = [h["where"] for h in hits
-                       if not rule_number(read_field(h["observation"], q.get("field") or "value"))]
+                bad = [h["where"] for h in hits if not h.get("unread")
+                       and not rule_number(read_field(h["observation"], q.get("field") or "value"))]
                 if bad:
                     r.err("96", f"{w}.{name}", f"a table estimand binds {', '.join(bad[:5])}"
                                                f"{' and others' if len(bad) > 5 else ''}, which have no number at "
                                                f"{q.get('field') or 'value'}")
+                continue
+            if any(h.get("in_file") for h in hits):
+                r.err("96", f"{w}.{name}", f"binds {_matches([h for h in hits if h.get('in_file')])}, a cell of a "
+                                           f"table held in a file (§3.4): an estimand that is not a table estimand "
+                                           f"binds an inline cell or a result entry")
                 continue
             if len(hits) > 1:
                 r.err("96", f"{w}.{name}", f"binds {_matches(hits)}, not exactly one: give the conditions that "
@@ -2183,6 +2210,101 @@ def check_result(r, rw, rs, ref):
             r.err("66", f"{rw}.read_from", "give the precision of the reading")
 
 
+#: The field of a table held in a file (§3.4) that marks its rows as read from the file, never written to a file.
+FILE_ROWS = "\x00rows from file"
+
+
+def _csv_field(x):
+    """A field of a table held in a file (§3.4): empty is null, true and false booleans, a number a number, else text."""
+    if x == "":
+        return None
+    if x in ("true", "false"):
+        return x == "true"
+    if re.fullmatch(r"[+-]?\d+", x):
+        return int(x)
+    if re.fullmatch(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?", x):
+        return float(x)
+    return x
+
+
+def load_table_files(doc, root):
+    """(doc, problems): a copy of `doc` in which each table held in a file (§3.4) whose CSV is under `root` has its
+    rows, marked FILE_ROWS, and the problems found reading the files, [(where, message)] (rule 106). `doc` itself is
+    returned when no table is held in a file or `root` is None."""
+    import copy
+    import csv
+    if root is None or not isinstance(doc, dict):
+        return doc, []
+    held = [(e, t) for e in as_list(doc.get("evidence")) if isinstance(e, dict)
+            for t in as_list(e.get("tables")) if isinstance(t, dict) and isinstance(t.get("rows_file"), str)]
+    if not held:
+        return doc, []
+    doc = copy.deepcopy(doc)
+    arts = {a.get("id"): a for a in as_list(doc.get("artefacts")) if isinstance(a, dict) and isinstance(a.get("id"), str)}
+    problems = []
+    for e in as_list(doc.get("evidence")):
+        for t in as_list(as_dict(e).get("tables")):
+            if not isinstance(t, dict) or not isinstance(t.get("rows_file"), str) or "rows" in t:
+                continue
+            uri = as_dict(arts.get(t["rows_file"])).get("uri")
+            if not is_relative_uri(uri):
+                continue                                         # check_table_files says so
+            path = Path(root) / uri
+            if not path.is_file():
+                continue                                         # rule 70 for a package; not at hand otherwise
+            where = f"evidence:{e.get('id')}.tables:{t.get('id')}"
+            try:
+                with open(path, newline="", encoding="utf-8") as fh:
+                    lines = list(csv.reader(fh))
+            except (OSError, UnicodeDecodeError, csv.Error) as exc:
+                problems.append((where, f"{uri} cannot be read as CSV ({exc})"))
+                continue
+            labels, cols = as_list(t.get("row_labels")), as_list(t.get("columns"))
+            width = len(labels) + len(cols)
+            body = lines[1:] if lines else []
+            bad = [k + 2 for k, line in enumerate(body) if len(line) != width]
+            if not lines:
+                problems.append((where, f"{uri} is empty: it has a header line, then one line per row"))
+                continue
+            if len(lines[0]) != width or bad:
+                problems.append((where, f"{uri} has lines whose number of fields is not {width} (one per row label "
+                                        f"and per column): " + ", ".join(
+                                            f"line {n}" for n in ([1] if len(lines[0]) != width else []) + bad[:5])))
+                continue
+            t["rows"] = [{"id": f"r{k + 1}", "label": [_csv_field(x) for x in line[:len(labels)]],
+                          "values": [_csv_field(x) for x in line[len(labels):]]} for k, line in enumerate(body)]
+            t[FILE_ROWS] = True
+    return doc, problems
+
+
+def check_table_files(r, doc):
+    """Rule 106: a table held in a file names a data artefact whose URI is a relative CSV path, and its row count."""
+    arts = {a.get("id"): a for a in as_list(doc.get("artefacts")) if isinstance(a, dict) and isinstance(a.get("id"), str)}
+    for e in as_list(doc.get("evidence")):
+        for t in as_list(as_dict(e).get("tables")):
+            if not isinstance(t, dict):
+                continue
+            tw = f"evidence:{as_dict(e).get('id')}.tables:{t.get('id')}"
+            if "rows_file" not in t:
+                if "n_rows" in t:
+                    r.err("106", f"{tw}.n_rows", "only with rows_file: the number of rows a table held in a file has")
+                continue
+            if "rows" in t and not t.get(FILE_ROWS):
+                r.err("106", tw, "rows or rows_file, not both: a table holds its rows itself or in a file")
+            a = arts.get(t["rows_file"]) if isinstance(t.get("rows_file"), str) else None
+            if a is None:
+                r.err("106", f"{tw}.rows_file", "the ID of the data artefact whose CSV file holds the table's rows")
+            elif a.get("kind") != "data" or not is_relative_uri(a.get("uri")) \
+                    or not str(a.get("uri")).lower().endswith(".csv"):
+                r.err("106", f"{tw}.rows_file", f"{t['rows_file']} must be an artefact of kind data whose uri is a "
+                                                 f"CSV file of the package (a relative path ending in .csv)")
+            n = t.get("n_rows")
+            if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+                r.err("106", f"{tw}.n_rows", "a positive integer: the number of rows the file holds")
+            elif t.get(FILE_ROWS) and len(as_list(t.get("rows"))) != n:
+                r.err("106", f"{tw}.n_rows", f"{n}, but the file holds {len(as_list(t.get('rows')))} rows")
+
+
 def check_tables(r, w, e, ref):
     """Rule 48: tables, compact forms of observations (spec §3.4)."""
     tables = e.get("tables")
@@ -2239,7 +2361,9 @@ def check_tables(r, w, e, ref):
             if not isinstance(u, list) or len(u) != len(cols) or not all(x is None or isinstance(x, str) for x in u):
                 r.err("48", f"{tw}.units", "must have one unit (or null) per column")
         rows = t.get("rows")
-        if not isinstance(rows, list) or not rows:
+        if "rows_file" in t and "rows" not in t:
+            rows = []                                            # held in a file, not at hand: rule 106
+        elif not isinstance(rows, list) or not rows:
             r.err("48", f"{tw}.rows", "must be a non-empty list")
             rows = []
         seen_rows, any_value = set(), False
@@ -2586,6 +2710,16 @@ def bindable(e):
         t = as_dict(t)
         labels = [x for x in as_list(t.get("row_labels")) if isinstance(x, str)]
         cols = as_list(t.get("columns"))
+        in_file = "rows_file" in t
+        if in_file and "rows" not in t:                          # held in a file not at hand: only its columns
+            for c in cols:
+                cond = dict(as_dict(t.get("conditions")))
+                if isinstance(c, dict):
+                    cond.update(as_dict(c.get("conditions")))
+                out.append({"where": f"{e.get('id')}.{t.get('id')}", "variable": c if isinstance(c, str)
+                            else as_dict(c).get("variable"), "conditions": cond, "statistic": as_dict(c).get("statistic"),
+                            "observation": {}, "in_file": True, "unread": True, "free": set(labels)})
+            continue
         for row in as_list(t.get("rows")):
             row = as_dict(row)
             base = dict(as_dict(t.get("conditions")))
@@ -2599,7 +2733,7 @@ def bindable(e):
                     cond.update(as_dict(c.get("conditions")))
                 st = row.get("statistic") if row.get("statistic") is not None else as_dict(c).get("statistic")
                 out.append({"where": f"{e.get('id')}.{t.get('id')}.{row.get('id')}", "variable": var,
-                            "conditions": cond, "statistic": st, "observation": {"value": v}})
+                            "conditions": cond, "statistic": st, "observation": {"value": v}, "in_file": in_file})
     return out
 
 
@@ -2610,7 +2744,8 @@ def bind_quantity(q, observations, lab_runs=()):
     want = as_dict(q.get("conditions"))
     stat = _statistic_key(q.get("statistic")) if q.get("statistic") is not None else None
     hits = [o for o in observations if o["variable"] == q.get("variable")
-            and all(k in o["conditions"] and _same(o["conditions"][k], v) for k, v in want.items())
+            and all((k in o["conditions"] and _same(o["conditions"][k], v)) or k in o.get("free", ())
+                    for k, v in want.items())
             and (stat is None or _statistic_key(o["statistic"]) == stat)]
     run = q.get("run")
     if isinstance(run, int) and not isinstance(run, bool) and 1 <= run <= len(lab_runs) and len(hits) > 1:
@@ -2653,6 +2788,13 @@ def check_test_bindings(r, claims, evidence_by_id, strict):
             hits = []
             for e in evs:
                 hits += bind_quantity(q, bindable(e), [x for x in as_list(e.get("lab_runs")) if isinstance(x, str)])
+            if any(h.get("in_file") for h in hits):
+                report("91", "W41", f"{w}.{name}", f"binds {_matches([h for h in hits if h.get('in_file')])}, a cell "
+                                                   f"of a table held in a file (§3.4): a test's quantity binds an "
+                                                   f"inline cell or a result entry, so the value a verdict turns on "
+                                                   f"stays in the claimset")
+                unbound = True
+                continue
             field = q.get("field") or "value"
             if len(hits) > 1:
                 unbound = True
@@ -3192,8 +3334,11 @@ def check_number_format(r, claims):
 
 
 def check_summary(r, paper):
-    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 250 words."""
+    """Rule 94: `paper.summary`, when present, is a string with text. Warning 45: more than 250 words. Warning 60
+    (v0.44 as amended on 2026-11-20): no summary."""
     if "summary" not in paper:
+        r.warn("W60", "paper.summary", "no summary: give the paper in a few sentences of plain language, at most "
+                                       f"{MAX_SUMMARY_WORDS} words, for a reader outside its field (§3.1)")
         return
     text = paper["summary"]
     if not isinstance(text, str) or not text.strip():
@@ -3212,9 +3357,11 @@ def check_reading(r, claims, definitions, by_id):
     string with text; warning 52: more than 50 words. Rule 103: a definition's `symbol` is one inline formula;
     warning 53: two definitions give the same symbol. Rule 104: `results` in a relation, only within the paper,
     resolve in evidence the claim's own support points to."""
-    named = {}
+    named, unnamed = {}, []
     for cid, c in claims.items():
         w = f"claims:{cid}"
+        if "name" not in c and not all(as_dict(s).get("kind") == "assumption" for s in as_list(c.get("support")) or [{}]):
+            unnamed.append(cid)
         if "name" in c:
             name = c["name"]
             if not isinstance(name, str) or not name.strip():
@@ -3265,6 +3412,10 @@ def check_reading(r, claims, definitions, by_id):
                            if not m or eid == m.group(1)):
                     r.err("104", rw, f"'{x}' does not resolve to a result, table, table row or bulk data rows of "
                                      f"evidence this claim's support points to")
+    if unnamed:         # warning 61 (v0.44 as amended on 2026-11-20)
+        r.warn("W61", "claims", f"{', '.join(str(x) for x in unnamed)} {'has' if len(unnamed) == 1 else 'have'} no name: give each "
+                                f"claim a name, what its statement says in a few words, as the heading of a result "
+                                f"does (§3.3); readers find their way by them")
     seen = {}
     for d in definitions:
         d = as_dict(d)
@@ -3605,6 +3756,9 @@ def validate_package(path):
             if isinstance(start, int) and isinstance(end, int) and text[start:end] != v.get("text"):
                 r.err("78", f"evidence:{as_dict(e).get('id')}.results:{as_dict(rs).get('id')}.value",
                       f"the excerpt is not the characters {start} to {end} of {loc['artefact']}'s file")
+    doc, problems = load_table_files(doc, root / "data")   # tables held in a file, read before the bag is gone
+    for where, msg in problems:
+        r.err("106", where, msg)
     if tmp is not None:
         tmp.cleanup()
     return r, doc
@@ -3633,6 +3787,9 @@ def result_ref_resolves(ref_id, evidence_id, e, by_id=None):
     table = next((t for t in as_list(e.get("tables")) if isinstance(t, dict) and t.get("id") == m.group(2)), None)
     if table is None:
         return False
+    if m.group(3) is not None and "rows_file" in table and "rows" not in table:   # held in a file, not at hand
+        n = table.get("n_rows")
+        return isinstance(n, int) and 1 <= int(m.group(3)[1:]) <= n
     return m.group(3) is None or m.group(3) in {_h(as_dict(x).get("id")) for x in as_list(table.get("rows"))}
 
 
@@ -4195,7 +4352,7 @@ def validate_path(path, published=False, revision=False):
         print(f"ERROR: cannot read {path}: {exc}", file=sys.stderr)
         return None
     return validate(doc, published=published, local_root=claimset_folder(path), revision=revision,
-                    file_name=Path(path).name)
+                    file_name=Path(path).name, files_root=Path(path).resolve().parent)
 
 
 #: The warnings to address before a claimset is handed over, or to explain (the submit skill, *Hand over*): a number no
