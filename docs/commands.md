@@ -37,7 +37,7 @@ claimset validate paper.zip                    # validate a package: files, chec
 
 The report lists errors (the file is rejected), warnings (accepted and recorded) and the verifiability the platform will compute for each claim. A file is checked by the rules of the specification version it declares, from the baseline (v0.39) on.
 
-`claimset migrate` brings a file to the current specification. It makes the changes that need no judgement, then validates the file under the version it declared and the migrated file under the current one, and reports the difference: **must change** (errors the current version raises that the file did not have), **should change** (new warnings), **to decide** (what no rule checks, such as assumptions a claim no longer inherits), and what the file **already** had under its own version. It exits with 1 while the migrated file has errors; `--json` gives the report to an agent.
+`claimset migrate` brings a file to the current specification. It makes the changes that need no judgement, then validates the file under the version it declared and the migrated file under the current one, and reports the difference: **must change** (errors the current version raises that the file did not have), **should change** (new warnings), **to decide** (what no rule checks, such as assumptions a claim no longer inherits), and what the file **already** had under its own version. It exits with 1 while the migrated file has errors; `--json` gives the report to an agent. A published file is refused, as published versions never change; a correction or revision submission, which names the claimset in `paper.id` without the fields the platform assigns, is migrated like any other file.
 
 ## Submitting to EntryLib
 

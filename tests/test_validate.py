@@ -1794,6 +1794,25 @@ class TestMigrate(Base):
                 self.assertEqual(cli.main(["migrate", fh.name]), 1)
         Path(fh.name).unlink()
 
+    def test_cli_migrates_a_correction(self):
+        """A correction names the published claimset in paper.id without the platform's fields: it is migrated
+        (issue #145)."""
+        import tempfile
+        from claimset.validate import PLATFORM_PAPER_FIELDS, SCHEMA_VERSION
+        d = load("published-native.json")
+        for f in PLATFORM_PAPER_FIELDS:
+            d["paper"].pop(f, None)
+        d["paper"]["correction_reason"] = "Corrects a value read from the wrong table row."
+        d["schema_version"] = "0.42"
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = Path(tmp) / "correction.json", Path(tmp) / "migrated.json"
+            src.write_text(json.dumps(d), encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                cli.main(["migrate", str(src), "-o", str(out)])
+            migrated = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(migrated["schema_version"], SCHEMA_VERSION)
+        self.assertEqual(migrated["paper"]["id"], d["paper"]["id"])
+
 
 class TestRulesV031(Base):
     """Rule 65: a group's members are other definitions of its kind; no group contains itself."""
