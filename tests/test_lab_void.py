@@ -141,6 +141,65 @@ class TestRule37(VoidCase):
         self.assertIn("L37", {e["rule"] for e in rep["errors"]}, rep["errors"])
 
 
+class TestReworded(VoidCase):
+    """A repeat that says the same steps in other words (amended on 2026-11-20): the study's PL3 reworded PL2's
+    analysis when it was drafted, and the void was refused; the plan could not be edited after its runs."""
+
+    def reworded(self, **extra):
+        pl = self.plan(**dict({"design": "Every monthly series; the script fixed.",
+                               "analysis": "The relative reduction, averaged over the series."}, **extra))
+        self.run_(0.1, "monthly", plan=pl)
+        return pl
+
+    def test_refused_without_the_persons_word_on_both_texts(self):
+        pl = self.reworded()
+        e = self.refused("a reworded analysis, unconfirmed", repeated_by=pl)
+        for part in ("Mean relative reduction.", "The relative reduction, averaged over the series.",
+                     "--analysis-reworded", "Never edit a plan after its runs"):
+            self.assertIn(part, e.message)
+        self.assertIn("describe the same steps", e.ask)
+
+    def test_accepted_when_confirmed(self):
+        pl = self.reworded()
+        void = {"plan": self.pl1, "repeated_by": pl, "defects": [self.dv1], "analysis_reworded": True}
+        self.add("decision", {"text": WHY, "affects": [self.pl1, pl], "void": void}, by=self.human)
+        rep = verify(self.lab)
+        self.assertTrue(rep["ok"], rep["errors"])
+
+    def test_only_when_the_texts_differ_and_nothing_else_does(self):
+        e = self.refused_void(self.pl2, analysis_reworded=True)
+        self.assertIn("word for word", e.message)
+        pl = self.reworded(decision=rule("weekly"))
+        e = self.refused_void(pl, analysis_reworded=True)
+        self.assertIn("decision", e.message)
+        self.assertNotIn("analysis differ", e.message)
+        e = self.refused_void(self.reworded(), analysis_reworded=False)
+        self.assertIn("analysis_reworded: true", e.message)
+
+    def refused_void(self, repeated_by, **void):
+        body = {"text": WHY, "void": dict({"plan": self.pl1, "repeated_by": repeated_by, "defects": [self.dv1]},
+                                          **void)}
+        with self.assertRaises(LabError) as cm:
+            self.lab.append("decision", body, by=self.human)
+        self.assertEqual(cm.exception.rule, "L37", cm.exception.message)
+        return cm.exception
+
+    def test_export_quotes_both_texts(self):
+        pl = self.reworded()
+        rn = self.lab.state().plan_runs[pl][0]["id"]
+        self.status(self.h, "supported", rn, plan=pl, why="Its rule on its run.")
+        void = {"plan": self.pl1, "repeated_by": pl, "defects": [self.dv1], "analysis_reworded": True}
+        self.add("decision", {"text": WHY, "affects": [self.pl1, pl], "void": void}, by=self.human)
+        out = export(self.lab)
+        entry = out["draft"]["paper"]["exploration"]["not_claimed"][0]
+        self.assertEqual(entry["because"], "defective")
+        self.assertIn(f'{self.pl1} planned "Mean relative reduction."', entry["why"])
+        self.assertIn(f'{pl} planned "The relative reduction, averaged over the series."', entry["why"])
+        lim = next(x for x in out["draft"]["limitations"] if self.pl1 in x["statement"])
+        self.assertIn("analysis, reworded", lim["statement"])
+        self.assertFalse([e for e in validate(out["draft"]).errors if e["rule"] in ("11", "99")])
+
+
 class TestVoidExport(VoidCase):
     def setUp(self):
         super().setUp()
@@ -273,6 +332,44 @@ class TestVoidCli(VoidCase):
         self.assertEqual((body["affects"], body["void"], body["on_behalf_of"]),
                          ([self.pl1, self.pl2], {"plan": self.pl1, "repeated_by": self.pl2, "defects": [self.dv1]},
                           self.human))
+
+    def test_analysis_reworded_on_the_command_line(self):
+        pl = self.plan(design="Every monthly series; the script fixed.", analysis="The mean of the reductions.")
+        self.run_(0.1, "monthly", plan=pl)
+        base = ("lab", "void", self.pl1, "--repeated-by", pl, "--why", WHY, "--defect", self.dv1,
+                "--lab", str(self.dir), "--by", self.agent, "--on-behalf-of", self.human, "--words",
+                "Both say the same steps; PL1 is void.")
+        code, _, err = self.run_cli(*base)
+        self.assertEqual(code, 1)
+        self.assertIn("--analysis-reworded", err)
+        code, out, err = self.run_cli(*base, "--analysis-reworded")
+        self.assertEqual(code, 0, err)
+        self.assertIs(self.lab.state().get(out)["body"]["void"]["analysis_reworded"], True)
+
+    def test_plan_repeat_of_copies_what_rule_37_compares(self):
+        code, out, err = self.run_cli("lab", "plan", "--repeat-of", self.pl1, "--design", "The script fixed.",
+                                      "--lab", str(self.dir), "--by", self.agent)
+        self.assertEqual(code, 0, err)
+        st = self.lab.state()
+        new, old = st.get(out)["body"], st.get(self.pl1)["body"]
+        for f in ("kind", "hypotheses", "analysis", "decision"):
+            self.assertEqual(new.get(f), old.get(f), f)
+        self.assertEqual(new["design"], "The script fixed.")
+        self.run_(0.1, "monthly", plan=out)
+        self.add("decision", {"text": WHY, "affects": [self.pl1, out],
+                              "void": {"plan": self.pl1, "repeated_by": out, "defects": [self.dv1]}}, by=self.human)
+        self.assertTrue(verify(self.lab)["ok"])
+
+    def test_plan_repeat_of_refuses_what_it_copies_and_an_undecided_plan(self):
+        code, _, err = self.run_cli("lab", "plan", "--repeat-of", self.pl1, "--design", "d", "--analysis", "a",
+                                    "--lab", str(self.dir), "--by", self.agent)
+        self.assertEqual(code, 1)
+        self.assertIn("leave out --analysis", err)
+        open_plan = self.plan(design="Not run yet.", analysis="Mean relative reduction.")
+        code, _, err = self.run_cli("lab", "plan", "--repeat-of", open_plan, "--design", "d",
+                                    "--lab", str(self.dir), "--by", self.agent)
+        self.assertEqual(code, 1)
+        self.assertIn("not decided", err)
 
 
 if __name__ == "__main__":

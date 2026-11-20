@@ -637,6 +637,14 @@ class _Exporter:
                 self.todo("paper.exploration.not_claimed", f"the defect {d} of void plan {root} is withheld; say in "
                                                            f"the entry of {lab_event} under {pv['id']} what it was")
             texts.append(self.body(d).get("text"))
+        void = dc["body"]["void"]
+        if void.get("analysis_reworded") is True:      # both texts, for the reader to compare (§9, *Void plans*)
+            repeat = self.st.root(void["repeated_by"]) if isinstance(void.get("repeated_by"), str) else None
+            rv = self.st.plan_rule_version(repeat) if repeat else None
+            texts.append(f"The repeat words the analysis differently, as the person who confirmed the void read: "
+                         f"{self.st.label(pv['id'])} planned \"{pv['body'].get('analysis')}\"; "
+                         f"{self.st.label(rv['id']) if rv else repeat} planned "
+                         f"\"{rv['body'].get('analysis') if rv else '(withheld)'}\".")
         entry = {"lab_event": lab_event, "lab_plan": pv["id"]}
         if outcome is not None:
             entry["outcome"] = outcome
@@ -668,7 +676,9 @@ class _Exporter:
             lim = {"id": lid, "category": "deviation",
                    "statement": f"Lab plan {st.label(void)} was made void ({dc['id']}): a defect made its runs "
                                 f"({runs}) meaningless. {defects} This claim is from plan {st.label(root)}, which "
-                                f"repeats it{through} with the same analysis and decision rule on the same data. "
+                                f"repeats it{through} with the same "
+                                f"{'analysis, reworded (both texts are in the exploration summary), ' if v.get('analysis_reworded') else 'analysis '}"
+                                f"and decision rule on the same data. "
                                 f"{st.label(root)} was planned after the void runs and before its own, so what the "
                                 f"void runs showed could have shaped it.",
                    "affects": [claim["id"]], "impact": "could_bias_magnitude", "mitigation": "partial"}

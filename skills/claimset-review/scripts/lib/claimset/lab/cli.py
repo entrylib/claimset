@@ -486,9 +486,11 @@ def cmd_decide(args):
 
 def cmd_void(args):
     """A decided plan made void, repeated by a later plan (lab record §5.7.4, *Void plans*; §5.11; rule L37)."""
+    void = {"plan": args.plan, "repeated_by": args.repeated_by, "defects": list(args.defect)}
+    if args.analysis_reworded:
+        void["analysis_reworded"] = True
     return _write(args, "decision", {"text": args.why, "affects": [args.plan, args.repeated_by],
-                                     "void": {"plan": args.plan, "repeated_by": args.repeated_by,
-                                              "defects": list(args.defect)},
+                                     "void": void,
                                      "on_behalf_of": args.on_behalf_of, "words": args.words,
                                      "given_at": args.given_at, "channel": args.channel})
 
@@ -611,8 +613,46 @@ def _choices(given):
     return out
 
 
+#: What `plan --repeat-of` copies from the plan it repeats: what rule L37 compares (lab record §5.7.4, *Void plans*).
+REPEAT_COPIED = ("kind", "hypotheses", "question", "estimands", "analysis", "decision", "runs", "data", "holdout",
+                 "exclusions", "diagnostics", "criterion", "ext")
+
+
+def _repeat_of(args):
+    """The fields a repeat copies from the decided plan it repeats (`plan --repeat-of`), refusing options that would
+    set them anew."""
+    given = [o for o, v in (("--kind", args.kind), ("--hypotheses", args.hypotheses), ("--question", args.question),
+                            ("--estimand", args.estimand), ("--analysis", args.analysis),
+                            ("--decision", args.decision), ("--framework", args.framework),
+                            ("--parameter", args.parameter), ("--quantity", args.quantity),
+                            ("--supported", args.supported), ("--not-supported", args.not_supported),
+                            ("--runs", args.runs), ("--data", args.data), ("--holdout", args.holdout),
+                            ("--exclusion", args.exclusion), ("--diagnostic", args.diagnostic),
+                            ("--criterion", args.criterion), ("--comment", args.comment)) if v]
+    if given:
+        raise LabError("schema", f"plan --repeat-of copies what a repeat keeps from {args.repeat_of}; leave out "
+                                 f"{', '.join(given)}. Give the design (and setup, choices) anew")
+    st = _view(args)
+    if st.get(args.repeat_of) is None or st.get(args.repeat_of).get("type") != "plan":
+        raise LabError("L12", f"plan --repeat-of: no plan '{args.repeat_of}'")
+    decided = st.deciding_runs(args.repeat_of)
+    if decided is None:
+        raise LabError("L37", f"plan --repeat-of: {st.label(args.repeat_of)} is not decided; a repeat is planned "
+                              f"after the runs whose defect it repeats")
+    pv = decided[0]
+    return {f: pv["body"].get(f) for f in REPEAT_COPIED if pv["body"].get(f) not in (None, [], {})}
+
+
 def cmd_plan(args):
     from .run import code_version
+
+    copied = _repeat_of(args) if args.repeat_of else None
+    if copied is not None:
+        args.kind = copied["kind"]
+    if not args.kind:
+        raise LabError("schema", "plan: --kind is required (confirmatory, estimation or exploratory)")
+    if copied is None and not args.analysis:
+        raise LabError("schema", "plan: --analysis is required (except with --repeat-of)")
 
     data = [{"description": d, "hash": file_hash(d)} if Path(d).is_file() else {"description": d}
             for d in args.data]
@@ -665,6 +705,9 @@ def cmd_plan(args):
             "decision": decision, "requires_approval": True if args.requires_approval else None,
             "runs": args.runs, "criterion": args.criterion, "data": data, "holdout": holdout,
             "code_version": commit, "dirty": dirty if commit is not None else None}
+    if copied is not None:                          # the repeat keeps what L37 compares, word for word
+        body.update({f: None for f in REPEAT_COPIED})
+        body.update(copied)
     body = _record_forms(args, "plan", body)
     warnings = plan_warnings(_view(args), body)
     for name, q in estimands.items():               # what an estimand will bind (§5.7.8, as amended 2026-11-16)
@@ -1509,6 +1552,9 @@ def add_parser(subparsers):
     p.add_argument("--defect", nargs="+", default=[], metavar="DV",
                    help="the deviations recording what went wrong in its deciding runs, written before the repeat")
     p.add_argument("--why", required=True, help="what the defect was and why the runs mean nothing")
+    p.add_argument("--analysis-reworded", dest="analysis_reworded", action="store_true",
+                   help="the repeat's analysis says the same steps in other words, as the person has read and "
+                        "confirms; the paper quotes both texts")
     p.add_argument("--on-behalf-of", dest="on_behalf_of", metavar="AC",
                    help="the person whose decision an agent records (the agent writes with --by)")
     p.add_argument("--words", help="the person's reply, verbatim (required with --on-behalf-of)")
@@ -1547,7 +1593,11 @@ def add_parser(subparsers):
     p.add_argument("--hash")
 
     p = cmd("plan", cmd_plan, "record a plan before running it")
-    p.add_argument("--kind", required=True, choices=["confirmatory", "estimation", "exploratory"],
+    p.add_argument("--repeat-of", dest="repeat_of", metavar="PLAN",
+                   help="repeat a decided plan whose runs a defect made meaningless: copies its kind, hypotheses or "
+                        "question and estimands, analysis, decision rule, runs, data, holdout, exclusions and "
+                        "diagnostics; give --design (and setup, choices) anew; then claimset lab void")
+    p.add_argument("--kind", choices=["confirmatory", "estimation", "exploratory"],
                    help="confirmatory: tests hypotheses by a decision rule; estimation: fixes values to estimate, "
                         "with no rule; exploratory: anything else")
     p.add_argument("--hypotheses", nargs="+", default=[], metavar="ID",
@@ -1565,7 +1615,7 @@ def add_parser(subparsers):
                         "test, coverage); a run without it flags the test diagnostic_missing; repeat")
     p.add_argument("--design", help="what will be run, on what, with which settings (required, except with "
                                      "--comment: the test's procedure)")
-    p.add_argument("--analysis", required=True, help="what will be computed from the outputs")
+    p.add_argument("--analysis", help="what will be computed from the outputs (required, except with --repeat-of)")
     p.add_argument("--requires-approval", dest="requires_approval", action="store_true",
                    help="no confirmatory run until the supervisor's approval of this plan is recorded")
     for role, what in (("studied", "what the test studies or compares: methods, interventions, a phenomenon"),
