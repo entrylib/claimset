@@ -374,6 +374,13 @@ def build_parser():
     sc.add_argument("--json", action="store_true", help="the scores as JSON")
     sc.set_defaults(func=_cmd_score)
 
+    ln = sub.add_parser("lean", help="before submitting: candidates for text a reader does not need (repeats, "
+                                     "duplicate relations, unused definitions and references, additions to a "
+                                     "published version), and the brief for a reviewing agent; edits nothing")
+    from . import lean as _lean
+    _lean.add_arguments(ln)
+    ln.set_defaults(func=lambda a: _lean.run(a))
+
     sb = sub.add_parser("submit", help="submit a package or claimset file to the platform (EntryLib); prints the "
                                        "consent link for the guarantor and keeps it in .claimset/submissions/")
     sb.add_argument("source", help="a submission package (zip or folder, from `claimset package`), a claimset JSON "

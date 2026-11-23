@@ -43,6 +43,21 @@ The report lists errors (the file is rejected), warnings (accepted and recorded)
 
 Claimsets are published on [EntryLib](https://entrylib.org).
 
+### A leaner claimset before submitting
+
+```
+claimset lean paper.claimset.json                          # candidates for text a reader does not need
+claimset lean paper.claimset.json --since published.json   # a new version: also what it adds to published objects
+claimset lean paper.claimset.json --prompt                 # the brief for the agent that reviews them
+```
+
+`claimset lean` lists where a claimset may say more than a reader needs: sentences that nearly repeat one in another
+object, a claim relating twice to the same work or to a reference it already cites as support, definitions and
+references nothing names, and, with `--since`, what a new version adds to the objects its published version already
+had. It edits nothing and decides nothing. `--prompt` prints the brief for a different agent than the one that wrote
+the claimset: it reads the reading view and flags each sentence, relation, definition or limitation a reader would not
+miss, with a proposed action; the guarantor decides what goes (the submission skill, step 11a).
+
 ### Scoring before submitting (optional)
 
 ```

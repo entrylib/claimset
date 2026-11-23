@@ -81,6 +81,9 @@ Fix every error. Read every warning: a rebuttal that no planned test backs, a de
 
 ### 6. Hand over
 
+Before handing over, have a different agent review the revised claimset for text a reader does not need, with
+`--since` the published version (`claimset-submit`, step 11a): a revision is where unrequested additions come in.
+
 Tell the human, comment by comment: what you answered, on what evidence, and what changed; which comments you declined and why; which tests went against the claimset. Give them the three files: the revised claimset, the response and the lab record. The guarantor submits them; the platform publishes the revision as the next version, and its reviewer re-reviews and re-scores it.
 
 ## Reviews and resolutions you receive
