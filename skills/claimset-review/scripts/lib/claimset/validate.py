@@ -3257,6 +3257,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
     check_inline_formulae(r, coll)
     check_formula_delimiters(r, paper, coll)
+    check_math_outside_formulae(r, paper, coll)
 
     # ----- numbers written as recorded (warning 50; §8 rule 10) -----
     check_number_format(r, claims)
@@ -3367,6 +3368,79 @@ def check_formula_delimiters(r, paper, coll):
             if why:
                 r.warn("W63", where, f"{why}: every $ opens or closes a formula, $…$ or $$…$$, and a dollar sign in "
                                      "prose is written \\$ (§8 rule 6)")
+
+
+#: Mathematics written as text (warning 64): a LaTeX command; a subscript or superscript on a symbol (`s_1`, `c_{j}`,
+#: `x^2`); a Unicode mathematical sign; a Greek letter standing alone (`α = 0.6`; not a word of Greek, nor μ before a unit
+#: such as μm, nor Ω); a comparison written `>=`, `<=` or `!=`.
+MATH_AS_TEXT = re.compile(
+    r"\\[A-Za-z]+|\\[{}_^,;!|]"
+    r"|[A-Za-z0-9)\]}]\^"
+    r"|(?<![A-Za-z0-9_])[A-Za-z0-9]_(?:\{|[A-Za-z0-9](?![A-Za-z0-9_]))"
+    r"|[\u2200-\u22ff\u2032\u2033\u00b2\u00b3\u00b9\u2070-\u209f\u00b1\u00d7\u0302\u0303\u0304\u0305\u0307]"
+    r"|(?<![\u0370-\u03ff\u1f00-\u1fff])(?:[\u0391-\u03a8\u03b1-\u03bb\u03bd-\u03c9\u03d1\u03d5\u03f5]"
+    r"|\u03bc(?![A-Za-z]))(?![\u0370-\u03ff\u1f00-\u1fff])"
+    r"|[<>!]=")
+#: Taken out before warning 64 looks: code, URLs, formulas, escaped dollar signs and the plain text of term markers.
+NOT_PROSE = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+|\$\$.+?\$\$|\$[^$]+?\$|\\\$|\[\[D\d+:[^\]]*\]\]", re.S)
+
+
+def math_as_text(text):
+    """The first piece of mathematics a text writes outside a formula, with a little of its context, or None
+    (warning 64)."""
+    t = NOT_PROSE.sub(" ", text)
+    m = MATH_AS_TEXT.search(t)
+    if not m:
+        return None
+    return " ".join(t[max(0, m.start() - 20):m.end() + 20].split())
+
+
+def math_texts(paper, coll):
+    """(where, text) for each text warning 64 reads: those of warning 63, and the claims' summaries, slots, scopes and
+    check notes, the cells of definitions' tables and the corrections to the published paper."""
+    yield from formula_texts(coll)
+    paper = as_dict(paper)
+    yield "paper.summary", paper.get("summary")
+    for c in coll.get("claims") or []:
+        c = as_dict(c)
+        w = f"claims:{c.get('id')}"
+        yield f"{w}.name", c.get("name")
+        yield f"{w}.summary", c.get("summary")
+        for f in ("about", "scope"):
+            yield from strings_in(c.get(f), f"{w}.{f}")
+        for i, ch in enumerate(as_list(c.get("checks"))):
+            yield f"{w}.checks[{i}].notes", as_dict(ch).get("notes")
+    for d in coll.get("definitions") or []:
+        d = as_dict(d)
+        for i, t in enumerate(as_list(d.get("tables"))):
+            yield from strings_in(as_dict(t).get("rows"), f"definitions:{d.get('id')}.tables[{i}].rows")
+    published = as_dict(paper.get("published_as"))
+    for i, k in enumerate(as_list(published.get("corrections"))):
+        for f in ("printed", "recorded", "reason"):
+            yield f"paper.published_as.corrections[{i}].{f}", as_dict(k).get(f)
+
+
+def strings_in(x, where):
+    """Every string in a value, with where it is."""
+    if isinstance(x, str):
+        yield where, x
+    elif isinstance(x, dict):
+        for k, v in x.items():
+            yield from strings_in(v, f"{where}.{k}")
+    elif isinstance(x, list):
+        for i, v in enumerate(x):
+            yield from strings_in(v, f"{where}[{i}]")
+
+
+def check_math_outside_formulae(r, paper, coll):
+    """Warning 64 (§8 rule 6): mathematics is written in LaTeX between dollar signs. Written as text (`σ_1²`, `a1>=1`,
+    `h \\to \\infty`), it is shown raw by every reader that sets mathematics, and silently."""
+    for where, text in math_texts(paper, coll):
+        if isinstance(text, str):
+            found = math_as_text(text)
+            if found:
+                r.warn("W64", where, f"mathematics outside a formula ('{found}'): write it in LaTeX inside $…$ or "
+                                     "$$…$$ (§8 rule 6)")
 
 
 def check_inline_formulae(r, coll):

@@ -46,6 +46,8 @@ Amended on 2026-11-21 (§3.1, §9, §10 rule 107, warning 62): a correction or r
 
 Amended on 2026-11-23 (§8 rule 6, warning 63): a formula's dollar signs pair up. A published claimset's statements held `$$$…$$$`, three dollar signs where a displayed formula opens and closes, left by the script that set its long formulas on lines of their own; its page and its LaTeX draft printed the formula as text, and nothing had warned. Every `$` of a text opens or closes a formula, `$…$` or `$$…$$`; a dollar sign in prose is written `\$`. New warning 63. A warning only: every file valid before stays valid.
 
+Amended on 2026-11-23 (§8 rule 6, warning 64): mathematics written outside a formula is warned. A guarantor reading a published claimset of a forecasting paper found the formulas of its corrections to the published paper shown as raw text (`σ_{i,j} = σ_1²(…)`): they had been written in Unicode, and its proof-check notes in ASCII (`a1>=1`, `lam^2`), with no `$…$`. A page or a reading program sets as mathematics only what stands between dollar signs, and nothing had warned. New warning 64; §3.4 says that a proof step's mathematics, too, stands between dollar signs (it said only "LaTeX", and some steps were written as bare LaTeX). A warning only: every file valid before stays valid.
+
 Amended on 2026-11-17 (§3.13, §10.4 warning 54): a paper that cites no work is warned. A simulation study published with relations to the claims of the review it tested, and no references, cited none of the works those claims rest on, though its findings concern them directly; nothing told its authors. New warning 54. A warning only: every file valid before stays valid.
 
 Amended on 2026-11-18 (§2.3, §3.1, §3.2, §10 rule 105, warnings 57 and 58): a paper may be read in sections, and its definitions come in the order a reader needs them. Readers of a paper of seventeen claims asked for the claims to be grouped as a paper's sections group its results (those that hold for positive values, those for counts), and found that the paper opened with a term derived from its subject, not with the subject itself.
@@ -1372,7 +1374,7 @@ Field detail (instrument settings, acquisition parameters, the lanes of a blot, 
 The formal claim's statement is the theorem; formal evidence does not restate it. Standard foundations are named in `foundation` and are not restated as claims. Paper-specific axioms and theorem conditions are assumption claims (§3.8).
 
 Each proof step: `{id, statement, by, rule}`
-- `statement`: LaTeX.
+- `statement`: the step, its mathematics in LaTeX between dollar signs as everywhere else (§8 rule 6): `$…$` in a sentence, `$$…$$` for an equation on its own line.
 - `by`: list of IDs the step rests on (earlier steps, claims, definitions, assumptions, cited results).
 - `rule`: the inference used, e.g. `assumption`, `definition`, `substitution`, `linearity of expectation`, `induction`.
 Steps may be coarse, but every step names what it rests on.
@@ -1973,6 +1975,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 61. Claims without `name` (§3.3), assumptions aside, listed in one warning: give each a name, what its statement says in a few words. (From v0.44 as amended on 2026-11-20.)
 62. A correction or revision without `paper.based_on` (§9): give the global ID of the version it was made from, which must be the current version, so that it does not undo the versions published after it. (From v0.44 as amended on 2026-11-21.)
 63. A text holds a `$` that opens or closes no formula (§8 rule 6): three or more in a row (`$$$`), or one left without its pair. A formula is `$…$` or `$$…$$`; a dollar sign in prose is written `\$`. (From v0.44 as amended on 2026-11-23.)
+64. A text holds mathematics outside a formula (§8 rule 6): a LaTeX command (`\alpha`, `\hat{c}`), a subscript or superscript (`s_1`, `c_{h-j}`, `x^2`), a Unicode mathematical sign (`Σ`, `≤`, `²`, a combining hat), a Greek letter standing alone as a symbol (`α = 0.6`), or a comparison written `>=`, `<=` or `!=`. Write it in LaTeX inside `$…$` or `$$…$$`. Checked in the texts of warning 63 and in a claim's `summary`, `about` and `scope`, the `notes` of its checks, the cells of a definition's `tables`, and the `printed`, `recorded` and `reason` of each correction to the published paper (`paper.published_as.corrections`). Code (`` `…` `` and fenced blocks), URLs and the text of term markers (`[[D2:…]]`, which is plain, §8 rule 5) are not checked. (From v0.44 as amended on 2026-11-23.)
 
 ## 11. Platform dependencies
 
