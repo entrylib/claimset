@@ -832,12 +832,14 @@ class TestReadingViewV018(Base):
         self.render = render
 
     def test_claims_grouped_by_role_principal_first(self):
-        d = load("submission-from-lab.json")
+        d = load("submission-from-lab.json")          # C1 and C3 are assumptions, listed before the claims
         text = self.render(d)
         pos = {cid: text.index(f"\n{cid} [") for cid in ("C1", "C2", "C3", "C4")}
-        self.assertLess(pos["C2"], pos["C1"])
+        self.assertLess(text.index("\nASSUMPTIONS\n"), pos["C1"])
         self.assertLess(pos["C1"], pos["C3"])
-        self.assertLess(pos["C3"], pos["C4"])
+        self.assertLess(pos["C3"], text.index("\nCLAIMS\n"))
+        self.assertLess(text.index("\nCLAIMS\n"), pos["C2"])
+        self.assertLess(pos["C2"], pos["C4"])
 
     def test_self_relation_shown_as_own_earlier_work(self):
         d = load("submission-native.json")

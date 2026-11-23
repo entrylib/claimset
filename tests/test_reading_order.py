@@ -47,8 +47,9 @@ class TestClaimsBySection(unittest.TestCase):
         part = claims_part(view)
         heads = [x for x in part.splitlines() if not x.startswith(" ")]
         self.assertEqual([h.split(" [")[0] for h in heads],
-                         ["== 1. What else was found", "C4", "== 2. The comparison", "C2",
-                          "== Claims in no section", "C1", "C3"])
+                         ["== 1. What else was found", "C4", "== 2. The comparison", "C2"])
+        self.assertNotIn("== Claims in no section", view)     # the assumptions C1 and C3 are listed apart
+        self.assertLess(view.index("\nASSUMPTIONS\nC1 ["), view.index("\nCLAIMS\n"))
         self.assertLess(view.index("\nDEFINITIONS\n"), view.index("\nCLAIMS\n"))
         self.assertLess(view.index("\nCLAIMS\n"), view.index("\nEVIDENCE\n"))
 
@@ -74,7 +75,7 @@ class TestClaimsBySection(unittest.TestCase):
         view = render(doc())
         self.assertNotIn("== ", view)
         self.assertEqual([x.split(" [")[0] for x in claims_part(view).splitlines() if not x.startswith(" ")],
-                         ["C2", "C1", "C3", "C4"])                # principal first, then by role in file order
+                         ["C2", "C4"])            # principal first, then by role; the assumptions are listed apart
 
     def test_odd_sections_do_not_break_the_view(self):
         d = doc([{"title": "First", "claims": ["C2", "C99", 7, ["C4"], "C2"]},
@@ -82,6 +83,24 @@ class TestClaimsBySection(unittest.TestCase):
         part = claims_part(render(d))
         self.assertEqual(part.count("\nC2 ["), 1)
         self.assertIn("== 2. Second\n== Claims in no section", part)
+
+
+class TestAssumptionsListedApart(unittest.TestCase):
+    def test_assumptions_come_after_the_definitions_one_line_each(self):
+        view = render(doc([{"title": "The comparison", "claims": ["C2", "C4"]}]))
+        part = view.split("\nASSUMPTIONS\n")[1].split("\n\n")[0].splitlines()
+        self.assertEqual([x.split(" [")[0] for x in part], ["C1", "C3"])
+        self.assertTrue(all(not x.startswith(" ") for x in part))
+        self.assertLess(view.index("\nDEFINITIONS\n"), view.index("\nASSUMPTIONS\n"))
+        self.assertLess(view.index("\nASSUMPTIONS\n"), view.index("\nCLAIMS\n"))
+        self.assertNotIn("\nC1 [", view.split("\nCLAIMS\n")[1])
+
+    def test_a_paper_without_assumptions_has_no_such_part(self):
+        d = doc()
+        d["claims"] = [c for c in d["claims"] if c["id"] in ("C2", "C4")]
+        for c in d["claims"]:
+            c.pop("assumptions", None)
+        self.assertNotIn("ASSUMPTIONS", render(d))
 
 
 class TestRule108DefinitionTables(unittest.TestCase):

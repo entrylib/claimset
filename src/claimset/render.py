@@ -258,6 +258,18 @@ def _scope(sc):
     return " | ".join(parts)
 
 
+def _is_assumption(c):
+    """An assumption claim: its sole support is of kind `assumption` (§3.8, rule 3)."""
+    return any(isinstance(s, dict) and s.get("kind") == "assumption" for s in c.get("support") or [])
+
+
+def _assumption(c):
+    """An assumption in the ASSUMPTIONS part: one line, its name, category and check, then its statement (§2.3)."""
+    name = f' "{" ".join(c["name"].split())}"' if isinstance(c.get("name"), str) and c["name"].strip() else ""
+    head = _join([c.get("assumption_category"), c.get("check", "unchecked")])
+    return [f"{c.get('id')}{name} [{head}] {' '.join(str(c.get('statement', '')).split())}{_ext(c)}"]
+
+
 def _claim(c, inherited=()):
     head = [c.get("type"), c.get("role")]
     if c.get("novelty") and c.get("novelty") != "no_prior_found":
@@ -555,11 +567,12 @@ def render(doc):
         mine = []
         for x in sec["claims"]:
             c = by_id.get(x) if isinstance(x, str) else None
-            if c is not None and id(c) not in placed:              # a claim is read once, in its first section
+            if c is not None and id(c) not in placed and not _is_assumption(c):   # read once, in its first section
                 placed.add(id(c))
                 mine.append(c)
         in_section.append((f"== {i}. {' '.join(sec['title'].split())}", mine))
-    rest = [c for c in claims if id(c) not in placed]
+    assumptions = [c for c in claims if _is_assumption(c)]   # listed before the claims (§2.3, as amended 2026-11-23)
+    rest = [c for c in claims if id(c) not in placed and not _is_assumption(c)]
     unevidenced = [c for c in rest if c.get("role") != "principal" and _without_evidence(c)]
     order = {"principal": 0, "supporting": 1, "secondary": 2}
     main = sorted((c for c in rest if not any(c is u for u in unevidenced)),
@@ -585,6 +598,7 @@ def render(doc):
         listed = main
     parts = [
         ("DEFINITIONS", doc.get("definitions"), marked(_definition)),
+        ("ASSUMPTIONS", assumptions, marked(_assumption)),
         ("CLAIMS", listed, lambda x: [x] if isinstance(x, str) else claim_lines(x)),
         ("CLAIMS WITHOUT EVIDENCE", unevidenced, claim_lines),
         ("EVIDENCE", doc.get("evidence"), marked(_evidence)),
