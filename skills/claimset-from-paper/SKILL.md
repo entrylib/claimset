@@ -53,6 +53,7 @@ Where the claimset departs from the published paper, say so: a misprint you find
 - **`paper.summary`** (spec §3.1): draft a few sentences of plain language, at most 250 words, from the principal claims, never from the abstract, and ask the author to approve or rewrite it. It is shown first on the paper's page.
 - **A claim's `name` and `summary`** (spec §3.3, optional): the name is what the claim is called, a few words that say what the statement says; where the paper names the result itself (a theorem's title, a heading), use that name. The summary is the claim in one or two sentences of plain language, at most 50 words, written from the statement. Ask the author to approve them with the claims.
 - **Symbols** (spec §3.2, optional): a term the paper writes a symbol for gives it in `symbol` (`"$\\sigma$"`), one symbol for one term, as the paper writes it.
+- **Writing the text**: formulas, code, terms, references to the file's items, citations and paragraphs as `claimset-submit`'s *Writing the text* says; the paper's own notation, in LaTeX between dollar signs, and its citations as citation markers to its references.
 - **Tables in definitions** (spec §3.2, optional): a term the paper specifies by a table (a taxonomy of models whose table gives, for each variant, the blocks of its matrices) gives that table in the definition's `tables`, `{description, columns, rows}`, with one string per cell (mathematics in `$…$`), not as a list of values in prose (rule 108).
 
 ## 4. Check with the author
