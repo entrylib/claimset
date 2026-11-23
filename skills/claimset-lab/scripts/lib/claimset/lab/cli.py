@@ -1399,7 +1399,8 @@ def add_parser(subparsers):
     p.add_argument("--kind", required=True, choices=sorted(_claimset.ENUM["definition_kind"]),
                    help="a kind of definition (claimset §3.2)")
     p.add_argument("--definition", required=True,
-                   help="what the term means here; for the study's own method, every defining equation")
+                   help="what the term means here; for the study's own method, every defining equation, "
+                        "with each symbol explained once, where it first appears in the study's terms")
     p.add_argument("--source", help="where a borrowed term is defined: a DOI, arXiv ID or citation")
     p.add_argument("--include", help="makes the term a code of the codebook (kind concept): what a passage must show "
                                      "to get it")
