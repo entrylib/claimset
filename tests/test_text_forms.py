@@ -50,5 +50,16 @@ class TestCitationMarkers(unittest.TestCase):
         self.assertFalse(any("2008" in x["message"] for x in validate(d).errors + validate(d).warnings))
 
 
+class TestFormulaInMarkers(unittest.TestCase):
+    def test_a_formula_in_a_marker_is_warned(self):
+        d = copy.deepcopy(EXAMPLE)
+        did = d["definitions"][0]["id"]
+        d["evidence"][0]["description"] = f"Written with the [[{did}:words]] $I_n$."
+        self.assertEqual(rules(d, "W67"), [])
+        d["evidence"][0]["description"] = f"Written with [[{did}:$I_n$]]."
+        self.assertEqual([w["where"] for w in rules(d, "W67")], [f"evidence:{d['evidence'][0]['id']}.description"])
+        self.assertEqual(validate(d).errors, [])
+
+
 if __name__ == "__main__":
     unittest.main()

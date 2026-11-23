@@ -3262,6 +3262,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     check_math_outside_formulae(r, paper, coll)
     check_code_as_text(r, paper, coll)
     check_citation_markers(r, paper, coll)
+    check_formula_in_markers(r, paper, coll)
 
     # ----- numbers written as recorded (warning 50; §8 rule 10) -----
     check_number_format(r, claims)
@@ -3500,6 +3501,21 @@ def check_citation_markers(r, paper, coll):
                 if m.group(1) not in refs:
                     r.warn("W66", where, f"the citation marker {m.group(0)} names no reference of the file: give the "
                                          "ID of a work in `references` (§8 rule 14)")
+
+
+#: A term or citation marker whose text holds a formula (warning 67): `[[D46:$I_n$]]`.
+FORMULA_IN_MARK = re.compile(r"\[\[[DB]\d+:[^\]]*\$[^\]]*\]\]")
+
+
+def check_formula_in_markers(r, paper, coll):
+    """Warning 67 (§8 rule 5): the text of a marker is plain. A formula in it, `[[D46:$I_n$]]`, is set by no reader
+    that sets the marker as a link; write the words, the formula after the marker: `the [[D46:identity matrix]] $I_n$`."""
+    for where, text in marker_texts(paper, coll):
+        if isinstance(text, str):
+            m = FORMULA_IN_MARK.search(text)
+            if m:
+                r.warn("W67", where, f"a marker holds a formula ({m.group(0)}): its text is plain words, the formula "
+                                     "after it, as `the [[D46:identity matrix]] $I_n$` (§8 rule 5)")
 
 
 def check_code_as_text(r, paper, coll):
