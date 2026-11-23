@@ -3256,6 +3256,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
 
     # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
     check_inline_formulae(r, coll)
+    check_formula_delimiters(r, paper, coll)
 
     # ----- numbers written as recorded (warning 50; §8 rule 10) -----
     check_number_format(r, claims)
@@ -3323,19 +3324,54 @@ def formula_symbols(tex):
     return len(re.sub(r"[{}^_\s\\]", "", tex))
 
 
+def formula_texts(coll):
+    """(where, text) for each text a formula may be written in: the prose fields, and the steps of proofs."""
+    for lst, fields in FORMULA_FIELDS.items():
+        for x in coll.get(lst) or []:
+            x = as_dict(x)
+            for f in fields:
+                yield f"{lst}:{x.get('id')}.{f}", x.get(f)
+            if lst == "evidence":
+                for i, st in enumerate(as_list(x.get("steps"))):
+                    yield f"evidence:{x.get('id')}.steps[{i}].statement", as_dict(st).get("statement")
+
+
+#: Code, where a dollar sign is the code's own (warning 63): a fenced block, or `inline`.
+CODE_SPANS = re.compile(r"```.*?```|`[^`\n]*`", re.S)
+
+
+def stray_dollar(text):
+    """Why a text's dollar signs do not pair into formulas, or None (warning 63): three or more in a row, or one left
+    once every `$$…$$` and `$…$` is taken out. A dollar sign in prose is written `\\$`; code keeps its own."""
+    t = CODE_SPANS.sub("", text).replace("\\$", "")
+    if re.search(r"\${3,}", t):
+        return "three or more dollar signs in a row"
+    t = re.sub(r"\$\$.+?\$\$", "", t, flags=re.S)
+    t = re.sub(r"\$[^$]+?\$", "", t, flags=re.S)
+    return "a dollar sign without its pair" if "$" in t else None
+
+
+def check_formula_delimiters(r, paper, coll):
+    """Warning 63 (§8 rule 6): every `$` opens or closes a formula. `$$$x$$$` or an unpaired `$` is set as text by
+    every reader that sets mathematics, and silently."""
+    texts = list(formula_texts(coll))
+    texts.append(("paper.summary", as_dict(paper).get("summary")))
+    for c in coll.get("claims") or []:
+        texts.append((f"claims:{as_dict(c).get('id')}.name", as_dict(c).get("name")))
+    for d in coll.get("definitions") or []:
+        texts.append((f"definitions:{as_dict(d).get('id')}.symbol", as_dict(d).get("symbol")))
+    for where, text in texts:
+        if isinstance(text, str) and "$" in text:
+            why = stray_dollar(text)
+            if why:
+                r.warn("W63", where, f"{why}: every $ opens or closes a formula, $…$ or $$…$$, and a dollar sign in "
+                                     "prose is written \\$ (§8 rule 6)")
+
+
 def check_inline_formulae(r, coll):
     """Warning 44: a formula written in a sentence ($…$) that is too long for one: it cannot break, so on a narrow
     screen it runs past the line. A model's equations and long expressions go on a line of their own ($$…$$)."""
-    def texts():
-        for lst, fields in FORMULA_FIELDS.items():
-            for x in coll.get(lst) or []:
-                x = as_dict(x)
-                for f in fields:
-                    yield f"{lst}:{x.get('id')}.{f}", x.get(f)
-                if lst == "evidence":
-                    for i, st in enumerate(as_list(x.get("steps"))):
-                        yield f"evidence:{x.get('id')}.steps[{i}].statement", as_dict(st).get("statement")
-    for where, text in texts():
+    for where, text in formula_texts(coll):
         if not isinstance(text, str):
             continue
         for m in INLINE_FORMULA.finditer(text):
