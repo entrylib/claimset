@@ -3258,6 +3258,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     check_inline_formulae(r, coll)
     check_formula_delimiters(r, paper, coll)
     check_math_outside_formulae(r, paper, coll)
+    check_code_as_text(r, paper, coll)
 
     # ----- numbers written as recorded (warning 50; §8 rule 10) -----
     check_number_format(r, claims)
@@ -3372,8 +3373,8 @@ def check_formula_delimiters(r, paper, coll):
 
 #: Mathematics written as text (warning 64): a LaTeX command; a subscript or superscript on a symbol (`s_1`, `c_{j}`,
 #: `x^2`); a Unicode mathematical sign; a Greek letter standing alone (`α = 0.6`; not a word of Greek, nor μ before a unit
-#: such as μm, nor Ω); the minus sign of a negative number (−0.5) is a number's. The operators of programming languages (`!=`, `>=`, `==`) are code, not LaTeX, and are not
-#: warned wherever they stand.
+#: such as μm, nor Ω); the minus sign of a negative number (−0.5) is a number's. The operators of programming languages
+#: (`!=`, `>=`, `==`) are code, not LaTeX, and are not warned wherever they stand (warning 65 reads them).
 MATH_AS_TEXT = re.compile(
     r"\\[A-Za-z]+|\\[{}_^,;!|]"
     r"|[A-Za-z0-9)\]}]\^"
@@ -3436,11 +3437,63 @@ def check_math_outside_formulae(r, paper, coll):
     """Warning 64 (§8 rule 6): mathematics is written in LaTeX between dollar signs. Written as text (`σ_1²`, `a1>=1`,
     `h \\to \\infty`), it is shown raw by every reader that sets mathematics, and silently."""
     for where, text in math_texts(paper, coll):
-        if isinstance(text, str):
+        if isinstance(text, str) and not (".steps[" in where and bare_formula(text)):
             found = math_as_text(text)
             if found:
                 r.warn("W64", where, f"mathematics outside a formula ('{found}'): write it in LaTeX inside $…$ or "
                                      "$$…$$ (§8 rule 6)")
+
+
+#: A LaTeX mark: a command, a subscript or a superscript. Prose: two words of letters in a row, outside commands and
+#: \text{…} (an `E` or `d` of a formula is not a word).
+TEX_MARK = re.compile(r"\\[A-Za-z]+|[_^]")
+TEX_WORDS = re.compile(r"\\(?:text|mathrm|operatorname|mbox)\{[^}]*\}|\\[A-Za-z]+")
+TWO_WORDS = re.compile(r"(?<![\\A-Za-z])[A-Za-z]{3,}\s+[A-Za-z]{3,}(?![A-Za-z]*\})")
+TERM_MARK = re.compile(r"\[\[D\d+:[^\]]*\]\]")
+
+
+def bare_formula(s):
+    """Whether a proof step's statement is one formula written without delimiters (§3.4): LaTeX, and no `$`, code, term
+    marks or prose. Words in `\\text{…}` do not count as prose here; warning 64 then has nothing to say."""
+    if not s.strip() or "$" in s or "`" in s or TERM_MARK.search(s) or not TEX_MARK.search(s):
+        return False
+    return not TWO_WORDS.search(TEX_WORDS.sub(" ", s))
+
+
+#: Code written as prose (warning 65): a call with empty brackets, a call with a named argument, a dotted call, an R or
+#: C++ namespace, an R assignment, a comparison or logical operator of code. Model notation (`ETS(A,N,N)`, `AR(1)`) and
+#: a function of mathematics (`f(x)`, `S(h = 1)`) are not code.
+CODE_AS_TEXT = re.compile(
+    r"\b[A-Za-z][\w.]*\(\)"
+    r"|\b[A-Za-z][\w.]+\([^()\n]*?\b[a-z_][\w.]*\s?=(?!=)\s?[^()\n]*\)"
+    r"|\b[a-z]\w*\.[a-z_]\w*\("
+    r"|\b[A-Za-z]\w*::[A-Za-z_]"
+    r"|\w\s?<-\s?[\w(\"'-]"
+    r"|[^=<>!\s]\s?(?:==|!=)\s?[^=\s]|&&|\|\|")
+
+
+def code_as_text(text):
+    """The first piece of code a text writes as prose, with a little of its context, or None (warning 65)."""
+    t = NOT_PROSE.sub(" ", text)
+    m = CODE_AS_TEXT.search(t)
+    if not m:
+        return None
+    return " ".join(t[max(0, m.start() - 20):m.end() + 20].split())
+
+
+def check_code_as_text(r, paper, coll):
+    """Warning 65 (§8 rule 12): code is written in backticks, or in a fenced block. Written as prose (`whose Arima()
+    function`, `smooth::adam`), a page shows it as words."""
+    texts = list(math_texts(paper, coll))
+    for a in coll.get("artefacts") or []:
+        texts.append((f"artefacts:{as_dict(a).get('id')}.description", as_dict(a).get("description")))
+    for where, text in texts:
+        if isinstance(text, str):
+            found = code_as_text(text)
+            if found:
+                r.warn("W65", where, f"code written as prose ('{found}'): write code in backticks, `…`, or in a fenced "
+                                     "block for several lines; a formula goes in LaTeX between dollar signs (§8 rules 6 "
+                                     "and 12)")
 
 
 def check_inline_formulae(r, coll):

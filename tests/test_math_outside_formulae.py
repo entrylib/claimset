@@ -49,7 +49,10 @@ class TestMathOutsideFormulae(unittest.TestCase):
         c.setdefault("scope", {})["conditions"] = ["T \\in \\{20, 50\\}"]
         c["checks"] = [{"by": d["contributors"][0]["id"], "outcome": "confirmed", "extent": "full",
                         "notes": "Derived s_1² (1 + Σ c_j²) by hand."}]
-        e["steps"] = [{"id": "S1", "statement": "\\eta_{t+h|t} = y_{t+h} - \\mu_{t+h|t}", "by": [], "rule": "definition"}]
+        e["steps"] = [{"id": "S1", "statement": "Substituting the update gives s_1^2 for the variance.", "by": [],
+                       "rule": "substitution"},
+                      {"id": "S2", "statement": "\\eta_{t+h|t} = y_{t+h} - \\mu_{t+h|t} \\text{ for } h \\ge 1", "by": [],
+                       "rule": "definition"}]
         d["paper"]["published_as"] = {"id_type": "doi", "id": "10.1000/x", "corrections": [
             {"kind": "misprint", "field": f"{c['id']}.statement", "where": "Section 2",
              "printed": "log GV = log s_1²", "recorded": "$\\log GV = h \\log s_1^2$",
@@ -61,6 +64,7 @@ class TestMathOutsideFormulae(unittest.TestCase):
                       "paper.published_as.corrections[0].printed"):
             self.assertIn(where, w)
         self.assertNotIn("paper.published_as.corrections[0].recorded", w)
+        self.assertNotIn(f"evidence:{e['id']}.steps[1].statement", w)  # one bare formula (§3.4)
         self.assertNotIn("paper.published_as.corrections[0].reason", w)
         d2 = copy.deepcopy(EXAMPLE)
         d2["claims"][0]["statement"] = "The forecast grows when α > 1."
