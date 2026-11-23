@@ -211,7 +211,21 @@ def _definition(d):
         line += f" [location {'; '.join(pts)}]"
     if d.get("source"):
         line += f" [source {_s(d['source']) if not isinstance(d['source'], dict) else d['source'].get('target')}]"
-    return [line + _ext(d)]
+    lines = [line + _ext(d)]
+    tables = [t for t in d.get("tables") or [] if isinstance(t, dict)] if isinstance(d.get("tables"), list) else []
+    for i, t in enumerate(tables, 1):                  # the tables the paper specifies the term by (§3.2, 2026-11-23)
+        lines.append(f"  table {i}: {_cell(t.get('description'))}")
+        if isinstance(t.get("columns"), list):
+            lines.append("  | " + " | ".join(_cell(c) for c in t["columns"]) + " |")
+        for row in t.get("rows") or [] if isinstance(t.get("rows"), list) else []:
+            if isinstance(row, list):
+                lines.append("  | " + " | ".join(_cell(x) for x in row) + " |")
+    return lines
+
+
+def _cell(x):
+    """A cell of a definition's table on one line."""
+    return " ".join(_s(x).split()) if x is not None else ""
 
 
 def _support(s):
@@ -393,6 +407,15 @@ def _evidence(e):
     return lines
 
 
+def _artefact(a):
+    """An artefact's line: kind, function and version (not a content hash; §2.3, as amended on 2026-11-23)."""
+    v = a.get("version")
+    version = f"version {v.strip()}" if isinstance(v, str) and v.strip() and not v.strip().startswith("sha256:") \
+        else ""
+    return [f"{a.get('id')} [{_join([a.get('kind'), a.get('function'), version], ', ')}] {a.get('description')}"
+            + (f" shows {', '.join(_s(x) for x in a['shows'])}" if a.get("shows") else "") + _ext(a)]
+
+
 def _without_evidence(c):
     """True if the claim's only support is argument or none (spec §2.3)."""
     kinds = {s.get("kind") for s in c.get("support") or [] if isinstance(s, dict)}
@@ -523,9 +546,23 @@ def render(doc):
     def inherited(c):
         """Assumptions a claim inherits from the terms it rests on (§3.2)."""
         return inherited_assumptions(c, defs, evid)
-    unevidenced = [c for c in claims if c.get("role") != "principal" and _without_evidence(c)]
+    by_id = {}
+    for c in claims:
+        if isinstance(c.get("id"), str):
+            by_id.setdefault(c["id"], c)
+    in_section, placed = [], set()             # the claims section by section (§2.3, as amended on 2026-11-23)
+    for i, sec in enumerate(sections, 1):
+        mine = []
+        for x in sec["claims"]:
+            c = by_id.get(x) if isinstance(x, str) else None
+            if c is not None and id(c) not in placed:              # a claim is read once, in its first section
+                placed.add(id(c))
+                mine.append(c)
+        in_section.append((f"== {i}. {' '.join(sec['title'].split())}", mine))
+    rest = [c for c in claims if id(c) not in placed]
+    unevidenced = [c for c in rest if c.get("role") != "principal" and _without_evidence(c)]
     order = {"principal": 0, "supporting": 1, "secondary": 2}
-    main = sorted((c for c in claims if not any(c is u for u in unevidenced)),
+    main = sorted((c for c in rest if not any(c is u for u in unevidenced)),
                   key=lambda c: order.get(c.get("role"), 3))           # stable: file order within a role
     corrected = {}
     for corr in corrections:
@@ -540,10 +577,16 @@ def render(doc):
                            f"printed {corr.get('printed')}")
             return out
         return lines
-    sections = [
+    claim_lines = marked(lambda c: _claim(c, inherited(c)))
+    if in_section:
+        listed = [x for head, mine in in_section for x in [head] + mine]
+        listed += (["== Claims in no section"] + main) if main else []
+    else:
+        listed = main
+    parts = [
         ("DEFINITIONS", doc.get("definitions"), marked(_definition)),
-        ("CLAIMS", main, marked(lambda c: _claim(c, inherited(c)))),
-        ("CLAIMS WITHOUT EVIDENCE", unevidenced, marked(lambda c: _claim(c, inherited(c)))),
+        ("CLAIMS", listed, lambda x: [x] if isinstance(x, str) else claim_lines(x)),
+        ("CLAIMS WITHOUT EVIDENCE", unevidenced, claim_lines),
         ("EVIDENCE", doc.get("evidence"), marked(_evidence)),
         ("WARRANTS", doc.get("warrants"),
          lambda w: [f"{w.get('id')} [{_join([w.get('reasoning'), ('premises ' + ', '.join(w['premises'])) if w.get('premises') else ''])}] {w.get('text', '')}"]),
@@ -553,16 +596,15 @@ def render(doc):
          lambda q: [f"{q.get('id')}" + (f" [from {', '.join(q['claims'])}]" if q.get("claims") else "")
                     + f" {q.get('question', '')}"]),
         ("ARTEFACTS", [a for a in doc.get("artefacts") or [] if isinstance(a, dict) and a.get("description")],
-         lambda a: [f"{a.get('id')} [{_join([a.get('kind'), a.get('function')], ', ')}] {a.get('description')}"
-                    + (f" shows {', '.join(_s(x) for x in a['shows'])}" if a.get("shows") else "") + _ext(a)]),
+         _artefact),
         ("CORRECTIONS", corrections,
          lambda x: [f"{x.get('field')} [{_join([x.get('kind'), x.get('where'), ('found by ' + x['found_by']) if x.get('found_by') else ''])}] "
                     f"printed {x.get('printed')}; recorded {x.get('recorded')}; {x.get('reason')}"]),
         ("REFERENCES", doc.get("references"),
          lambda b: [f"{b.get('id')} {b.get('target')}" + (f" ({b['id_type']})" if b.get("id_type") not in (None, "reference") else "")]),
     ]
-    for title, items, fn in sections:
-        items = [x for x in items or [] if isinstance(x, dict)]
+    for title, items, fn in parts:
+        items = [x for x in items or [] if isinstance(x, dict) or (title == "CLAIMS" and isinstance(x, str))]
         if items:
             out += ["", title]
             for x in items:
