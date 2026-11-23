@@ -60,6 +60,14 @@ Amended on 2026-11-17 (§2.2, §3.1, §10 warnings 55 and 56): a submission prop
 - New warning 55: a submission that proposes no subfield. New warning 56: a proposed subfield that is not the ID of an OpenAlex subfield.
 - The package lists the subfields (`claimset subfields`), and the validator prints the name of the one a submission proposes.
 
+Amended on 2026-11-23 (§2.3, §3.1, §3.2, §10 rule 108, Appendix D): the reading view follows the paper's sections and gives an artefact's version, and a definition may hold a table. A forecasting researcher, reading claimsets as a reader would, found three things in the way. A paper that opens with its model and its mathematical results showed them out of order, with simulation results between them: the reading view listed the claims by role and ignored `paper.sections`. A taxonomy of vector exponential smoothing models, which its paper specifies by a table (for each restriction, the blocks of the matrices $W$, $F$ and $G$), could be written only as prose, where it became a list nobody could read. And the reading view did not say which version of a package (the smooth R package 3.2.0) an analysis used. The same guarantor asked that a quantitative paper's sections put its theory before its simulations and applications. Optional; every file valid before stays valid.
+
+- §2.3, §3.1, Appendix D: when `paper.sections` is given, the reading view lists the claims section by section, in the order of the sections and of the claims in each, each section headed by its number and title (`== 1. Properties of multiplicative error ETS models`). The claims in no section follow, headed `== Claims in no section`, grouped by role as before; only these are moved to CLAIMS WITHOUT EVIDENCE. Without sections, the order is as before.
+- §3.1: in a quantitative paper, the sections put the theory first: the model or method and its mathematical results (definitions, derivations, propositions, proofs), then simulation studies, then empirical applications and case studies; within each, the paper's own order. A converted paper keeps its source's order. Guidance only: no rule checks it.
+- §3.2: a definition may give `tables`: the tables by which the paper specifies the term, each `{description, columns, rows}`, every cell a string (mathematics in `$…$`). New rule 108. The reading view prints each table under its definition.
+- §2.3, Appendix D: the reading view lists the paper's assumptions (claims whose support is `assumption`, §3.8) in a part of their own, ASSUMPTIONS, after the definitions and before the claims, one line each: the ID, name, category, check and statement. Each claim still names the assumptions it rests on (`assumes C12, C13`). The record is unchanged; assumptions were listed among the claims, at length, after the sections that cannot hold them (rule 105).
+- §2.3, Appendix D: the reading view gives an artefact's `version`, unless the version is a content hash (`sha256:…`): `A5 [software, version 3.2.0] The smooth R package …`.
+
 ## Changes in v0.43 (since v0.42)
 
 A review states what earlier work establishes and draws rules from it; a study states the earlier results its findings rest on. Neither had a label for such a claim. The first review written as a claimset (a summary of the literature on evaluating predictions) had to label each of its findings and recommendations `extension`, with an `extends` relation to the very work it cites as its evidence: the page then said that the claims extend the papers they rely on, which is not what they do.
@@ -604,10 +612,13 @@ Top-level layout:
 
 A claimset is stored and exchanged as JSON: the canonical file, which tools validate, the platform publishes and corrections patch. A model that reads the paper is given its **reading view**: a plain-text rendering of the same claimset. JSON field names, quotation marks and the fields that serve tools, audit and publication take a large share of a file and carry nothing a reader needs; the reading view leaves them out.
 
-- **Kept:** the title, summary, licence, source of a converted paper, declarations, contributions, highlights and exploration counts (in words: `exploration 2 questions; hypotheses 10: 3 supported, …; runs 214: 18 confirmatory, 196 exploratory, 11 failed; lab record A10`), followed by the formal verdicts that give no claim: `; not claimed: H1 under PL5 (supported; reworded, into C1), H11 under PL5 (inconclusive; abandoned)`, from v0.44 as amended on 2026-11-17); definitions with their symbol, kind, members, the wholes they are part of, their broader terms, assumptions and identifiers; corrections, of a converted source (`converted_from.corrections`) or of the published paper (`published_as.corrections`), each marked under the object it corrects and listed, with what was printed, what is recorded and why, in a section of their own; claims with their name and summary, type, role, novelty (when not `no_prior_found`), support with its pointers and locators, assumptions, `depends_on`, limitations, warrant, strength, verification, verifiability, planning, outcome, scope, relations with their notes and results (relations within the paper as well), assumptions inherited from the terms they rest on (§3.2, *Assumptions of a term*), and test; evidence with its description, design fields, setup, what it is derived from, estimate, observations (results and tables, with their values, units, conditions and where a value was read from) and proof steps; warrants; limitations; open questions; artefact descriptions, figure functions and the observations a figure shows; references.
-- **Left out:** `about` (the statement says the same in words; `about` serves search), `provenance`, `field_provenance`, `source_spans`, availability, artefact locations, versions and licences, contributors, models, execution records, lab-record identifiers, `schema_version` and the platform's publication fields.
+- **Kept:** the title, summary, licence, source of a converted paper, declarations, contributions, highlights and exploration counts (in words: `exploration 2 questions; hypotheses 10: 3 supported, …; runs 214: 18 confirmatory, 196 exploratory, 11 failed; lab record A10`), followed by the formal verdicts that give no claim: `; not claimed: H1 under PL5 (supported; reworded, into C1), H11 under PL5 (inconclusive; abandoned)`, from v0.44 as amended on 2026-11-17); definitions with their symbol, kind, members, the wholes they are part of, their broader terms, assumptions, identifiers and tables (each with its description and a pipe table, from v0.44 as amended on 2026-11-23); corrections, of a converted source (`converted_from.corrections`) or of the published paper (`published_as.corrections`), each marked under the object it corrects and listed, with what was printed, what is recorded and why, in a section of their own; claims with their name and summary, type, role, novelty (when not `no_prior_found`), support with its pointers and locators, assumptions, `depends_on`, limitations, warrant, strength, verification, verifiability, planning, outcome, scope, relations with their notes and results (relations within the paper as well), assumptions inherited from the terms they rest on (§3.2, *Assumptions of a term*), and test; evidence with its description, design fields, setup, what it is derived from, estimate, observations (results and tables, with their values, units, conditions and where a value was read from) and proof steps; warrants; limitations; open questions; artefact descriptions, figure functions, the observations a figure shows and versions (`[software, version 3.2.0]`; a version that is a content hash, `sha256:…`, is left out; from v0.44 as amended on 2026-11-23); references.
+- **Left out:** `about` (the statement says the same in words; `about` serves search), `provenance`, `field_provenance`, `source_spans`, availability, artefact locations, content hashes and licences, contributors, models, execution records, lab-record identifiers, `schema_version` and the platform's publication fields.
 
-- **Order:** claims are grouped by role: principal claims, then supporting claims, then secondary claims, each group in file order. Claims that are not principal and whose support is only `argument` or `unstated` follow, under CLAIMS WITHOUT EVIDENCE, so a reader sees at once what the paper asserts or argues without evidence. Principal claims stay with the principal claims whatever their support.
+- **Order:** the parts come in this order: the header (title, summary, the line of licence, source, contributions and highlights, sections, declarations, collaborations, extensions, exploration), DEFINITIONS (the terms and their mathematics), ASSUMPTIONS, CLAIMS, CLAIMS WITHOUT EVIDENCE, EVIDENCE, WARRANTS, LIMITATIONS, OPEN QUESTIONS, ARTEFACTS, CORRECTIONS, REFERENCES. A part with nothing in it is left out.
+- **Assumptions** (from v0.44 as amended on 2026-11-23): the claims whose support is `assumption` (§3.8) are listed under ASSUMPTIONS, after the definitions and before the claims, one line each: the ID, the name in quotation marks, the category and the check in brackets, and the statement (`C12 "The multiplicative error is i.i.d. with mean one" [statistical; unchecked] The multiplicative error term …`). They are the premises of the claims, each of which names those it rests on (`assumes C12, C13`); they appear in no other part.
+- **Claims without sections:** claims (the assumptions apart) are grouped by role: principal claims, then supporting claims, then secondary claims, each group in file order. Claims that are not principal and whose support is only `argument` or `unstated` follow, under CLAIMS WITHOUT EVIDENCE, so a reader sees at once what the paper asserts or argues without evidence. Principal claims stay with the principal claims whatever their support.
+- **Claims with sections** (`paper.sections`, §3.1; from v0.44 as amended on 2026-11-23): CLAIMS lists the claims section by section, in the order of the sections, and the claims of each section in the order the section lists them, whatever their role or support. Each section begins with a line that gives its number (its place in `paper.sections`, from 1) and its title: `== 1. Properties of multiplicative error ETS models`. The claims in no section other than the assumptions follow, after the line `== Claims in no section`, grouped by role as above; of these, those that are not principal and whose support is only `argument` or `unstated` go under CLAIMS WITHOUT EVIDENCE. A paper that opens with its model and its mathematical results is then read in that order.
 
 The reading view is made mechanically from a valid file (`claimset render`); it adds nothing and is never edited. The reading view the platform serves may append, under REVIEW STATUS, each claim's unresolved review comments with their category, severity and state; that is derived data, and `claimset render` of the file alone does not add it. Its layout is the reference rendering in Appendix D. A reader that needs a field left out (a source span to check a claim against its source, an artefact's location) reads the canonical file.
 
@@ -766,7 +777,8 @@ A claimset under a non-commercial licence may be used only for non-commercial pu
 - Sections hold the paper's claims, not its assumptions, which a reader meets with the claims that rest on them. A claim is in one section; every claim that is not an assumption is in one (warning 57).
 - The order of the sections and of the claims in them is the order the paper is read in. It may differ from the order of the IDs, which never change after publication (§9).
 - Native papers: the agent proposes the sections once the claims exist, and the guarantor approves them with the paper (principle 10). Converted papers: the sections follow the source's own sections, with its headings as titles, where its claims fall under them.
-- The reading view lists the sections, each with its claims, after the highlights (§2.3).
+- In a quantitative paper, the sections put the theory first (from v0.44 as amended on 2026-11-23): first the model or method and its mathematical results (definitions, derivations, propositions, proofs), then simulation studies, then empirical applications and case studies. Within each of these, the claims keep the paper's own order. A converted paper keeps its source's order, as above. This is guidance; no rule checks it.
+- The reading view lists the sections, each with its claims, after the highlights, and gives the claims section by section, each section under its number and title (§2.3; from v0.44 as amended on 2026-11-23).
 - A paper of a few claims needs none: the field is left out.
 
 **`highlights`.** What a reader should take from the paper first: at most five of its principal claims and of the terms it introduces, in order of priority. The platform shows them at the top of the paper's page, and the reading view lists them after the contributions. A highlight selects; it adds nothing: it is an ID, never new text, and the claim or definition it names says what it is.
@@ -875,6 +887,7 @@ Retracted papers are never deleted. All their claims inherit the retraction stat
 | `measures` | list | A `variable` only: the IDs of the constructs it measures, definitions of kind `concept`: a trust item `D6` with `"measures": ["D9"]`, `D9` being trust (rule 83) |
 | `unit` | string | A `variable` or `setting` only: the unit of its values, a UCUM code (`GeV`, `Cel`, `mg/L`) or text. A condition keyed by the definition has this unit: `{"D9": 126.5}` with D9 the mass in GeV (rule 88) |
 | `targets` | list | An `intervention` only: the IDs of what it acts on, definitions of kind `substance`, `organism`, `biological_material`, `entity` or `process`: a knockdown `D7` with `"targets": ["D13"]`, D13 being the gene (rule 88) |
+| `tables` | list of objects | Optional. The tables by which the paper specifies the term, each `{description, columns, rows}` (below; rule 108) |
 
 **Order** (from v0.44 as amended on 2026-11-18). Definitions are listed in the order a reader needs them, since a reader, and a page made from the file, meets them in that order.
 - What the paper is about comes first, defined in full as its field knows it: a paper on an error measure opens with the measure and its whole formula, not with a term derived from it.
@@ -883,6 +896,21 @@ Retracted papers are never deleted. All their claims inherit the retraction stat
 - The order of the list may differ from the order of the IDs: after publication IDs never change (§9), and a new or moved definition takes its place in the list.
 
 **`symbol`** (from v0.44 as amended on 2026-11-17). Where the paper writes a symbol for a term, the definition gives it: one inline formula, written as in statements (§8 rule 6), such as `"$s(y,f)$"` for the term `sMAPE term`. One symbol, one meaning: the paper writes the symbol for this term only and writes the term with this symbol only, in every claim, definition and proof step, and no two definitions give the same symbol (warning 53). A quantity written in two ways in one paper (an upper-case letter in one claim and a lower-case one in another) reads as two quantities. A term the paper writes no symbol for has no `symbol`.
+
+**`tables`** (from v0.44 as amended on 2026-11-23). Where the paper specifies a term by a table, the definition gives that table in `tables`, not as a list of values in its prose. A taxonomy of models whose table gives, for each restriction, the blocks of the measurement, transition and persistence matrices $W$, $F$ and $G$ is such a term; written as sentences, its rows read as a list nobody can follow.
+
+```json
+"tables": [{"description": "The blocks of the matrices of each restriction of the model.",
+            "columns": ["Restriction", "$W$", "$F$", "$G$"],
+            "rows": [["None", "$I_m$", "$I_m$", "$\\mathrm{diag}(\\alpha_1, \\dots, \\alpha_m)$"],
+                     ["Common smoothing", "$I_m$", "$I_m$", "$\\alpha I_m$"]]}]
+```
+
+- `description` says what the table defines, as a caption does: a sentence of text.
+- `columns` holds the column headings, each a non-empty string.
+- `rows` holds the table's rows, at least one, in the paper's order; each row is a list of cells, as many as there are columns. A cell is a string: text, or mathematics in `$…$` written as in statements (§8 rule 6); an empty string is an empty cell.
+- A table has no other field. Its cells are the term's specification, not observations: numbers a study measured are results or an evidence table (§3.4), never a definition's table.
+- The reading view prints each table under its definition, with its description and its rows as a pipe table (§2.3).
 
 **Kinds.** The kind says what a term names, whatever role it plays in a study; the role is given by the setup (§3.4) and the claim's `about` (§3.3.5). One term has one kind.
 
@@ -1878,6 +1906,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 105. `paper.sections` (§3.1), when present, is a non-empty list of objects with the fields `title` and `claims` and no others. `title` is a non-empty string on one line, of at most 80 characters; no two sections of the file have the same title, compared without regard to case and to spaces. `claims` is a non-empty list of IDs of claims of the file that are not assumptions; no claim is in two sections. (From v0.44 as amended on 2026-11-18.)
 106. Tables held in a file (§3.4). A table has `rows` or `rows_file`, not both. `rows_file` is the ID of an artefact of kind `data` whose `uri` is a relative path ending in `.csv` (in a published file, the `https` location the platform stored it at, ending in `.csv`; erratum of 2026-11-20), and comes with `n_rows`, a positive integer; `n_rows` appears only with `rows_file`. Where the file is at hand (in a package, or beside the claimset file), it has a header line and `n_rows` further lines, each with one field per row label and per column, and each field a value or empty. A test's quantity, and an estimand that is not a table estimand, does not bind a cell of a table held in a file (rules 91 and 96). (From v0.44 as amended on 2026-11-20.)
 107. `paper.based_on` (§3.1, §9; from v0.44 as amended on 2026-11-21), when present, is a string `<paper.id>@v<n>`: the file's own `paper.id`, then `@v` and a version number n ≥ 1. It appears only in a correction or revision submission (with `paper.id`), or in a published file, where n is below `paper.version`.
+108. A definition's `tables` (§3.2), when present, is a non-empty list of objects with the fields `description`, `columns` and `rows` and no others. `description` is a string with text; `columns` is a non-empty list of strings with text; `rows` is a non-empty list, each row a list of strings with as many entries as `columns` has. A term mark (`[[D4:…]]`) in a table names a definition of the file, as in a definition's text (rule 1). (From v0.44 as amended on 2026-11-23.)
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -2156,14 +2185,14 @@ D3 [method] seasonal naive method: Forecasts each month by the value of the same
 D4 [data] UK monthly retail sales: 1,200 monthly sales series of one UK retailer's store network, 2010-2024, each with at least 36 observations.
 D5 [design] rolling-origin evaluation: Rolling origin with forecasts for horizons 1 to 12 months from each origin.
 
+ASSUMPTIONS
+C1 [data; unchecked] Monthly retail sales series exhibit annual seasonality.
+C3 [statistical; unchecked] Forecast errors of method M are independent across series.
+
 CLAIMS
 C2 [descriptive; principal; support: empirical_quant E1 artefacts A2; assumes C1, C3; limitations L1; strength moderate (author)]
   [[D2:Method M]] improves [[D1:forecast skill]] over the [[D3:seasonal naive method]] on the [[D4:UK monthly retail sales]].
   scope: conditions: horizons of 1 to 12 months
-C1 [descriptive; supporting; assumption (data, unchecked)]
-  Monthly retail sales series exhibit annual seasonality.
-C3 [descriptive; supporting; assumption (statistical, unchecked)]
-  Forecast errors of method M are independent across series.
 
 EVIDENCE
 E1 [quant; design benchmark; data_origin secondary; n 1200] Benchmark of method M against the seasonal naive method on 1,200 monthly retail sales series, rolling origin, horizons 1 to 12.
@@ -2178,6 +2207,37 @@ A2 [table] Mean relative MASE reduction of method M by forecast horizon, 1 to 12
 
 REFERENCES
 B1 10.1016/j.ijforecast.2006.03.001 (doi)
+```
+
+The paper in Appendix A has no sections, no definition with a table, and no artefact with a version that is not a content hash. A paper with them (from v0.44 as amended on 2026-11-23) reads like this, abbreviated:
+
+```text
+sections
+  1. Properties of multiplicative error ETS models: C3, C1
+  2. Simulation results: C2
+
+DEFINITIONS
+D4 [method] restrictions of vector ETS: The restrictions placed on the matrices of [[D3:vector ETS]].
+  table 1: The blocks of the matrices of each restriction of the model.
+  | Restriction | $W$ | $F$ | $G$ |
+  | None | $I_m$ | $I_m$ | $\mathrm{diag}(\alpha_1, \dots, \alpha_m)$ |
+  | Common smoothing | $I_m$ | $I_m$ | $\alpha I_m$ |
+
+CLAIMS
+== 1. Properties of multiplicative error ETS models
+C3 [formal; principal; support: formal_proof E1]
+  …
+C1 [formal; supporting; support: formal_proof E2]
+  …
+== 2. Simulation results
+C2 [descriptive; principal; support: simulation E3]
+  …
+== Claims in no section
+C4 [descriptive; supporting; assumption (statistical, unchecked)]
+  …
+
+ARTEFACTS
+A5 [software, version 3.2.0] The smooth R package, used for every estimate.
 ```
 
 ## Appendix E: a qualitative paper (definitions, claims, evidence and warrant of a submission)

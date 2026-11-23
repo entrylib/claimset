@@ -3275,6 +3275,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- highlights (rule 90, warning 39; §3.1) -----
     check_highlights(r, paper, claims, coll["definitions"])
     check_sections(r, paper, claims)
+    check_definition_tables(r, coll["definitions"], ids)
     check_definition_order(r, coll["definitions"])
     if not converted and not published and "highlights" not in paper:
         r.warn("W39", "paper.highlights", "ask the guarantor which principal claims and which of the paper's own "
@@ -3665,6 +3666,63 @@ def check_sections(r, paper, claims):
                                         f"reader of the paper by sections does not meet "
                                         f"{'it' if len(left) == 1 else 'them'} under a heading; place each claim in "
                                         f"the section it belongs to (§3.1)")
+
+
+#: Rule 108 (§3.2): the fields of a definition's table.
+DEFINITION_TABLE_FIELDS = ("description", "columns", "rows")
+
+
+def check_definition_tables(r, definitions, ids):
+    """The tables by which a paper specifies a term (§3.2; v0.44 as amended on 2026-11-23). Rule 108: a definition's
+    `tables`, when present, is a non-empty list of `{description, columns, rows}`: a description with text, a
+    non-empty list of column headings with text, and a non-empty list of rows, each a list of strings, one per column.
+    Their text is checked as a definition's is (term markers, rule 1)."""
+    def text(s):
+        return isinstance(s, str) and bool(s.strip())
+    for d in definitions:
+        d = as_dict(d)
+        if "tables" not in d:
+            continue
+        dw = f"definitions:{_h(d.get('id'))}.tables"
+        tables = d["tables"]
+        if not isinstance(tables, list) or not tables:
+            r.err("108", dw, "a non-empty list of tables, each {description, columns, rows}; leave the field out for "
+                             "a term the paper specifies by no table (§3.2)")
+            continue
+        for i, t in enumerate(tables):
+            w = f"{dw}[{i}]"
+            if not isinstance(t, dict):
+                r.err("108", w, "a table is an object {description, columns, rows}")
+                continue
+            extra = sorted(str(k) for k in set(t) - set(DEFINITION_TABLE_FIELDS))
+            if extra:
+                r.err("108", w, f"a table has a description, columns and rows, and nothing else (found "
+                                f"{', '.join(extra)})")
+            if not text(t.get("description")):
+                r.err("108", f"{w}.description", "what the table defines, as a caption says it: a sentence of text")
+            else:
+                text_checks(r, f"{w}.description", t["description"], ids)
+            cols = t.get("columns")
+            if not isinstance(cols, list) or not cols or not all(text(c) for c in cols):
+                r.err("108", f"{w}.columns", "a non-empty list of the column headings, each a string with text")
+                cols = None
+            else:
+                for c in cols:
+                    text_checks(r, f"{w}.columns", c, ids)
+            rows = t.get("rows")
+            if not isinstance(rows, list) or not rows:
+                r.err("108", f"{w}.rows", "a non-empty list of rows, each a list of cells, one per column")
+                continue
+            for j, row in enumerate(rows):
+                rw = f"{w}.rows[{j}]"
+                if not isinstance(row, list) or not all(isinstance(x, str) for x in row):
+                    r.err("108", rw, "a row is a list of cells, each a string (text, or mathematics in $…$; an "
+                                     "empty string for an empty cell)")
+                    continue
+                if cols is not None and len(row) != len(cols):
+                    r.err("108", rw, f"{len(row)} cells for {len(cols)} columns: a row has one cell per column")
+                for x in row:
+                    text_checks(r, rw, x, ids)
 
 
 def check_definition_order(r, definitions):
