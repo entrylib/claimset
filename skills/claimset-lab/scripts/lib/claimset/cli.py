@@ -1,8 +1,11 @@
 """Command-line interface: `claimset <command> ...`."""
 
 import argparse
+import hashlib
 import json
 import sys
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from . import LAB_SPEC_VERSION, SPEC_VERSION, __version__
@@ -260,6 +263,40 @@ def start_correction(doc):
     return out, based_on
 
 
+def table_files_to_package(doc):
+    """The files of tables held in a file (spec §3.4, rule 106) named by the address a platform published them at,
+    named again by their path in the package, as a submission names them: `files/<the file's name>`. Changes `doc`;
+    returns [(artefact ID, address, path, version)] for the files to fetch into the package."""
+    held = {t.get("rows_file") for e in doc.get("evidence") or [] if isinstance(e, dict)
+            for t in e.get("tables") or [] if isinstance(t, dict) and isinstance(t.get("rows_file"), str)}
+    taken = {a.get("uri") for a in doc.get("artefacts") or [] if isinstance(a, dict)}
+    out = []
+    for a in doc.get("artefacts") or []:
+        if not isinstance(a, dict) or a.get("id") not in held:
+            continue
+        uri = a.get("uri")
+        if not isinstance(uri, str) or not uri.startswith(("https://", "http://")):
+            continue
+        name = urllib.parse.unquote(urllib.parse.urlparse(uri).path.rsplit("/", 1)[-1])
+        if not name.lower().endswith(".csv") or "/" in name or name in ("", ".", ".."):
+            continue
+        path, n = f"files/{name}", 1
+        while path in taken:                                    # two files of one name: keep both
+            n += 1
+            path = f"files/{name[:-4]}-{n}.csv"
+        taken.add(path)
+        a["uri"] = path
+        out.append((a["id"], uri, path, a.get("version")))
+    return out
+
+
+def fetch_file(url, timeout=60):
+    """The bytes at `url` (claimset correct fetches the files of tables into the package)."""
+    req = urllib.request.Request(url, headers={"User-Agent": f"claimset/{__version__}"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
 def _cmd_correct(args):
     try:
         with open(args.file, encoding="utf-8") as fh:
@@ -275,6 +312,7 @@ def _cmd_correct(args):
     done = []
     if out.get("schema_version") != _validate.SCHEMA_VERSION:
         out, done, _todo = _migrate.migrate(out)
+    files = table_files_to_package(out)
     with open(args.output, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=1, ensure_ascii=False)
         fh.write("\n")
@@ -283,10 +321,34 @@ def _cmd_correct(args):
         print(f"changed: {x}")
     if done:
         print(f"Run `claimset migrate {args.output}` to see what the current specification asks beyond these changes.")
+    failed = []
+    if files:
+        root = Path(args.output).resolve().parent
+        print(f"{len(files)} table file(s) named again by their path in the package (spec §3.4, rule 106):")
+        for aid, url, path, version in files:
+            target = root / path
+            if args.no_fetch:
+                print(f"  {aid}: {path}  (fetch it from {url})")
+                continue
+            try:
+                data = fetch_file(url)
+            except (OSError, ValueError) as exc:
+                failed.append(aid)
+                print(f"  {aid}: {path}  NOT FETCHED from {url}: {exc}")
+                continue
+            got = "sha256:" + hashlib.sha256(data).hexdigest()
+            if isinstance(version, str) and version.startswith("sha256:") and got != version:
+                failed.append(aid)
+                print(f"  {aid}: {path}  NOT KEPT: the file at {url} is not the version the artefact records")
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            print(f"  {aid}: {path}  fetched")
+        print("Submit the correction with its package (`claimset package`), which holds these files.")
     print("Make sure it is the current version: a correction made from an older one would undo the versions after it, and "
           "the platform refuses it. Then make the changes, add paper.correction_reason (a correction) or write the "
           "response (a revision), and validate.")
-    return 0
+    return 1 if failed else 0
 
 
 def _cmd_package(args):
@@ -454,6 +516,8 @@ def build_parser():
                                         "in paper.based_on")
     cr.add_argument("file", help="the published claimset JSON file (the current version)")
     cr.add_argument("-o", "--output", required=True, help="write the correction's starting file here")
+    cr.add_argument("--no-fetch", action="store_true",
+                    help="do not fetch the files of tables held in a file; list them, with where to fetch each")
     cr.set_defaults(func=_cmd_correct)
 
     mg = sub.add_parser("migrate", help="bring a claimset to the current specification: make the mechanical changes, "
