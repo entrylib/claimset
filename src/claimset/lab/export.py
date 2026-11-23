@@ -1716,10 +1716,17 @@ def _model_keys(doc, kind="agent"):
 
 
 def _by_event(exploration, doc):
-    """The exploration summary with each `not_claimed[].into` named by its claim's lab event, so renumbering claims
-    while completing the claimset does not read as a change of what the record gives, and without each entry's
-    `statement`, which completing it shortens (claimset §3.1.1, as amended on 2026-11-20)."""
-    if not isinstance(exploration, dict) or not isinstance(exploration.get("not_claimed"), list):
+    """The exploration summary with each `not_claimed[].into` named by its claim's lab event, and `lab_record` by the
+    kind of the artefact it names, so renumbering claims and artefacts while completing the claimset does not read
+    as a change of what the record gives (a new version keeps the IDs its earlier versions published, claimset §9),
+    and without each entry's `statement`, which completing it shortens (claimset §3.1.1, as amended on
+    2026-11-20)."""
+    if not isinstance(exploration, dict):
+        return exploration
+    kinds = {a.get("id"): a.get("kind") for a in doc.get("artefacts") or [] if isinstance(a, dict)}
+    if kinds.get(exploration.get("lab_record")) == "lab_record":
+        exploration = dict(exploration, lab_record="the lab record artefact")
+    if not isinstance(exploration.get("not_claimed"), list):
         return exploration
 
     def field(c, block, name):

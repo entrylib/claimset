@@ -606,6 +606,19 @@ class TestExportCheck(TestMapping):
         doc["claims"] = [x for x in doc["claims"] if x.get("hypothesis", {}).get("lab_event") != self.h2]
         self.assertTrue(any(f"hypothesis {self.h2}" in f and "is gone" in f for f in check(self.lab, doc)))
 
+    def test_the_lab_record_artefact_may_be_renumbered(self):
+        # From the sMAPE study's version 4 (entrylib:2026.000013): the file kept the lab record's published ID, A7,
+        # where a fresh export numbers it A9; renumbering it is not a change of what the record gives.
+        from claimset.lab.export import check
+        doc = copy.deepcopy(self.out["draft"])
+        old = doc["paper"]["exploration"]["lab_record"]
+        art = next(a for a in doc["artefacts"] if a["id"] == old)
+        art["id"] = "A99"
+        doc["paper"]["exploration"]["lab_record"] = "A99"
+        self.assertEqual(check(self.lab, doc), [])
+        doc["paper"]["exploration"]["lab_record"] = next(a["id"] for a in doc["artefacts"] if a["id"] != "A99")
+        self.assertTrue(any(f.startswith("paper.exploration is") for f in check(self.lab, doc)))
+
     def test_the_research_agents_model_stays(self):
         from claimset.lab.export import check
         doc = copy.deepcopy(self.out["draft"])

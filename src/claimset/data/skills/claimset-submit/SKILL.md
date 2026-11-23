@@ -341,6 +341,22 @@ Re-read the file as a sceptical reviewer who sees only one claim at a time. If t
 - Do the most important claims, especially refutations, have independent checks, with every outcome recorded?
 - If there is a lab record: are negative results included, are the exploration counts right, and is every exploratory claim labelled as such?
 
+### 11a. Leanness review, by another agent
+
+A claimset is read by models and people one object at a time, and every sentence costs them. The agent that wrote it
+is the worst judge of what it added. So before hand-over, a different agent reviews it for text a reader does not need:
+1. List the mechanical candidates: `claimset lean claimset.json` (without the package: `python3 scripts/lean.py
+   claimset.json`). For a correction or revision, add `--since` with the published version it was made from: what the
+   new version adds to objects that version already had is listed too. It finds near-repeated sentences, a claim
+   relating twice to the same work or to a reference it already cites as support, definitions and references nothing
+   names. It edits nothing, and a candidate is not yet redundant.
+2. Give the brief from `claimset lean claimset.json --prompt` (with the same `--since`) to a different agent than the
+   one that wrote the claimset: a fresh subagent, or another session, that took no part in writing it. It reads the
+   reading view and flags each sentence, relation, definition or limitation a reader would not miss (repeated, aside,
+   unrequested, retells a table, unused), with a proposed action. It does not edit the file.
+3. Show its flags to the guarantor. Delete or merge only what they accept, then validate and render again. A recorded
+   statement of a formal or planned claim keeps the wording the guarantor approved. The flags are shown, not recorded.
+
 ### 12. Hand over
 
 Before the first submission, put the claims in reading order and close the gaps in their IDs: `claimset renumber claimset.json` (it rewrites every reference; validate and render again afterwards). A claimset exported from a lab record keeps its link to the record through `hypothesis.lab_event`, so renumbering is safe. Never renumber a published claimset: a correction or revision keeps every ID and places a new claim where it belongs in the file, with the next free number (spec §9, *Order and IDs*).

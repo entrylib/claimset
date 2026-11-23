@@ -48,6 +48,7 @@ def files(name):
         out = {"SKILL.md": DATA / "skills" / name / "SKILL.md",
                "scripts/validate.py": PACKAGE / "validate.py",
                "scripts/subfields.py": PACKAGE / "subfields.py",   # the validator reads it beside itself
+               "scripts/lean.py": PACKAGE / "lean.py",
                f"references/{spec.name.replace('claimset-v', 'spec-v')}": spec,
                f"references/{lab.name}": lab}
         for ex in sorted((DATA / "examples").glob("*.json")):

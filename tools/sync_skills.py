@@ -21,6 +21,7 @@ COPIES = {
     "claimset-submit": [
         ("src/claimset/validate.py", "skills/claimset-submit/scripts/validate.py"),
         ("src/claimset/subfields.py", "skills/claimset-submit/scripts/subfields.py"),
+        ("src/claimset/lean.py", "skills/claimset-submit/scripts/lean.py"),
         ("src/claimset/extensions", "skills/claimset-submit/scripts/extensions"),
         ("src/claimset/versions", "skills/claimset-submit/scripts/versions"),
         ("spec/claimset-v0.44.md", "skills/claimset-submit/references/spec-v0.44.md"),
