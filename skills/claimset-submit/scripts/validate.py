@@ -166,6 +166,8 @@ ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TERM_RE = re.compile(r"\[\[(D\d+):[^\]]+\]\]")
 NESTED_MARK_RE = re.compile(r"\[\[D\d+:[^\]]*\[\[")
+#: A citation marker (§8 rule 14): a work of the references and the words that cite it, `[[B12:Hyndman et al. (2008)]]`.
+CITE_RE = re.compile(r"\[\[(B\d+):[^\]]+\]\]")
 
 # Rule 31: source licences that permit conversion → the licences the claimset may carry (spec §3.1).
 _BY = {"CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0"}
@@ -1647,7 +1649,7 @@ TEST_PARAMETERS = {
 
 NUMBER_SKIP = re.compile(
     r"\$[^$]*\$"                                                      # LaTeX
-    r"|\[\[D\d+:[^\]]*\]\]"                                            # defined-term markers
+    r"|\[\[[DB]\d+:[^\]]*\]\]"                                         # term and citation markers
     r"|\b[A-Za-z]{1,8}\([^()]*\)"                                       # model notation: ETS(A,N,A), AR(1)
     r"|\b(?:Sections?|Sect\.|Tables?|Fig(?:ure)?s?\.?|Eq(?:uation)?s?\.?|Theorems?|Lemmas?|Propositions?|"
     r"Corollar(?:y|ies)|Chapters?|Appendi(?:x|ces)|Algorithms?|§)\s*[A-Z]?\d+(?:\.\d+)*")
@@ -3259,6 +3261,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     check_formula_delimiters(r, paper, coll)
     check_math_outside_formulae(r, paper, coll)
     check_code_as_text(r, paper, coll)
+    check_citation_markers(r, paper, coll)
 
     # ----- numbers written as recorded (warning 50; §8 rule 10) -----
     check_number_format(r, claims)
@@ -3383,7 +3386,7 @@ MATH_AS_TEXT = re.compile(
     r"|(?<![\u0370-\u03ff\u1f00-\u1fff])(?:[\u0391-\u03a8\u03b1-\u03bb\u03bd-\u03c9\u03d1\u03d5\u03f5]"
     r"|\u03bc(?![A-Za-z]))(?![\u0370-\u03ff\u1f00-\u1fff])")
 #: Taken out before warning 64 looks: code, URLs, formulas, escaped dollar signs and the plain text of term markers.
-NOT_PROSE = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+|\$\$.+?\$\$|\$[^$]+?\$|\\\$|\[\[D\d+:[^\]]*\]\]", re.S)
+NOT_PROSE = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+|\$\$.+?\$\$|\$[^$]+?\$|\\\$|\[\[[DB]\d+:[^\]]*\]\]", re.S)
 
 
 def math_as_text(text):
@@ -3449,7 +3452,7 @@ def check_math_outside_formulae(r, paper, coll):
 TEX_MARK = re.compile(r"\\[A-Za-z]+|[_^]")
 TEX_WORDS = re.compile(r"\\(?:text|mathrm|operatorname|mbox)\{[^}]*\}|\\[A-Za-z]+")
 TWO_WORDS = re.compile(r"(?<![\\A-Za-z])[A-Za-z]{3,}\s+[A-Za-z]{3,}(?![A-Za-z]*\})")
-TERM_MARK = re.compile(r"\[\[D\d+:[^\]]*\]\]")
+TERM_MARK = re.compile(r"\[\[[DB]\d+:[^\]]*\]\]")
 
 
 def bare_formula(s):
@@ -3481,13 +3484,28 @@ def code_as_text(text):
     return " ".join(t[max(0, m.start() - 20):m.end() + 20].split())
 
 
+def marker_texts(paper, coll):
+    """(where, text) for each text warnings 65 and 66 read: those of warning 64, and the artefacts' descriptions."""
+    yield from math_texts(paper, coll)
+    for a in coll.get("artefacts") or []:
+        yield f"artefacts:{as_dict(a).get('id')}.description", as_dict(a).get("description")
+
+
+def check_citation_markers(r, paper, coll):
+    """Warning 66 (§8 rule 14): a citation marker names a reference of the file, which a page links it to."""
+    refs = {i for b in coll.get("references") or [] if isinstance(i := as_dict(b).get("id"), str)}
+    for where, text in marker_texts(paper, coll):
+        if isinstance(text, str):
+            for m in CITE_RE.finditer(text):
+                if m.group(1) not in refs:
+                    r.warn("W66", where, f"the citation marker {m.group(0)} names no reference of the file: give the "
+                                         "ID of a work in `references` (§8 rule 14)")
+
+
 def check_code_as_text(r, paper, coll):
     """Warning 65 (§8 rule 12): code is written in backticks, or in a fenced block. Written as prose (`whose Arima()
     function`, `smooth::adam`), a page shows it as words."""
-    texts = list(math_texts(paper, coll))
-    for a in coll.get("artefacts") or []:
-        texts.append((f"artefacts:{as_dict(a).get('id')}.description", as_dict(a).get("description")))
-    for where, text in texts:
+    for where, text in marker_texts(paper, coll):
         if isinstance(text, str):
             found = code_as_text(text)
             if found:

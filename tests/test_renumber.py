@@ -65,6 +65,14 @@ class TestRenumber(unittest.TestCase):
         rel = next(c for c in out["claims"] if c["role"] == "principal")["relations"][0]
         self.assertEqual(rel["target"], mapping[other["id"]])
 
+    def test_ids_named_in_texts_are_rewritten(self):
+        d = self.scrambled()                                   # spec §8 rule 13: a text names an item by its ID
+        old = d["claims"][0]["id"]
+        d["limitations"][0]["statement"] = f"As {old} shows, $C9 = 1$ stays and `{old}()` stays."
+        out, mapping = renumber(d)
+        new = mapping[old]
+        self.assertEqual(out["limitations"][0]["statement"], f"As {new} shows, $C9 = 1$ stays and `{old}()` stays.")
+
     def test_lab_event_ids_are_left_alone(self):
         d = load("submission-from-lab.json")
         events = [c.get("hypothesis", {}).get("lab_event") for c in d["claims"]]

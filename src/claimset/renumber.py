@@ -5,14 +5,18 @@ the paper makes the claim (its earliest source span); claims without spans keep 
 group. Warrants follow the order of the claims that use them; definitions, limitations and open questions keep
 their order and lose their gaps. Every reference in the file is rewritten: ID fields, lists of IDs, the
 dimensions and values of observations (table columns, row labels, cells and the keys and values of conditions),
-the targets of relations within the paper (`id_type: local`) and the [[Dn:term]] marks in text. Lab-record IDs
-(`lab_event`, `lab_runs`), source spans, the targets of relations to other works and text are left alone.
+the targets of relations within the paper (`id_type: local`), the [[Dn:term]] marks in text and the IDs a text names
+(spec §8 rule 13: `C27`, `W3`, `C4.statement`), outside its formulas, code and links. Lab-record IDs (`lab_event`,
+`lab_runs`), source spans, the targets of relations to other works and the rest of the text are left alone.
 """
 
 import re
 
 SPAN = re.compile(r"p(\d+)\.(\d+)")
 MARK = re.compile(r"\[\[(D\d+):")
+#: An ID named in a text (§8 rule 13), and the parts of a text where an ID is not one: formulas, code, links, markers.
+NAMED_ID = re.compile(r"(?<![\w.:/\[-])([CWDLO]\d+)(?![\w])")
+NOT_NAMES = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+|\$\$.+?\$\$|\$[^$]+?\$|\[\[[A-Z]\d+:", re.S)
 ROLE_ORDER = {"principal": 0, "supporting": 1, "secondary": 2}
 
 
@@ -69,8 +73,19 @@ def rewrite(x, mapping):
     if isinstance(x, str):
         if x in mapping:
             return mapping[x]
-        return MARK.sub(lambda m: f"[[{mapping.get(m.group(1), m.group(1))}:", x)
+        return _rewrite_text(MARK.sub(lambda m: f"[[{mapping.get(m.group(1), m.group(1))}:", x), mapping)
     return x
+
+
+def _rewrite_text(text, mapping):
+    """A text with the IDs it names rewritten, outside its formulas, code and links."""
+    out, last = [], 0
+    for m in NOT_NAMES.finditer(text):
+        out.append(NAMED_ID.sub(lambda n: mapping.get(n.group(1), n.group(1)), text[last:m.start()]))
+        out.append(m.group(0))
+        last = m.end()
+    out.append(NAMED_ID.sub(lambda n: mapping.get(n.group(1), n.group(1)), text[last:]))
+    return "".join(out)
 
 
 def published(doc):
