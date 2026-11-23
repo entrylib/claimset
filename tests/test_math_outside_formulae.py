@@ -1,6 +1,7 @@
 """Mathematics is written in LaTeX between dollar signs (claimset v0.44 as amended on 2026-11-23, §8 rule 6, warning
 64): written as text (`σ_1²`, `a1>=1`, `h \\to \\infty`), it is shown raw by every reader that sets mathematics, and
-nothing had warned."""
+nothing had warned. Code is not mathematics: code spans and blocks are skipped, and programming operators
+(`!=`, `>=`, `==`) are never warned."""
 
 import copy
 import json
@@ -27,14 +28,17 @@ class TestMathOutsideFormulae(unittest.TestCase):
                      "The field published_as and the file run_1.csv.",                   # snake_case is not a subscript
                      "A layer 5 μm thick and a 10 Ω resistor; the word λόγος.",          # units and Greek words
                      "Code `x_1 >= 0` and https://example.org/a_b^c, and a price of \\$5.",
-                     "No mathematics at all."):
+                     "No mathematics at all.",
+                     "A bias of −0.002 and the (−1)-median.",                           # a negative number
+                     "The script keeps rows where x != 0 and n >= 30, and stops when i == n.",  # operators of code
+                     "Filtered with `df[df$h != 1]`, then\n```r\nfit <- adam(y^2, h = 12)\nif (a_1 != b) x[i]^2\n```\ndone."):
             self.assertIsNone(math_as_text(text), text)
         self.assertEqual(warned(copy.deepcopy(EXAMPLE)), set())
 
     def test_mathematics_as_text_is_found(self):
-        for text in ("as h \\to \\infty", "equals s_1² times", "with α = 0.6", "whenever a1>=1",
+        for text in ("as h \\to \\infty", "equals s_1² times", "with α = 0.6",
                      "the polynomial lam^2-(2-a0)lam", "the coefficient c_{h-j}", "the residual x_t", "Σ ĉ_j",
-                     "with alpha != 0"):
+                     "the bound \\le 1"):
             self.assertIsNotNone(math_as_text(text), text)
 
     def test_each_text_is_warned_where_it_is(self):

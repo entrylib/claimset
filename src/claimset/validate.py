@@ -3372,15 +3372,15 @@ def check_formula_delimiters(r, paper, coll):
 
 #: Mathematics written as text (warning 64): a LaTeX command; a subscript or superscript on a symbol (`s_1`, `c_{j}`,
 #: `x^2`); a Unicode mathematical sign; a Greek letter standing alone (`α = 0.6`; not a word of Greek, nor μ before a unit
-#: such as μm, nor Ω); a comparison written `>=`, `<=` or `!=`.
+#: such as μm, nor Ω); the minus sign of a negative number (−0.5) is a number's. The operators of programming languages (`!=`, `>=`, `==`) are code, not LaTeX, and are not
+#: warned wherever they stand.
 MATH_AS_TEXT = re.compile(
     r"\\[A-Za-z]+|\\[{}_^,;!|]"
     r"|[A-Za-z0-9)\]}]\^"
     r"|(?<![A-Za-z0-9_])[A-Za-z0-9]_(?:\{|[A-Za-z0-9](?![A-Za-z0-9_]))"
-    r"|[\u2200-\u22ff\u2032\u2033\u00b2\u00b3\u00b9\u2070-\u209f\u00b1\u00d7\u0302\u0303\u0304\u0305\u0307]"
+    r"|[\u2200-\u2211\u2213-\u22ff\u2032\u2033\u00b2\u00b3\u00b9\u2070-\u209f\u00b1\u00d7\u0302\u0303\u0304\u0305\u0307]"
     r"|(?<![\u0370-\u03ff\u1f00-\u1fff])(?:[\u0391-\u03a8\u03b1-\u03bb\u03bd-\u03c9\u03d1\u03d5\u03f5]"
-    r"|\u03bc(?![A-Za-z]))(?![\u0370-\u03ff\u1f00-\u1fff])"
-    r"|[<>!]=")
+    r"|\u03bc(?![A-Za-z]))(?![\u0370-\u03ff\u1f00-\u1fff])")
 #: Taken out before warning 64 looks: code, URLs, formulas, escaped dollar signs and the plain text of term markers.
 NOT_PROSE = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+|\$\$.+?\$\$|\$[^$]+?\$|\\\$|\[\[D\d+:[^\]]*\]\]", re.S)
 
