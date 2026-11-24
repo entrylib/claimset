@@ -24,6 +24,21 @@ This skill covers **native** papers: research you or other agents produced, incl
 - **Report your own setup honestly.** Take provider, model name and version from your system prompt or environment. If you only know them from your own knowledge, set `record_source: "self_reported"`. Use `harness` only if the values come from the system that ran you.
 - **Do not overstate.** Claims, scope and strength must match what the evidence shows, not what would be most impressive.
 
+## Writing the text
+
+The one summary of the specification's statement text rules (spec §8), for every text of the file: statements, definitions and their tables, evidence descriptions and proof steps, names, summaries, scopes, check notes, limitations and corrections. The lab, from-paper, revise and review skills, the EntryLib portal and the conversion of papers by others follow these same rules; warnings 50 and 63 to 67 check most of them.
+
+- **Terms** (rule 5): mark a defined term where a text names it, `[[D1:forecast skill]]`. A marker's text is plain words, never a formula: `the [[D46:identity matrix]] $I_n$` (W67).
+- **Mathematics** (rule 6): LaTeX between dollar signs, `$…$` within a sentence for symbols and short conditions ($T$, $\epsilon_t \sim N(0, \sigma^2)$), `$$…$$` for an equation on a line of its own, as a paper would display it: a model's or method's defining equations, and long expressions. Several equations shown together go in one `$$\begin{aligned} y_t &= … \\ v_t &= … \end{aligned}$$`. Write a formula as a typeset paper would set it: the quantity's name inside the formula that defines it (`$\mathrm{Asymmetry} = 1 - \frac{4\phi}{\pi}$`, not `Asymmetry $= 1 - \phi/(\pi/4)$`), and fractions with `\frac{a}{b}`, not `a/b`, wherever a ratio of expressions, a displayed formula or a definition holds one; keep a slash only where `\frac` would be cramped (an exponent, a subscript such as $L_{3/2}$, a short inline ratio of two symbols such as $\lambda_3/\lambda_2$). Every formula, in every field, stands between dollar signs: never Unicode (`σ_1²`) or ASCII (`a1>=1`, `lam^2`) mathematics (W63, W64). A proof step may instead be one formula without dollar signs (spec §3.4).
+- **Symbols** (spec §3.2): explain each symbol once, where it first appears in the claimset (in the first definition that writes it, with its unit or range where that matters), and not again; a term the paper writes a symbol for gives it in `symbol`.
+- **Numbers** (rule 10): as recorded, with a point for decimals and no thousands separators (`1000`, `0.25`), at the precision the paper reports (W50).
+- **Parts** (rule 11): a statement whose assertion has parts marks them `(a)`, `(b)`, `(c)`, after the words that hold for all of them; pages set them out as a list.
+- **Code** (rule 12): a function, call or command in backticks (`` `auto.arima()` ``, `` `adam(y, h = 12)` ``), several lines in a fenced block, ```` ```r ````; a package named as a thing (the forecast R package) is a name (W65).
+- **Items of the file** (rule 13): outside statements, which are self-contained, name an item by its ID (`C27`, `E3.R2`, `L2`), never "the second claim"; pages link it.
+- **Citations** (rule 14): cite a work of the references with a citation marker, `[[B12:Hyndman et al. (2008)]]`; pages link it (W66 if the ID is not a reference).
+- **Paragraphs** (rule 15): separate the paragraphs of a long text by a blank line.
+- Read each formula of the reading view once as a reader would, and fix what would not pass in a journal.
+
 ## Workflow
 
 ### 1. Gather the material
@@ -114,7 +129,7 @@ Not every pattern in a table is a claim. Write a side result as a `secondary` cl
 - No "this", "these", "the above", "as shown", "our method" without naming it. Name the method, population and outcome every time.
 - No "novel", "remarkable", "important". "Significant" only as "statistically significant", when the claim reports a test.
 - Put what bounds the claim (population, setting, period, conditions) in `scope`, not in the statement. Keep epistemic qualifiers ("suggests", "may") and magnitude ("slightly") in the statement, as the work states them; confidence goes in the assessment.
-- Mark defined terms: `[[D1:forecast skill]]`. Mathematics in LaTeX: `$…$` within a sentence for symbols and short conditions ($T$, $\epsilon_t \sim N(0, \sigma^2)$); `$$…$$` for an equation on a line of its own, as a paper would display it: a model's or method's defining equations, and long expressions. Several equations shown together go in one `$$\begin{aligned} y_t &= … \\ v_t &= … \end{aligned}$$`. Write a formula as a typeset paper would set it (spec §8 rule 6): the quantity's name inside the formula that defines it (`$\mathrm{Asymmetry} = 1 - \frac{4\phi}{\pi}$`, not `Asymmetry $= 1 - \phi/(\pi/4)$`), and fractions with `\frac{a}{b}`, not `a/b`, wherever a ratio of expressions, a displayed formula or a definition holds one; keep a slash only where `\frac` would be cramped (an exponent, a subscript such as $L_{3/2}$, a short inline ratio of two symbols such as $\lambda_3/\lambda_2$). Read each formula of the reading view once as a reader would, and fix what would not pass in a journal.
+- Mark defined terms, and write formulas, code, references to the file's items, citations and paragraphs as *Writing the text* says (below).
 
 **Choose `type`:**
 | If the claim states… | type |

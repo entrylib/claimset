@@ -166,6 +166,8 @@ ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TERM_RE = re.compile(r"\[\[(D\d+):[^\]]+\]\]")
 NESTED_MARK_RE = re.compile(r"\[\[D\d+:[^\]]*\[\[")
+#: A citation marker (§8 rule 14): a work of the references and the words that cite it, `[[B12:Hyndman et al. (2008)]]`.
+CITE_RE = re.compile(r"\[\[(B\d+):[^\]]+\]\]")
 
 # Rule 31: source licences that permit conversion → the licences the claimset may carry (spec §3.1).
 _BY = {"CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0"}
@@ -1647,7 +1649,7 @@ TEST_PARAMETERS = {
 
 NUMBER_SKIP = re.compile(
     r"\$[^$]*\$"                                                      # LaTeX
-    r"|\[\[D\d+:[^\]]*\]\]"                                            # defined-term markers
+    r"|\[\[[DB]\d+:[^\]]*\]\]"                                         # term and citation markers
     r"|\b[A-Za-z]{1,8}\([^()]*\)"                                       # model notation: ETS(A,N,A), AR(1)
     r"|\b(?:Sections?|Sect\.|Tables?|Fig(?:ure)?s?\.?|Eq(?:uation)?s?\.?|Theorems?|Lemmas?|Propositions?|"
     r"Corollar(?:y|ies)|Chapters?|Appendi(?:x|ces)|Algorithms?|§)\s*[A-Z]?\d+(?:\.\d+)*")
@@ -3257,6 +3259,10 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
     check_inline_formulae(r, coll)
     check_formula_delimiters(r, paper, coll)
+    check_math_outside_formulae(r, paper, coll)
+    check_code_as_text(r, paper, coll)
+    check_citation_markers(r, paper, coll)
+    check_formula_in_markers(r, paper, coll)
 
     # ----- numbers written as recorded (warning 50; §8 rule 10) -----
     check_number_format(r, claims)
@@ -3367,6 +3373,161 @@ def check_formula_delimiters(r, paper, coll):
             if why:
                 r.warn("W63", where, f"{why}: every $ opens or closes a formula, $…$ or $$…$$, and a dollar sign in "
                                      "prose is written \\$ (§8 rule 6)")
+
+
+#: Mathematics written as text (warning 64): a LaTeX command; a subscript or superscript on a symbol (`s_1`, `c_{j}`,
+#: `x^2`); a Unicode mathematical sign; a Greek letter standing alone (`α = 0.6`; not a word of Greek, nor μ before a unit
+#: such as μm, nor Ω); the minus sign of a negative number (−0.5) is a number's. The operators of programming languages
+#: (`!=`, `>=`, `==`) are code, not LaTeX, and are not warned wherever they stand (warning 65 reads them).
+MATH_AS_TEXT = re.compile(
+    r"\\[A-Za-z]+|\\[{}_^,;!|]"
+    r"|[A-Za-z0-9)\]}]\^"
+    r"|(?<![A-Za-z0-9_])[A-Za-z0-9]_(?:\{|[A-Za-z0-9](?![A-Za-z0-9_]))"
+    r"|[\u2200-\u2211\u2213-\u22ff\u2032\u2033\u00b2\u00b3\u00b9\u2070-\u209f\u00b1\u00d7\u0302\u0303\u0304\u0305\u0307]"
+    r"|(?<![\u0370-\u03ff\u1f00-\u1fff])(?:[\u0391-\u03a8\u03b1-\u03bb\u03bd-\u03c9\u03d1\u03d5\u03f5]"
+    r"|\u03bc(?![A-Za-z]))(?![\u0370-\u03ff\u1f00-\u1fff])")
+#: Taken out before warning 64 looks: code, URLs, formulas, escaped dollar signs and the plain text of term markers.
+NOT_PROSE = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+|\$\$.+?\$\$|\$[^$]+?\$|\\\$|\[\[[DB]\d+:[^\]]*\]\]", re.S)
+
+
+def math_as_text(text):
+    """The first piece of mathematics a text writes outside a formula, with a little of its context, or None
+    (warning 64)."""
+    t = NOT_PROSE.sub(" ", text)
+    m = MATH_AS_TEXT.search(t)
+    if not m:
+        return None
+    return " ".join(t[max(0, m.start() - 20):m.end() + 20].split())
+
+
+def math_texts(paper, coll):
+    """(where, text) for each text warning 64 reads: those of warning 63, and the claims' summaries, slots, scopes and
+    check notes, the cells of definitions' tables and the corrections to the published paper."""
+    yield from formula_texts(coll)
+    paper = as_dict(paper)
+    yield "paper.summary", paper.get("summary")
+    for c in coll.get("claims") or []:
+        c = as_dict(c)
+        w = f"claims:{c.get('id')}"
+        yield f"{w}.name", c.get("name")
+        yield f"{w}.summary", c.get("summary")
+        for f in ("about", "scope"):
+            yield from strings_in(c.get(f), f"{w}.{f}")
+        for i, ch in enumerate(as_list(c.get("checks"))):
+            yield f"{w}.checks[{i}].notes", as_dict(ch).get("notes")
+    for d in coll.get("definitions") or []:
+        d = as_dict(d)
+        for i, t in enumerate(as_list(d.get("tables"))):
+            yield from strings_in(as_dict(t).get("rows"), f"definitions:{d.get('id')}.tables[{i}].rows")
+    published = as_dict(paper.get("published_as"))
+    for i, k in enumerate(as_list(published.get("corrections"))):
+        for f in ("printed", "recorded", "reason"):
+            yield f"paper.published_as.corrections[{i}].{f}", as_dict(k).get(f)
+
+
+def strings_in(x, where):
+    """Every string in a value, with where it is."""
+    if isinstance(x, str):
+        yield where, x
+    elif isinstance(x, dict):
+        for k, v in x.items():
+            yield from strings_in(v, f"{where}.{k}")
+    elif isinstance(x, list):
+        for i, v in enumerate(x):
+            yield from strings_in(v, f"{where}[{i}]")
+
+
+def check_math_outside_formulae(r, paper, coll):
+    """Warning 64 (§8 rule 6): mathematics is written in LaTeX between dollar signs. Written as text (`σ_1²`, `a1>=1`,
+    `h \\to \\infty`), it is shown raw by every reader that sets mathematics, and silently."""
+    for where, text in math_texts(paper, coll):
+        if isinstance(text, str) and not (".steps[" in where and bare_formula(text)):
+            found = math_as_text(text)
+            if found:
+                r.warn("W64", where, f"mathematics outside a formula ('{found}'): write it in LaTeX inside $…$ or "
+                                     "$$…$$ (§8 rule 6)")
+
+
+#: A LaTeX mark: a command, a subscript or a superscript. Prose: two words of letters in a row, outside commands and
+#: \text{…} (an `E` or `d` of a formula is not a word).
+TEX_MARK = re.compile(r"\\[A-Za-z]+|[_^]")
+TEX_WORDS = re.compile(r"\\(?:text|mathrm|operatorname|mbox)\{[^}]*\}|\\[A-Za-z]+")
+TWO_WORDS = re.compile(r"(?<![\\A-Za-z])[A-Za-z]{3,}\s+[A-Za-z]{3,}(?![A-Za-z]*\})")
+TERM_MARK = re.compile(r"\[\[[DB]\d+:[^\]]*\]\]")
+
+
+def bare_formula(s):
+    """Whether a proof step's statement is one formula written without delimiters (§3.4): LaTeX, and no `$`, code, term
+    marks or prose. Words in `\\text{…}` do not count as prose here; warning 64 then has nothing to say."""
+    if not s.strip() or "$" in s or "`" in s or TERM_MARK.search(s) or not TEX_MARK.search(s):
+        return False
+    return not TWO_WORDS.search(TEX_WORDS.sub(" ", s))
+
+
+#: Code written as prose (warning 65): a call with empty brackets, a call with a named argument, a dotted call, an R or
+#: C++ namespace, an R assignment, a comparison or logical operator of code. Model notation (`ETS(A,N,N)`, `AR(1)`) and
+#: a function of mathematics (`f(x)`, `S(h = 1)`) are not code.
+CODE_AS_TEXT = re.compile(
+    r"\b[A-Za-z][\w.]*\(\)"
+    r"|\b[A-Za-z][\w.]+\([^()\n]*?\b[a-z_][\w.]*\s?=(?!=)\s?[^()\n]*\)"
+    r"|\b[a-z]\w*\.[a-z_]\w*\("
+    r"|\b[A-Za-z]\w*::[A-Za-z_]"
+    r"|\w\s?<-\s?[\w(\"'-]"
+    r"|[^=<>!\s]\s?(?:==|!=)\s?[^=\s]|&&|\|\|")
+
+
+def code_as_text(text):
+    """The first piece of code a text writes as prose, with a little of its context, or None (warning 65)."""
+    t = NOT_PROSE.sub(" ", text)
+    m = CODE_AS_TEXT.search(t)
+    if not m:
+        return None
+    return " ".join(t[max(0, m.start() - 20):m.end() + 20].split())
+
+
+def marker_texts(paper, coll):
+    """(where, text) for each text warnings 65 and 66 read: those of warning 64, and the artefacts' descriptions."""
+    yield from math_texts(paper, coll)
+    for a in coll.get("artefacts") or []:
+        yield f"artefacts:{as_dict(a).get('id')}.description", as_dict(a).get("description")
+
+
+def check_citation_markers(r, paper, coll):
+    """Warning 66 (§8 rule 14): a citation marker names a reference of the file, which a page links it to."""
+    refs = {i for b in coll.get("references") or [] if isinstance(i := as_dict(b).get("id"), str)}
+    for where, text in marker_texts(paper, coll):
+        if isinstance(text, str):
+            for m in CITE_RE.finditer(text):
+                if m.group(1) not in refs:
+                    r.warn("W66", where, f"the citation marker {m.group(0)} names no reference of the file: give the "
+                                         "ID of a work in `references` (§8 rule 14)")
+
+
+#: A term or citation marker whose text holds a formula (warning 67): `[[D46:$I_n$]]`.
+FORMULA_IN_MARK = re.compile(r"\[\[[DB]\d+:[^\]]*\$[^\]]*\]\]")
+
+
+def check_formula_in_markers(r, paper, coll):
+    """Warning 67 (§8 rule 5): the text of a marker is plain. A formula in it, `[[D46:$I_n$]]`, is set by no reader
+    that sets the marker as a link; write the words, the formula after the marker: `the [[D46:identity matrix]] $I_n$`."""
+    for where, text in marker_texts(paper, coll):
+        if isinstance(text, str):
+            m = FORMULA_IN_MARK.search(text)
+            if m:
+                r.warn("W67", where, f"a marker holds a formula ({m.group(0)}): its text is plain words, the formula "
+                                     "after it, as `the [[D46:identity matrix]] $I_n$` (§8 rule 5)")
+
+
+def check_code_as_text(r, paper, coll):
+    """Warning 65 (§8 rule 12): code is written in backticks, or in a fenced block. Written as prose (`whose Arima()
+    function`, `smooth::adam`), a page shows it as words."""
+    for where, text in marker_texts(paper, coll):
+        if isinstance(text, str):
+            found = code_as_text(text)
+            if found:
+                r.warn("W65", where, f"code written as prose ('{found}'): write code in backticks, `…`, or in a fenced "
+                                     "block for several lines; a formula goes in LaTeX between dollar signs (§8 rules 6 "
+                                     "and 12)")
 
 
 def check_inline_formulae(r, coll):

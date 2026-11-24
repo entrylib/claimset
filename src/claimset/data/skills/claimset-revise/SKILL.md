@@ -54,6 +54,8 @@ A `disputed` comment met neither rule of its test; the re-review gave a replacem
 
 ### 3. Build the revised claimset
 
+Every text you add or change is written as the claimset-submit skill's *Writing the text* says (spec §8).
+
 Start from the current version's file, `<record>/v<n>/claimset.json`, never from an older one or a fresh lab export:
 - run `claimset correct <record>/v<n>/claimset.json -o revised.json`: it keeps `paper.id`, removes what the platform adds (`paper.version`, `previous_version`, `changes`, `date`, `status`, `status_notice`, `answers`, the classification's `topics`, and each claim's `verifiability` and `verifiability_flags`) and records the version you started from in `paper.based_on`, and names each table held in a file again by its path in the package, fetching the file beside `revised.json` (submit it with its package, `claimset package`); the platform refuses a revision whose `based_on` is not the current version (spec §9). Keep the classification's `subfield`, which the new version proposes again (spec §3.1): say its name to the guarantor, and change it only if they ask;
 - make the changes your answers need. A refined object keeps its ID; a different assertion gets a new ID, the next free number, and is placed where it belongs in the file (claims are in reading order, spec §9); an ID removed in any version is never used again; never run `claimset renumber` on a revision;
