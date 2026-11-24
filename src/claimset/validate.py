@@ -1648,7 +1648,7 @@ TEST_PARAMETERS = {
 
 
 NUMBER_SKIP = re.compile(
-    r"\$[^$]*\$"                                                      # LaTeX
+    r"\$\$[\s\S]+?\$\$|\$[^$]*\$"                                       # LaTeX, displayed or inline (erratum of 2026-11-24)
     r"|\[\[[DB]\d+:[^\]]*\]\]"                                         # term and citation markers
     r"|\b[A-Za-z]{1,8}\([^()]*\)"                                       # model notation: ETS(A,N,A), AR(1)
     r"|\b(?:Sections?|Sect\.|Tables?|Fig(?:ure)?s?\.?|Eq(?:uation)?s?\.?|Theorems?|Lemmas?|Propositions?|"
