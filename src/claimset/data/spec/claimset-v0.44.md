@@ -8,6 +8,7 @@ Claimset is the name of both the open format and the platform.
 
 Bugs are corrected in the text of a version and in the validator; a correction never refuses a file that was accepted.
 
+- 2026-11-24. Warnings 17 and 24 read the numbers of a statement with its formulas taken out, but took out only formulas written `$…$`: a formula displayed with `$$…$$` was read as text, so a number inside it (an exponent, a coefficient) was warned as a number no result records. A displayed formula is now taken out as an inline one is, in this version and every version from the baseline.
 - 2026-11-20. Rule 106 required the artefact holding a table's rows to give a relative path, and §3.13 has the platform replace every packaged file's relative `uri` with its permanent location at publication, so a claimset with a table held in a file could not be published: the platform found its own published file invalid. In a published file, the artefact gives the file's `https` location, ending in `.csv`; before publication, a relative path in the package, as before.
 
 ## Changes since v0.43

@@ -111,6 +111,23 @@ class TestNamesWithDigits(unittest.TestCase):
                 self.assertEqual(len(warned(d, "W17")), 1, (v, number))
 
 
+class TestNumbersInDisplayedFormulas(unittest.TestCase):
+    """Erratum of 2026-11-24: a number inside a formula displayed with $$…$$ is not a number of the statement."""
+
+    def test_a_displayed_formula_is_skipped_as_an_inline_one(self):
+        for v in VERSIONS:
+            for formula in ("$x^{-0.731}$", "$$x^{-0.731}$$", "$$\\begin{aligned} y &= 0.731 x \\\\ z &= 2.5 \\end{aligned}$$"):
+                d = load(v)
+                principal(d)["statement"] = f"[[D2:Method M]] gives {formula} on the [[D4:UK monthly retail sales]]."
+                self.assertEqual(warned(d, "W17"), [], (v, formula))
+
+    def test_a_number_beside_a_displayed_formula_still_warns(self):
+        for v in VERSIONS:
+            d = load(v)
+            principal(d)["statement"] = "[[D2:Method M]] gives $$x^2$$ and reached 0.731 on the [[D4:UK monthly retail sales]]."
+            self.assertEqual(len(warned(d, "W17")), 1, v)
+
+
 class TestExploratoryRationale(unittest.TestCase):
     def test_w13_reads_the_rationale(self):
         for v in VERSIONS:
