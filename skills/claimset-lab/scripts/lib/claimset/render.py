@@ -419,6 +419,18 @@ def _evidence(e):
     return lines
 
 
+def _warrant(w):
+    return [f"{w.get('id')} [{_join([w.get('reasoning'), ('premises ' + ', '.join(w['premises'])) if w.get('premises') else ''])}] {w.get('text', '')}"]
+
+
+def _limitation(l):
+    return [f"{l.get('id')} [{_join([l.get('category'), ('affects ' + ', '.join(l.get('affects') or [])), l.get('impact'), ('mitigation ' + l['mitigation']) if l.get('mitigation') else ''])}] {l.get('statement', '')}{_ext(l)}"]
+
+
+def _open_question(q):
+    return [f"{q.get('id')}" + (f" [from {', '.join(q['claims'])}]" if q.get("claims") else "") + f" {q.get('question', '')}"]
+
+
 def _artefact(a):
     """An artefact's line: kind, function and version (not a content hash; §2.3, as amended on 2026-11-23)."""
     v = a.get("version")
@@ -603,12 +615,11 @@ def render(doc):
         ("CLAIMS WITHOUT EVIDENCE", unevidenced, claim_lines),
         ("EVIDENCE", doc.get("evidence"), marked(_evidence)),
         ("WARRANTS", doc.get("warrants"),
-         lambda w: [f"{w.get('id')} [{_join([w.get('reasoning'), ('premises ' + ', '.join(w['premises'])) if w.get('premises') else ''])}] {w.get('text', '')}"]),
+         _warrant),
         ("LIMITATIONS", doc.get("limitations"),
-         lambda l: [f"{l.get('id')} [{_join([l.get('category'), ('affects ' + ', '.join(l.get('affects') or [])), l.get('impact'), ('mitigation ' + l['mitigation']) if l.get('mitigation') else ''])}] {l.get('statement', '')}{_ext(l)}"]),
+         _limitation),
         ("OPEN QUESTIONS", doc.get("open_questions"),
-         lambda q: [f"{q.get('id')}" + (f" [from {', '.join(q['claims'])}]" if q.get("claims") else "")
-                    + f" {q.get('question', '')}"]),
+         _open_question),
         ("ARTEFACTS", [a for a in doc.get("artefacts") or [] if isinstance(a, dict) and a.get("description")],
          _artefact),
         ("CORRECTIONS", corrections,
