@@ -3,13 +3,11 @@
 A bundle holds the claim, the claims it depends on, and the definitions, evidence, limitations, warrants, artefacts and
 references they cite, found by following the IDs the claim cites and, in turn, those objects cite. Another claim is
 pulled in only through `depends_on` and `assumptions` (of the claim, or of a definition or evidence it rests on); a
-relation to another claim of the paper keeps its target's ID without pulling the claim in. The reading view of a
-bundle is the reading view (render) of it.
+relation to another claim of the paper keeps its target's ID without pulling the claim in. The reading view of one
+claim is its file among the split views (views.claim_view).
 """
 
 import re
-
-from .render import render
 
 #: Lists of a claimset whose objects a bundle may hold, in reading order.
 LISTS = ("claims", "definitions", "evidence", "warrants", "limitations", "artefacts", "references")
@@ -68,12 +66,8 @@ def claim_bundle(doc, claim_id):
     return out
 
 
-def render_claim(doc, claim_id):
-    """The reading view of one claim's bundle, as a string."""
-    b = claim_bundle(doc, claim_id)
-    view = dict(b)
-    view["paper"] = dict(b["paper"], contributions=[claim_id])
-    text = render(view)
-    first, _, rest = text.partition("\n")
-    head = " ".join(x for x in (f"CLAIM {claim_id} of", b["paper"].get("id"), b["paper"].get("title")) if x)
-    return head + "\n" + rest
+def render_claim(doc, claim_id, base="", whole=None):
+    """The reading view of one claim (§2.3, *Split views*): its file among the split views, with links against `base`
+    (the folder the split views are served from) and `whole` (the address of the whole reading view)."""
+    from .views import claim_view
+    return claim_view(doc, claim_id, base, whole)

@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 import urllib.parse
 import urllib.request
@@ -151,14 +152,26 @@ def _cmd_render(args):
         print(f"ERROR: {args.file} does not validate ({len(rep.errors)} errors); the reading view is made only "
               f"from a valid file. Run `claimset validate {args.file}`.", file=sys.stderr)
         return 1
+    from . import views as _views
+    if args.split:
+        os.makedirs(args.split, exist_ok=True)
+        written = dict(_views.files(doc, args.base), **{"claimset.txt": _render.render(doc)})
+        for name, text in written.items():
+            with open(os.path.join(args.split, name), "w", encoding="utf-8") as fh:
+                fh.write(text)
+        print(f"Wrote {len(written)} files to {args.split}: overview.txt, then one per claim, evidence object and "
+              f"definition, references.txt and claimset.txt.")
+        return 0
     if args.claim:
         from . import claim as _claim
         try:
             text = (json.dumps(_claim.claim_bundle(doc, args.claim), indent=1, ensure_ascii=False) + "\n"
-                    if args.bundle else _claim.render_claim(doc, args.claim))
+                    if args.bundle else _claim.render_claim(doc, args.claim, args.base))
         except KeyError:
             print(f"ERROR: {args.file} has no claim {args.claim}", file=sys.stderr)
             return 1
+    elif args.overview:
+        text = _views.overview(doc, args.base)
     else:
         text = _render.render(doc)
     if args.output:
@@ -454,6 +467,12 @@ def build_parser():
     rv.add_argument("--published", action="store_true", help="the file is a published claimset")
     rv.add_argument("--claim", help="only this claim and what it rests on (a claim bundle): C4")
     rv.add_argument("--bundle", action="store_true", help="with --claim: the claim bundle as JSON, not its reading view")
+    rv.add_argument("--overview", action="store_true", help="only the overview: what the claimset contains")
+    rv.add_argument("--split", metavar="DIR", help="write the split views into DIR: overview.txt, one file per claim, "
+                                                   "evidence object and definition, references.txt, and claimset.txt "
+                                                   "(the whole reading view)")
+    rv.add_argument("--base", default="", help="the address the split views are served from, for their links "
+                                               "(https://example.org/p/2026.000001/); without it they link by file name")
     rv.add_argument("--html", action="store_true", help=argparse.SUPPRESS)       # removed in 0.41.14: says so
     rv.set_defaults(func=_cmd_render)
 

@@ -28,6 +28,9 @@ claimset validate claimset.json --json        # machine-readable report
 claimset validate claimset.json --published   # check a published file
 claimset render claimset.json -o claimset.txt  # the reading view: plain text for reading models
 claimset render claimset.json --claim C4       # one claim and what it rests on (a claim bundle)
+claimset render claimset.json --overview       # what the claimset contains, in a few lines
+claimset render claimset.json --split views/ --base https://example.org/p/2026.000001/
+                                               # the split views: overview, one file per claim, evidence, definition
 claimset renumber claimset.json                # before the first submission: IDs in reading order
 claimset subfields statistics                  # the OpenAlex subfields whose name holds the words: one is proposed
 claimset migrate claimset.json                 # bring a file from an earlier version (below)

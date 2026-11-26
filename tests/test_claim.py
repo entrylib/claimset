@@ -59,8 +59,8 @@ class TestReadingView(unittest.TestCase):
     def test_render_claim(self):
         text = render_claim(NATIVE, "C2")
         self.assertTrue(text.startswith("CLAIM C2 of " + NATIVE["paper"]["title"]))
-        self.assertIn("\nCLAIMS\nC2 [", text)
-        self.assertIn("\nEVIDENCE\nE1 [", text)
+        self.assertIn("\n\nC2 [", text)                        # the claim's file among the split views (§2.3)
+        self.assertIn("\nE1 [", text)
         self.assertNotIn("CLAIMSET ", text)
 
     def test_cli(self):
