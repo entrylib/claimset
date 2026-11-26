@@ -10,7 +10,7 @@ in a folder. The claimset itself holds no address.
 
 import re
 
-from .render import (_artefact, _assumption, _claim, _corrections, _declarations, _definition, _evidence,
+from .render import (_artefact, _claim, _corrections, _declarations, _definition, _evidence,
                      _is_assumption, _join, _limitation, _open_question, _s, _table, _warrant, inherited_assumptions)
 
 ID = re.compile(r"(?<![\w.])([A-Z]\d+)(?![\d])")
@@ -58,7 +58,7 @@ class _Paper:
 
     def files_line(self):
         b = self.base
-        return (f"FILES{' at ' + b if b else ''}: claim Cn in Cn.txt, evidence En in En.txt, definition Dn in Dn.txt, "
+        return (f"FILES{' at ' + b if b else ''}: claim or assumption Cn in Cn.txt, evidence En in En.txt, definition Dn in Dn.txt, "
                 f"references Bn in references.txt, overview.txt; the whole paper: {self.whole}")
 
     def corrected(self, oid):
@@ -271,20 +271,22 @@ def _evidence_part(P, eid, parts):
 
 
 def claim_view(doc, claim_id, base="", whole=None):
-    """One claim with what a reader needs to read it: the claim, its assumptions, its limitations, the definitions its
-    texts name, the evidence it cites (only the tables, rows and results it cites), its warrant and the references it
+    """One claim with what a reader needs to read it: the claim, its assumptions (by name, each in its own file), its
+    limitations, the definitions its texts name, the evidence it cites (only the tables, rows and results it cites), its warrant and the references it
     cites; and where the rest is. Raises KeyError for a claim the claimset does not have."""
     P = _Paper(doc, base, whole)
     c = P.claims[claim_id]
     inherited = inherited_assumptions(c, P.defs, P.evid)
-    out = [P.title_line("CLAIM", claim_id), P.files_line(), ""]
+    out = [P.title_line("ASSUMPTION" if _is_assumption(c) else "CLAIM", claim_id), P.files_line(), ""]
     out += _claim(c, inherited) + P.corrected(claim_id)
-    assumed = [a for a in list(c.get("assumptions") or []) + list(inherited) if a in P.claims]
-    assumed = list(dict.fromkeys(assumed))
-    if assumed:
-        out += ["", "ASSUMPTIONS"]
-        for a in assumed:
-            out += _assumption(P.claims[a])
+    assumed = list(dict.fromkeys(a for a in list(c.get("assumptions") or []) + list(inherited) if a in P.claims))
+    if assumed:                     # each in its own file: an assumption can be long, and many claims share one
+        out += ["", "ASSUMPTIONS (each in its own file)"] + [f"  {_label(P, a)}: {P.url(a)}" for a in assumed]
+    if _is_assumption(c):
+        users = [k for k, x in P.claims.items() if k != claim_id and claim_id in
+                 list(x.get("assumptions") or []) + list(inherited_assumptions(x, P.defs, P.evid))]
+        if users:
+            out += ["", "CLAIMS RESTING ON IT: " + " · ".join(_label(P, k) for k in users)]
     lims = [x for x in c.get("limitations") or [] if x in P.lims]
     lims += [k for k, x in P.lims.items() if claim_id in (x.get("affects") or []) and k not in lims]
     if lims:

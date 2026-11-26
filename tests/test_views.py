@@ -123,8 +123,16 @@ class TestClaimView(unittest.TestCase):
         text = views.claim_view(doc, "C2")
         part = text.split("DEFINITIONS")[1].split("\n\n")[0]
         self.assertEqual(re.findall(r"^(D\d+) ", part, re.MULTILINE), ["D2", "D1", "D3", "D4"])
-        self.assertIn("ASSUMPTIONS\nC1 ", text)
+        self.assertIn("ASSUMPTIONS (each in its own file)\n  C1: C1.txt\n  C3: C3.txt\n", text)  # by name, not copied
+        self.assertNotIn("annual seasonality", text)
         self.assertIn("LIMITATIONS\nL1 ", text)
+
+    def test_an_assumption_names_the_claims_resting_on_it(self):
+        doc = load("submission-native.json")
+        text = views.claim_view(doc, "C1", BASE)
+        self.assertTrue(text.startswith("ASSUMPTION C1 of "))
+        self.assertIn("annual seasonality", text)
+        self.assertIn("CLAIMS RESTING ON IT: C2", text)
 
     def test_render_claim_is_the_claim_view(self):
         doc = load("submission-native.json")
