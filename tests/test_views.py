@@ -100,29 +100,32 @@ class TestOverview(unittest.TestCase):
 
 
 class TestClaimView(unittest.TestCase):
-    def test_cuts_a_table_to_the_rows_cited(self):
+    def test_names_the_rows_cited_without_copying_them(self):
         doc = copy.deepcopy(load("submission-from-lab.json"))
         c2 = next(c for c in doc["claims"] if c["id"] == "C2")
         c2["support"][0]["results"] = ["E1.T1.r2"]
         text = views.claim_view(doc, "C2", BASE, WHOLE)
         self.assertTrue(text.startswith("CLAIM C2 of "))
-        self.assertIn("| r2 |", text)
-        self.assertNotIn("| r1 |", text)
-        self.assertIn(f"(rows cited: 1 of 2; the whole table: {BASE}E1.txt)", text)
+        part = text.split("\nEVIDENCE (what this claim cites, each object in its own file)\n")[1].split("\n\n")[0]
+        self.assertRegex(part, rf"^E1 \[.*\] .* {re.escape(BASE)}E1\.txt\n  E1\.T1 .*: rows r2 of 2$")
+        self.assertNotIn("| r", text)                             # the rows are in E1.txt
         self.assertNotIn("E1.R1 ", text)                         # a result it does not cite
+        self.assertNotIn("E1.T1.r2", text.split("\n\n")[1])       # nor are they listed in its support line
 
     def test_a_whole_table_or_result_cited(self):
         doc = load("submission-from-lab.json")
         text = views.claim_view(doc, "C2")
-        self.assertIn("| r1 |", text)
-        self.assertIn("| r2 |", text)
-        self.assertIn("  E1.R1 ", text)
+        self.assertIn("  E1.T1 ", text)
+        self.assertRegex(text, r"  E1\.T1 .*: the whole table\n")
+        self.assertIn("  E1.R1 ", text)                          # a result: one line, in the claim's file
+        self.assertNotIn("| r1 |", text)
 
     def test_names_only_the_definitions_it_uses(self):
         doc = load("submission-native.json")
         text = views.claim_view(doc, "C2")
-        part = text.split("DEFINITIONS")[1].split("\n\n")[0]
-        self.assertEqual(re.findall(r"^(D\d+) ", part, re.MULTILINE), ["D2", "D1", "D3", "D4"])
+        part = text.split("DEFINITIONS (the terms this claim names, each in its own file)\n")[1].split("\n\n")[0]
+        self.assertEqual(re.findall(r"^  (D\d+) .*: D\d+\.txt$", part, re.MULTILINE), ["D2", "D1", "D3", "D4"])
+        self.assertNotIn("Forecasts each month", text)            # D3's definition is in D3.txt
         self.assertIn("ASSUMPTIONS (each in its own file)\n  C1: C1.txt\n  C3: C3.txt\n", text)  # by name, not copied
         self.assertNotIn("annual seasonality", text)
         self.assertIn("LIMITATIONS\nL1 ", text)
