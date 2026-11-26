@@ -244,26 +244,35 @@ def _cited_parts(support):
     return out
 
 
+def _first_sentence(text):
+    """The first sentence of a text, as a short description of what it describes."""
+    words = " ".join(_s(text).split())
+    m = re.search(r"(?<=[.!?])\s+(?=[A-Z(\[$])", words)
+    return words[:m.start()] if m else words
+
+
 def _evidence_part(P, eid, parts):
-    """The lines of an evidence object a claim cites: its first line, then only the tables, rows and results cited."""
+    """What a claim cites of an evidence object, by reference (spec §2.3, split views): the object in one line (its
+    profile and the first sentence of its description) with its file; each table it cites by title, with the rows it
+    cites; the results it cites, one line each. The rows themselves are in the object's file."""
     e = P.evid[eid]
-    full = _evidence(e)
+    head = _evidence(dict(e, description=_first_sentence(e.get("description"))))[0]
+    lines = [f"{head} {P.url(eid)}"]
     if ("*", None) in parts:
-        return full + P.corrected(eid)
-    lines = [full[0]]
+        return lines + ["  cited as a whole"]
     tables = {t.get("id"): t for t in e.get("tables") or [] if isinstance(t, dict)}
     results = {r.get("id"): r for r in e.get("results") or [] if isinstance(r, dict)}
-    for tid in sorted({p for p, _ in parts if p in tables}):
+    for tid in sorted({p for p, _ in parts if p in tables}, key=lambda x: int(x[1:])):
         t = tables[tid]
-        rows = {r for p, r in parts if p == tid and r}
+        n = t.get("n_rows") if t.get("rows_file") and not t.get("rows") else len(t.get("rows") or [])
+        rows = sorted({r for p, r in parts if p == tid and r}, key=lambda x: int(x[1:]))
         if not rows or (tid, None) in parts:
-            lines += _table(eid, t)
+            which = "the whole table"
+        elif isinstance(n, int) and len(rows) == n:
+            which = f"every row ({n})"
         else:
-            cut = dict(t, rows=[r for r in t.get("rows") or [] if isinstance(r, dict) and r.get("id") in rows])
-            lines += _table(eid, cut)
-            n = len(t.get("rows") or [])
-            if n > len(cut["rows"]):
-                lines.append(f"  (rows cited: {len(cut['rows'])} of {n}; the whole table: {P.url(eid)})")
+            which = f"rows {_range(rows)}" + (f" of {n}" if isinstance(n, int) else "")
+        lines.append(f"  {eid}.{tid} {' '.join(_s(t.get('description')).split())}: {which}")
     for rid in [p for p, _ in parts if p in results]:
         one = dict(e, results=[results[rid]], tables=[])
         lines += [x for x in _evidence(one)[1:] if x.lstrip().startswith(f"{eid}.{rid} ")]
@@ -271,14 +280,18 @@ def _evidence_part(P, eid, parts):
 
 
 def claim_view(doc, claim_id, base="", whole=None):
-    """One claim with what a reader needs to read it: the claim, its assumptions (by name, each in its own file), its
-    limitations, the definitions its texts name, the evidence it cites (only the tables, rows and results it cites), its warrant and the references it
-    cites; and where the rest is. Raises KeyError for a claim the claimset does not have."""
+    """One claim with what a reader needs to read it: the claim, its limitations, its warrant and the references it
+    cites, in full; its assumptions, the definitions its texts name and the evidence it cites (each table by title with
+    the rows cited, each result cited), by name, each in its own file. Raises KeyError for a claim the claimset does
+    not have."""
     P = _Paper(doc, base, whole)
     c = P.claims[claim_id]
     inherited = inherited_assumptions(c, P.defs, P.evid)
     out = [P.title_line("ASSUMPTION" if _is_assumption(c) else "CLAIM", claim_id), P.files_line(), ""]
-    out += _claim(c, inherited) + P.corrected(claim_id)
+    # the support line names the evidence; what of it the claim cites is under EVIDENCE, by table and rows
+    brief = dict(c, support=[{k: v for k, v in x.items() if k != "results"} if isinstance(x, dict) and x.get("evidence")
+                             in P.evid else x for x in c.get("support") or []])
+    out += _claim(brief, inherited) + P.corrected(claim_id)
     assumed = list(dict.fromkeys(a for a in list(c.get("assumptions") or []) + list(inherited) if a in P.claims))
     if assumed:                     # each in its own file: an assumption can be long, and many claims share one
         out += ["", "ASSUMPTIONS (each in its own file)"] + [f"  {_label(P, a)}: {P.url(a)}" for a in assumed]
@@ -298,14 +311,13 @@ def claim_view(doc, claim_id, base="", whole=None):
         for x in v if isinstance(v, list) else [v]:
             if isinstance(x, str) and x in P.defs and x not in named:
                 named.append(x)
-    if named:
-        out += ["", "DEFINITIONS (the terms this claim names; others: " + P.base + "D<n>.txt)"]
-        for d in named:
-            out += _definition(P.defs[d]) + P.corrected(d)
+    if named:                       # each in its own file: a definition can be long, and many claims share one
+        out += ["", "DEFINITIONS (the terms this claim names, each in its own file)"]
+        out += [f"  {_label(P, d)}: {P.url(d)}" for d in named]
     cited = _cited_parts(c.get("support") or [])
     cited = {k: v for k, v in cited.items() if k in P.evid}
-    if cited:
-        out += ["", "EVIDENCE (what this claim cites; the whole of each: " + ", ".join(P.url(k) for k in cited) + ")"]
+    if cited:                       # by reference: the rows are in the evidence's own file
+        out += ["", "EVIDENCE (what this claim cites, each object in its own file)"]
         for eid, parts in cited.items():
             out += _evidence_part(P, eid, parts)
     arts = [a for x in c.get("support") or [] if isinstance(x, dict) for a in x.get("artefacts") or []]
