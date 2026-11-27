@@ -3259,6 +3259,7 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- an inline formula too long for a line (warning 44; §8 rule 6) -----
     check_inline_formulae(r, coll)
     check_formula_delimiters(r, paper, coll)
+    check_control_characters(r, paper, coll)
     check_math_outside_formulae(r, paper, coll)
     check_code_as_text(r, paper, coll)
     check_citation_markers(r, paper, coll)
@@ -3358,16 +3359,62 @@ def stray_dollar(text):
     return "a dollar sign without its pair" if "$" in t else None
 
 
-def check_formula_delimiters(r, paper, coll):
-    """Warning 63 (§8 rule 6): every `$` opens or closes a formula. `$$$x$$$` or an unpaired `$` is set as text by
-    every reader that sets mathematics, and silently."""
+def prose_texts(paper, coll):
+    """(where, text) for each text of a claimset a reader reads as prose: those a formula may be written in, the
+    summary, the claims' names and the definitions' symbols (warnings 63 and 68)."""
     texts = list(formula_texts(coll))
     texts.append(("paper.summary", as_dict(paper).get("summary")))
     for c in coll.get("claims") or []:
         texts.append((f"claims:{as_dict(c).get('id')}.name", as_dict(c).get("name")))
     for d in coll.get("definitions") or []:
         texts.append((f"definitions:{as_dict(d).get('id')}.symbol", as_dict(d).get("symbol")))
-    for where, text in texts:
+    return texts
+
+
+#: Warning 68 (§8 rule 6): a control character other than a line break (a carriage return before one is kept).
+CONTROL_CHAR = re.compile(r"[\x00-\x09\x0b\x0c\x0e-\x1f\x7f-\x9f]|\r(?!\n)")
+#: The JSON escapes a LaTeX command can begin with, by the character a parser makes of them.
+CONTROL_AS_ESCAPE = {"\t": "t", "\x0c": "f", "\x08": "b", "\r": "r"}
+CONTROL_NAMES = {"\t": "a tab", "\x0c": "a form feed", "\x08": "a backspace", "\r": "a carriage return"}
+#: LaTeX commands that begin like a JSON escape: after the control character, the rest of one of these names is read
+#: as LaTeX that lost its backslash (warning 68 says so).
+LATEX_LIKE_ESCAPES = {
+    "b": {"backslash", "bar", "begin", "beta", "bf", "big", "bigg", "binom", "bm", "bmod", "boldsymbol", "bot", "bullet"},
+    "f": {"flat", "forall", "frac"},
+    "r": {"rangle", "rceil", "rfloor", "rho", "right", "rightarrow", "rm", "rvert"},
+    "t": {"tag", "tan", "tanh", "tau", "text", "textbf", "textit", "textrm", "texttt", "tfrac", "theta", "tilde",
+          "times", "to", "top", "triangle", "tt"},
+}
+
+
+def check_control_characters(r, paper, coll):
+    """Warning 68 (§8 rule 6): a text holds no control character but a line break. Before letters one is usually a
+    LaTeX command written into JSON with one backslash (`\\frac` read as a form feed and "rac"), which parses without
+    an error and shows the formula broken."""
+    for where, text in prose_texts(paper, coll):
+        if not isinstance(text, str):
+            continue
+        m = CONTROL_CHAR.search(text)
+        if not m:
+            continue
+        ch = m.group(0)
+        name = CONTROL_NAMES.get(ch, f"the control character U+{ord(ch):04X}")
+        after = re.match(r"[A-Za-z]+", text[m.end():])
+        letter = CONTROL_AS_ESCAPE.get(ch)
+        if letter and after and letter + after.group(0) in LATEX_LIKE_ESCAPES[letter]:
+            command = "\\" + letter + after.group(0)
+            r.warn("W68", where, f"{name} before '{after.group(0)}': this is likely {command} written into JSON with "
+                                 f"one backslash, which a parser reads as {name}; write the backslash twice in JSON "
+                                 "(§8 rule 6)")
+        else:
+            r.warn("W68", where, f"{name} in the text: a text holds no control character but a line break; remove it "
+                                 "(§8 rule 6)")
+
+
+def check_formula_delimiters(r, paper, coll):
+    """Warning 63 (§8 rule 6): every `$` opens or closes a formula. `$$$x$$$` or an unpaired `$` is set as text by
+    every reader that sets mathematics, and silently."""
+    for where, text in prose_texts(paper, coll):
         if isinstance(text, str) and "$" in text:
             why = stray_dollar(text)
             if why:
