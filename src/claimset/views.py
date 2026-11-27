@@ -11,13 +11,12 @@ in a folder. The claimset itself holds no address.
 import re
 
 from .render import (_artefact, _claim, _corrections, _declarations, _definition, _evidence,
-                     _is_assumption, _join, _limitation, _open_question, _s, _table, _warrant, inherited_assumptions)
+                     _is_assumption, _join, _limitation, _open_question, _s, _warrant, inherited_assumptions)
 
 ID = re.compile(r"(?<![\w.])([A-Z]\d+)(?![\d])")
 CITED = re.compile(r"^(E\d+)\.((?:T\d+|R\d+))(?:\.(r\d+))?$")
-HANDOFF = ("If you cannot open links found in this text, tell the person you are helping what you need and ask them to "
-           "paste its link, for example: \"I read the overview of this paper. Its main findings are {main}. Could you "
-           "paste {example} so I can read {first}?\"")
+HANDOFF = ("If you cannot open links found in this text, give the person you are helping the addresses of the files "
+           "that would answer their question, each on its own line, and let them choose which to paste back to you.")
 
 
 def file_name(oid):
@@ -121,10 +120,11 @@ def _text_of_claim(c):
     return [x for x in out if isinstance(x, str)]
 
 
-def overview(doc, base="", whole=None, score=None):
+def overview(doc, base="", whole=None, score=None, claim_scores=None):
     """What a claimset contains, in a few lines: its title, summary and declarations, its claims section by section
     (one line each: ID and name; principal claims marked *), its assumptions, the terms it defines, how much else it
-    holds, and how to read on. `score` is a line the publisher adds after the title (its scores are not in the file)."""
+    holds, and how to read on. `score` is a line the publisher adds after the title, and `claim_scores` {claim ID:
+    text} what it adds beside each claim's ID, in parentheses (scores are a publisher's, not in the file)."""
     P = _Paper(doc, base, whole)
     p = P.paper
     head = [P.title_line("OVERVIEW")]
@@ -144,9 +144,13 @@ def overview(doc, base="", whole=None, score=None):
     if p.get("declarations"):
         out.append("declarations " + _declarations(p["declarations"]))
 
+    scored = claim_scores if isinstance(claim_scores, dict) else {}
+
     def line(cid):
         c = P.claims[cid]
-        return f"  {cid}{'*' if c.get('role') == 'principal' else ''} {P.name(cid) or _short(c.get('statement'))}"
+        extra = f" ({scored[cid]})" if scored.get(cid) else ""
+        return (f"  {cid}{'*' if c.get('role') == 'principal' else ''}{extra} "
+                f"{P.name(cid) or _short(c.get('statement'))}")
     sections = [s for s in p.get("sections") or [] if isinstance(s, dict) and isinstance(s.get("claims"), list)] \
         if isinstance(p.get("sections"), list) else []
     assumptions = [k for k, c in P.claims.items() if _is_assumption(c)]
@@ -189,8 +193,7 @@ def overview(doc, base="", whole=None, score=None):
     out += [f"  {k}: {P.url(k)}" for k in principal]
     out += [f"  {k}: {P.url(k)}" for k in P.evid]
     out.append(f"  the whole paper: {P.whole}")
-    first = principal[0] if principal else next(iter(P.claims), "C1")
-    out.append(HANDOFF.format(main=_range(principal) or "listed above", example=P.url(first), first=first))
+    out.append(HANDOFF)
     return re.sub(r"\n{3,}", "\n\n", _finish(P, out))
 
 
@@ -397,10 +400,10 @@ def references_view(doc, base="", whole=None):
     return _finish(P, out)
 
 
-def files(doc, base="", whole=None, score=None):
+def files(doc, base="", whole=None, score=None, claim_scores=None):
     """Every split view of a claimset, as {file name: text}."""
     P = _Paper(doc, base, whole)
-    out = {"overview.txt": overview(doc, base, whole, score)}
+    out = {"overview.txt": overview(doc, base, whole, score, claim_scores)}
     for k in P.claims:
         out[f"{k}.txt"] = claim_view(doc, k, base, whole)
     for k in P.evid:

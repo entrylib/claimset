@@ -74,7 +74,16 @@ class TestOverview(unittest.TestCase):
         self.assertIn(f"  E1: {BASE}E1.txt", text)
         self.assertIn(f"the whole paper: {WHOLE}", text)
         self.assertNotIn(f"{BASE}C4.txt", text)               # only principal claims are linked in full
-        self.assertIn(f"Could you paste {BASE}C2.txt so I can read C2?", text.splitlines()[-1])
+        self.assertIn("give the person you are helping the addresses of the files", text.splitlines()[-1])
+        self.assertIn("let them choose which to paste back to you", text.splitlines()[-1])
+
+    def test_a_publisher_may_add_each_claims_score(self):
+        doc = load("submission-from-lab.json")
+        text = views.overview(doc, BASE, WHOLE, claim_scores={"C2": "Support 88", "C9": "ignored"})
+        self.assertRegex(text, r"\n  C2\* \(Support 88\) ")
+        self.assertNotIn("(Support", text.split("C2*")[0])                 # only where given
+        self.assertEqual(views.files(doc, BASE, WHOLE, claim_scores={"C2": "Support 88"})["overview.txt"],
+                         views.overview(doc, BASE, WHOLE, claim_scores={"C2": "Support 88"}))
 
     def test_sections_and_key_terms(self):
         doc = load("submission-native.json")
