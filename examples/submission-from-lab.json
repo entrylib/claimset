@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.44",
+  "schema_version": "0.45",
   "paper": {
     "title": "Method M against the seasonal naive benchmark on UK monthly retail sales",
     "licence": "CC-BY-4.0",
@@ -115,6 +115,7 @@
     {
       "id": "D1",
       "term": "mean absolute scaled error",
+      "short": "MASE",
       "kind": "variable",
       "definition": "Mean absolute scaled error; here the mean relative reduction of method M against the seasonal naive method, averaged over series and horizons."
     },

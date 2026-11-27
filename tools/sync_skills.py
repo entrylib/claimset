@@ -24,7 +24,7 @@ COPIES = {
         ("src/claimset/lean.py", "skills/claimset-submit/scripts/lean.py"),
         ("src/claimset/extensions", "skills/claimset-submit/scripts/extensions"),
         ("src/claimset/versions", "skills/claimset-submit/scripts/versions"),
-        ("spec/claimset-v0.44.md", "skills/claimset-submit/references/spec-v0.44.md"),
+        ("spec/claimset-v0.45.md", "skills/claimset-submit/references/spec-v0.45.md"),
         ("spec/extensions/README.md", "skills/claimset-submit/references/extensions/README.md"),
         ("spec/extensions/linguistics-v0.1.md", "skills/claimset-submit/references/extensions/linguistics-v0.1.md"),
         ("spec/extensions/qualitative-v0.1.md", "skills/claimset-submit/references/extensions/qualitative-v0.1.md"),
@@ -35,7 +35,7 @@ COPIES = {
         ("examples/submission-from-lab.json", "skills/claimset-submit/examples/submission-from-lab.json"),
     ],
     "claimset-from-paper": [
-        ("spec/claimset-v0.44.md", "skills/claimset-from-paper/references/spec-v0.44.md"),
+        ("spec/claimset-v0.45.md", "skills/claimset-from-paper/references/spec-v0.45.md"),
         ("examples/submission-native.json", "skills/claimset-from-paper/examples/submission-native.json"),
     ],
     "claimset-lab": [
@@ -51,7 +51,7 @@ COPIES = {
         ("src/claimset", "skills/claimset-revise/scripts/lib/claimset"),   # the whole package
         ("skills/claimset-lab/scripts/claimset", "skills/claimset-revise/scripts/claimset"),
         ("spec/claimset-revision-v0.6.md", "skills/claimset-revise/references/revision-v0.6.md"),
-        ("spec/claimset-v0.44.md", "skills/claimset-revise/references/spec-v0.44.md"),
+        ("spec/claimset-v0.45.md", "skills/claimset-revise/references/spec-v0.45.md"),
         ("spec/extensions/README.md", "skills/claimset-revise/references/extensions/README.md"),
         ("spec/extensions/linguistics-v0.1.md", "skills/claimset-revise/references/extensions/linguistics-v0.1.md"),
         ("spec/extensions/qualitative-v0.1.md", "skills/claimset-revise/references/extensions/qualitative-v0.1.md"),
@@ -62,7 +62,7 @@ COPIES = {
         ("src/claimset", "skills/claimset-review/scripts/lib/claimset"),   # the whole package
         ("skills/claimset-lab/scripts/claimset", "skills/claimset-review/scripts/claimset"),
         ("spec/claimset-revision-v0.6.md", "skills/claimset-review/references/revision-v0.6.md"),
-        ("spec/claimset-v0.44.md", "skills/claimset-review/references/spec-v0.44.md"),
+        ("spec/claimset-v0.45.md", "skills/claimset-review/references/spec-v0.45.md"),
         ("spec/extensions/README.md", "skills/claimset-review/references/extensions/README.md"),
         ("spec/extensions/linguistics-v0.1.md", "skills/claimset-review/references/extensions/linguistics-v0.1.md"),
         ("spec/extensions/qualitative-v0.1.md", "skills/claimset-review/references/extensions/qualitative-v0.1.md"),
@@ -73,7 +73,7 @@ COPIES = {
     # spec and install skills that match it (`claimset spec`, `claimset skill install`). No .py files here:
     # the package's own modules are the skills' scripts.
     "package-data": [
-        ("spec/claimset-v0.44.md", "src/claimset/data/spec/claimset-v0.44.md"),
+        ("spec/claimset-v0.45.md", "src/claimset/data/spec/claimset-v0.45.md"),
         ("spec/extensions/README.md", "src/claimset/data/spec/extensions/README.md"),
         ("spec/extensions/linguistics-v0.1.md", "src/claimset/data/spec/extensions/linguistics-v0.1.md"),
         ("spec/extensions/qualitative-v0.1.md", "src/claimset/data/spec/extensions/qualitative-v0.1.md"),

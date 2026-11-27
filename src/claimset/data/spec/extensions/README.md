@@ -10,7 +10,7 @@ The claimset core holds what research in every field shares: claims, their evide
 - **In a claimset:** name it in the top-level `extensions`, with the version you follow, and put its fields in `ext` blocks on the objects it extends:
 
   ```json
-  {"schema_version": "0.44", "extensions": {"qualitative": "0.1"},
+  {"schema_version": "0.45", "extensions": {"qualitative": "0.1"},
    "definitions": [{"id": "D4", "term": "arrange for ensemble", "kind": "concept", "definition": "…",
                     "ext": {"qualitative": {"code": {"include": "asks for automatic arranging for named instruments"}}}}]}
   ```

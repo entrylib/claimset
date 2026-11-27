@@ -168,9 +168,61 @@ def _stat_note(obj):
 
 
 def _column(c):
+    """A column's header (spec §2.3, *Tables and results*, from v0.45): its variable, its conditions in words, each key
+    and value separated by a space and the conditions by commas, then its statistic: `D11, DGP Normal (mean)`."""
     if isinstance(c, dict):
-        return _join([_s(c.get("variable")), _conditions(c.get("conditions"))], " ") + _stat_note(c)
+        conds = c.get("conditions")
+        words = [f"{k} {_s(v)}" for k, v in conds.items()] if isinstance(conds, dict) else []
+        return ", ".join([_s(c.get("variable"))] + words) + _stat_note(c)
     return _s(c)
+
+
+def _unit(u):
+    """A value's unit as the reading view writes it: none for a dimensionless value, whose unit is `1` (§2.3)."""
+    return "" if u is None or (isinstance(u, str) and u.strip() in ("", "1")) else _s(u)
+
+
+#: Fields of a table or a result that hold texts or bookkeeping, not the identifiers a key explains.
+_NOT_KEYED = ("description", "note", "id", "read_from", "statistic", "label_text", "approximate", "uncertainty",
+              "interval", "n", "unit", "units", "rows_file", "n_rows")
+
+
+def _keyed(x, labels, found=None):
+    """The definitions an object names by identifier (a key or a value that is a definition's ID, in its conditions,
+    variables, row labels or cells), in order of first use; texts are skipped, whose term markers carry words."""
+    found = [] if found is None else found
+    if isinstance(x, dict):
+        for k, v in x.items():
+            if k in _NOT_KEYED:
+                continue
+            if isinstance(k, str) and k in labels and k not in found:
+                found.append(k)
+            _keyed(v, labels, found)
+    elif isinstance(x, list):
+        for v in x:
+            _keyed(v, labels, found)
+    elif isinstance(x, str) and x in labels and x not in found:
+        found.append(x)
+    return found
+
+
+def key_labels(doc):
+    """{definition ID: its brief label}: the `symbol` if it has one, else its `short` (from v0.45), else its term
+    (spec §2.3 and §3.2)."""
+    out = {}
+    for d in doc.get("definitions") or [] if isinstance(doc.get("definitions"), list) else []:
+        if not isinstance(d, dict) or not isinstance(d.get("id"), str):
+            continue
+        for f in ("symbol", "short", "term"):
+            if isinstance(d.get(f), str) and d[f].strip():
+                out.setdefault(d["id"], " ".join(d[f].split()))
+                break
+    return out
+
+
+def _key(ids, labels):
+    """The key under a table or results (spec §2.3): `  key: D7 method; D14 RMSSE`, or nothing."""
+    return ["  key: " + "; ".join(f"{i} {labels[i]}" for i in ids)] if ids else []
 
 
 def _declarations(d):
@@ -346,13 +398,13 @@ def _claim(c, inherited=()):
     return lines
 
 
-def _table(eid, t):
+def _table(eid, t, labels=None):
     lines = [f"  {eid}.{t.get('id')} {t.get('description', '')}"
              + (f" {_conditions(t.get('conditions'))}" if t.get("conditions") else "") + _ext(t)]
     cols = [_column(c) for c in t.get("columns") or []]
     units = t.get("units")
     if isinstance(units, list):
-        cols = [f"{c} ({u})" if u else c for c, u in zip(cols, units)]
+        cols = [f"{c} ({_unit(u)})" if _unit(u) else c for c, u in zip(cols, units)]
     lines.append("  | " + " | ".join(["row"] + list(t.get("row_labels") or []) + cols) + " |")
     if t.get("rows_file") and not t.get("rows"):
         n = t.get("n_rows")
@@ -363,10 +415,15 @@ def _table(eid, t):
             cells = ([f"{r.get('id', '')}{_stat_note(r)}"] + [_s(x) for x in r.get("label") or []]
                      + [_val(v) for v in r.get("values") or []])
             lines.append("  | " + " | ".join(cells) + " |")
+    if labels:                       # in the order the table is read: its conditions, its header, its rows
+        found = []
+        for part in ("conditions", "row_labels", "columns", "rows"):
+            _keyed(t.get(part), labels, found)
+        lines += _key(found, labels)
     return lines
 
 
-def _evidence(e):
+def _evidence(e, labels=None):
     head = [e.get("profile")]
     for key in ("design", "data_origin", "analytic_approach", "sampling", "foundation", "checker"):
         if e.get(key):
@@ -398,16 +455,23 @@ def _evidence(e):
     for r in e.get("results") or []:
         if isinstance(r, dict):
             rf = r.get("read_from") if isinstance(r.get("read_from"), dict) else {}
-            extra = _join([_uncertainty(r.get("uncertainty")), r.get("unit"), _interval(r.get("interval")),
+            extra = _join([_uncertainty(r.get("uncertainty")), _unit(r.get("unit")), _interval(r.get("interval")),
                            f"n {_num(r['n'])}" if r.get("n") is not None else "", _conditions(r.get("conditions")),
                            f"read from {rf.get('artefact')}, precision {_s(rf.get('precision'))}" if rf else ""], " ")
             stat = f" ({_statistic(r.get('statistic'))})" if _statistic(r.get("statistic")) else ""
             approx = "about " if r.get("approximate") is True else ""
             lines.append(f"  {e.get('id')}.{r.get('id')} {_s(r.get('variable'))}{stat} = {approx}{_val(r.get('value'))}"
                          + (f" {extra}" if extra else "") + _ext(r))
+    if labels and isinstance(e.get("results"), list):       # the key under the results (§2.3, from v0.45)
+        found = []
+        for r in e["results"]:
+            if isinstance(r, dict):
+                _keyed({"variable": r.get("variable"), "conditions": r.get("conditions"), "value": r.get("value")},
+                       labels, found)
+        lines += _key(found, labels)
     for t in e.get("tables") or []:
         if isinstance(t, dict):
-            lines += _table(e.get("id"), t)
+            lines += _table(e.get("id"), t, labels)
     for s in e.get("steps") or []:
         if isinstance(s, dict):
             lines.append(f"  {s.get('id')} {s.get('statement')} (by {', '.join(s.get('by') or []) or 'none'}; {s.get('rule')})")
@@ -589,6 +653,7 @@ def render(doc):
     order = {"principal": 0, "supporting": 1, "secondary": 2}
     main = sorted((c for c in rest if not any(c is u for u in unevidenced)),
                   key=lambda c: order.get(c.get("role"), 3))           # stable: file order within a role
+    labels = key_labels(doc)         # a brief label for each term a table or result names (§2.3, from v0.45)
     corrected = {}
     for corr in corrections:
         corrected.setdefault(corr["field"].split(".")[0], []).append(corr)
@@ -613,7 +678,7 @@ def render(doc):
         ("ASSUMPTIONS", assumptions, marked(_assumption)),
         ("CLAIMS", listed, lambda x: [x] if isinstance(x, str) else claim_lines(x)),
         ("CLAIMS WITHOUT EVIDENCE", unevidenced, claim_lines),
-        ("EVIDENCE", doc.get("evidence"), marked(_evidence)),
+        ("EVIDENCE", doc.get("evidence"), marked(lambda e: _evidence(e, labels))),
         ("WARRANTS", doc.get("warrants"),
          _warrant),
         ("LIMITATIONS", doc.get("limitations"),

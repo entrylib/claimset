@@ -10,8 +10,8 @@ in a folder. The claimset itself holds no address.
 
 import re
 
-from .render import (_artefact, _claim, _corrections, _declarations, _definition, _evidence,
-                     _is_assumption, _join, _limitation, _open_question, _s, _warrant, inherited_assumptions)
+from .render import (_artefact, _claim, _corrections, _declarations, _definition, _evidence, _key, _keyed,
+                     _is_assumption, _join, _limitation, _open_question, _s, _warrant, inherited_assumptions, key_labels)
 
 ID = re.compile(r"(?<![\w.])([A-Z]\d+)(?![\d])")
 CITED = re.compile(r"^(E\d+)\.((?:T\d+|R\d+))(?:\.(r\d+))?$")
@@ -45,6 +45,7 @@ class _Paper:
         self.questions = {x["id"]: x for x in doc.get("open_questions") or [] if isinstance(x, dict)
                           and isinstance(x.get("id"), str)}
         self.corrections, self.against = _corrections(self.paper)
+        self.labels = key_labels(doc)
 
     def url(self, oid):
         name = file_name(oid)
@@ -279,6 +280,10 @@ def _evidence_part(P, eid, parts):
     for rid in [p for p, _ in parts if p in results]:
         one = dict(e, results=[results[rid]], tables=[])
         lines += [x for x in _evidence(one)[1:] if x.lstrip().startswith(f"{eid}.{rid} ")]
+    keyed = [r for p, _ in parts if p in results for r in [results[p]]]
+    if keyed:                        # the key under the results it cites (§2.3, from v0.45)
+        lines += _key(_keyed([{"variable": r.get("variable"), "conditions": r.get("conditions"),
+                               "value": r.get("value")} for r in keyed], P.labels), P.labels)
     return lines
 
 
@@ -355,7 +360,8 @@ def evidence_view(doc, evidence_id, base="", whole=None):
     each in its own file), the references it cites, and the claims that rest on it."""
     P = _Paper(doc, base, whole)
     e = P.evid[evidence_id]
-    out = [P.title_line("EVIDENCE", evidence_id), P.files_line(), ""] + _evidence(e) + P.corrected(evidence_id)
+    out = ([P.title_line("EVIDENCE", evidence_id), P.files_line(), ""] + _evidence(e, key_labels(doc))
+           + P.corrected(evidence_id))
     named = [i for i in P.ids_in_text("\n".join(out)) if i in P.defs]
     if named:
         out += ["", "TERMS (each in its own file): " + " · ".join(_label(P, d) for d in named)]

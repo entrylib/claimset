@@ -14,6 +14,7 @@ from pathlib import Path
 from claimset.lab.export import check, export
 from claimset.migrate import migrate
 from claimset.render import render
+from claimset.validate import SCHEMA_VERSION
 from claimset.validate import validate
 
 from test_lab_export import ExportCase
@@ -72,7 +73,7 @@ class TestTheValidator(unittest.TestCase):
         claim(d)["estimate"]["estimands"] = {"d": {"variable": VARIABLE}}
         claim(d)["support"].append({"kind": "empirical_quant", "evidence": "E1", "results": ["E1.R1"]})
         out, _done, todo = migrate(d)
-        self.assertEqual(out["schema_version"], "0.44")
+        self.assertEqual(out["schema_version"], SCHEMA_VERSION)
         self.assertTrue(any("estimands.d matches 2 observations" in t and "table" in t for t in todo), todo)
 
 

@@ -27,7 +27,7 @@ import operator
 import re
 import sys
 
-SCHEMA_VERSION = "0.44"
+SCHEMA_VERSION = "0.45"
 #: The first specification version accepted (spec §2.6), set when the platform launches. Files of every version from
 #: it to SCHEMA_VERSION are then valid for good, each checked by its own version's rules (a frozen validator in
 #: claimset.versions). None until then: only SCHEMA_VERSION is accepted, and earlier files are migrated.
@@ -3274,6 +3274,8 @@ def check_v032(r, paper, coll, claims, by_id, ids, converted, published):
     # ----- what a reader finds their way by: names, summaries, symbols, the results of a relation
     #       (rules 101 to 104, warnings 52 and 53; §3.2, §3.3, §3.7) -----
     check_reading(r, claims, coll["definitions"], by_id)
+    # ----- short labels of terms a table or a result names (rule 109, warning 69; §3.2, from v0.45) -----
+    check_short_labels(r, coll["definitions"], coll.get("evidence") or [])
     check_published_as(r, paper, coll.get("artefacts") or [])
     check_published_corrections(r, paper, coll)
     check_contributor_order(r, paper, coll.get("contributors") or [])
@@ -3814,6 +3816,70 @@ def check_reading(r, claims, definitions, by_id):
                              f"own symbol, or define the term once")
         else:
             seen[key] = _h(d.get("id"))
+
+
+#: Rule 109 and warning 69 (§3.2, from v0.45): the longest short label, and the length of a term above which a term
+#: that a table or a result names wants a symbol or a short label.
+MAX_SHORT_CHARS = 30
+DEF_ID = re.compile(r"D\d+")
+
+
+def _named_definitions(evidence, ids):
+    """The definitions an evidence object's tables and results name by identifier, in order of first use: a value or
+    a key of a column, condition, row label or cell, or a result's variable, that is a definition's ID. Descriptions
+    and notes are texts, whose term markers carry their own words, and are not read."""
+    found = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if k in ("description", "note", "read_from", "statistic", "id"):
+                    continue
+                if isinstance(k, str) and k in ids and k not in found:
+                    found.append(k)
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+        elif isinstance(x, str) and DEF_ID.fullmatch(x) and x in ids and x not in found:
+            found.append(x)
+    for e in evidence:
+        e = as_dict(e)
+        walk(as_list(e.get("results")))
+        walk(as_list(e.get("tables")))
+    return found
+
+
+def check_short_labels(r, definitions, evidence):
+    """Rule 109: a definition's `short`, when present, is a non-empty string on one line of at most 30 characters,
+    plain text with no formula. Warning 69: definitions that a table, a result's variable or a condition names have
+    terms longer than 30 characters and neither a `symbol` nor a `short` label, listed in one warning."""
+    defs = {}
+    for d in definitions:
+        d = as_dict(d)
+        if isinstance(d.get("id"), str):
+            defs.setdefault(d["id"], d)
+        if "short" not in d:
+            continue
+        w = f"definitions:{_h(d.get('id'))}.short"
+        short = d["short"]
+        if not isinstance(short, str) or not short.strip():
+            r.err("109", w, "a short label for the term, plain text of at most 30 characters (§3.2)")
+        elif "\n" in short.strip() or "\r" in short.strip():
+            r.err("109", w, "a short label is on one line")
+        elif len(short.strip()) > MAX_SHORT_CHARS:
+            r.err("109", w, f"{len(short.strip())} characters: a short label has at most {MAX_SHORT_CHARS}")
+        elif "$" in short:
+            r.err("109", w, "plain text, no formula: a term's notation is its `symbol` (§3.2)")
+    long = [k for k in _named_definitions(evidence, set(defs))
+            if isinstance(defs[k].get("term"), str) and len(defs[k]["term"].strip()) > MAX_SHORT_CHARS
+            and not defs[k].get("symbol") and not defs[k].get("short")]
+    if long:
+        r.warn("W69", "definitions", f"{', '.join(long)} {'is' if len(long) == 1 else 'are'} named in a table or a "
+                                     f"result and {'has' if len(long) == 1 else 'have'} a term longer than "
+                                     f"{MAX_SHORT_CHARS} characters and no symbol: give each a `short` label, at most "
+                                     f"{MAX_SHORT_CHARS} characters, so that the key under a table names it briefly "
+                                     f"(§3.2)")
 
 
 #: Rule 105 (§3.1): the longest title of a section.
