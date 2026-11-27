@@ -23,6 +23,8 @@ Only what is mechanical is changed:
   support names are listed: if a claim states what that work establishes, its novelty is `synthesis` (new);
 - v0.44: nothing changes but the version; the estimands of planned estimates that match several observations are
   listed: if the plan fixed all of them as a grid of values, the estimand is a table estimand (`table: true`, new);
+- v0.45: nothing changes but the version; the definitions that a table or a result names, whose terms are longer
+  than 30 characters and have no symbol, are listed: give each a `short` label (new) for the reading view's key;
 - `schema_version` is set to the current version.
 From v0.33 a claim inherits the assumptions of the methods studied only for its own subject (§3.2): the
 assumptions a claim inherited under v0.32 and no longer does are listed, to be added to its own `assumptions`
@@ -37,8 +39,8 @@ highlights (warning 39).
 
 import re
 
-from .validate import (OLD_SETUP_ROLES, SCHEMA_VERSION, as_dict, as_list, bind_quantity, bindable,
-                       inherited_assumptions)
+from .validate import (MAX_SHORT_CHARS, OLD_SETUP_ROLES, SCHEMA_VERSION, _named_definitions, as_dict, as_list,
+                       bind_quantity, bindable, inherited_assumptions)
 
 
 def _is_assumption(claim):
@@ -54,6 +56,14 @@ def migrate(doc):
         done.append(f"schema_version {out.get('schema_version')} -> {SCHEMA_VERSION}")
         out["schema_version"] = SCHEMA_VERSION
     evidence = {e.get("id"): e for e in out.get("evidence") or [] if isinstance(e, dict)}
+    defs = {d.get("id"): d for d in out.get("definitions") or [] if isinstance(d, dict) and isinstance(d.get("id"), str)}
+    for k in _named_definitions(list(evidence.values()), set(defs)):
+        d = defs[k]
+        if isinstance(d.get("term"), str) and len(d["term"].strip()) > MAX_SHORT_CHARS and not d.get("symbol") \
+                and not d.get("short"):
+            todo.append(f"definitions:{k} \"{d['term'].strip()}\" is named in a table or a result: give it a short "
+                        f"label, at most {MAX_SHORT_CHARS} characters (\"short\", v0.45, §3.2), for the key under the "
+                        f"table")
     for c in out.get("claims") or []:
         est = c.get("estimate") if isinstance(c, dict) else None
         if not isinstance(est, dict) or not isinstance(est.get("estimands"), dict):

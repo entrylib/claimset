@@ -1,6 +1,6 @@
-# Claimset — Specification v0.44 (draft)
+# Claimset — Specification v0.45 (draft)
 
-Status: working draft · Date: 2026-11-17 · Supersedes v0.43 (`spec/claimset-v0.43.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
+Status: working draft · Date: 2026-11-27 · Supersedes v0.44 (`spec/claimset-v0.44.md`); the baseline is v0.39 (`spec/claimset-v0.39.md`) · Companions: lab record specification (`spec/lab-record-v0.22.md`), revision specification (`spec/claimset-revision-v0.6.md`), extensions (`spec/extensions/`)
 
 Claimset is the name of both the open format and the platform.
 
@@ -11,7 +11,17 @@ Bugs are corrected in the text of a version and in the validator; a correction n
 - 2026-11-24. Warnings 17 and 24 read the numbers of a statement with its formulas taken out, but took out only formulas written `$…$`: a formula displayed with `$$…$$` was read as text, so a number inside it (an exponent, a coefficient) was warned as a number no result records. A displayed formula is now taken out as an inline one is, in this version and every version from the baseline.
 - 2026-11-20. Rule 106 required the artefact holding a table's rows to give a relative path, and §3.13 has the platform replace every packaged file's relative `uri` with its permanent location at publication, so a claimset with a table held in a file could not be published: the platform found its own published file invalid. In a published file, the artefact gives the file's `https` location, ending in `.csv`; before publication, a relative path in the package, as before.
 
-## Changes since v0.43
+## Changes since v0.44
+
+A model reading a paper's results met them by identifier only. An evidence table of a forecasting paper read `| row | D7 | D14 (mean) | D15 (mean) | D16 (mean) |`, its rows `| r1 | D17 | 1.959 | 2.272 | 3.465 |`, and a result `E2.R1 D16 = 523.034 {D7: D17, series: M1 series 47}`: to read one number, a model had to find D7, D14 and D17 among the definitions, hundreds of lines away, and a fast chat model misread such tables. Another table's columns read `D11 {DGP: Normal} (1)`, the `(1)` being the unit of a dimensionless value. Writing each term's name in every cell is no answer: some names are long ("CES and the non-seasonal special cases of ETS").
+
+- §2.3, Appendix D: the reading view gives a **key** under each table and under an evidence object's results that name definitions by identifier: one line, the identifiers the table (or the results) uses, in order of first use, each with a brief label (`key: D7 method; D14 RMSSE; D17 CES`). A column's header names its conditions in words (`D11, DGP Normal`, not `D11 {DGP: Normal}`), and a dimensionless value's unit, `1`, is not written. On five published claimsets, keys with each term's name as its label added 0.3 to 3% to the reading view.
+- §3.2: new optional `short` on a definition: a short label for its term, plain text of at most 30 characters, which the key gives when the term has no `symbol` (`"short": "CES and ETS (non-seasonal)"` for "CES and the non-seasonal special cases of ETS"). `symbol` keeps its meaning, the notation the paper writes for the term: a plain-text label is a different thing, and a later version may not change what a field means (§2.6). New rule 109.
+- New warning 69: a definition that a table, a result's variable or a condition names has a term longer than 30 characters and neither a `symbol` nor a `short` label.
+- The reading view's change is a change of rendering, not of validity: every tool renders files of every version from the baseline (§2.6, *Reading*), so files of v0.44 and earlier get keys and readable headers too, their labels taken from `symbol` or the term. Only files of v0.45 and later can give `short`, and only they are warned.
+- Files of v0.44 and earlier are read as they were written.
+
+## Changes in v0.44 (since v0.43)
 
 A planned estimate could only report single values: each estimand bound exactly one observation. A simulation study fixed in advance what it would estimate over a grid (for each distribution, measure and test-set size, the forecast each error measure ranks first), and its estimands, each naming a variable without the conditions that pick one value, matched a whole table. The format had no way to report that: the lab record exported them as not obtained, and the validator, rightly, refused that while they matched values.
 
@@ -626,6 +636,7 @@ A claimset is stored and exchanged as JSON: the canonical file, which tools vali
 - **Kept:** the title, summary, licence, source of a converted paper, declarations, contributions, highlights and exploration counts (in words: `exploration 2 questions; hypotheses 10: 3 supported, …; runs 214: 18 confirmatory, 196 exploratory, 11 failed; lab record A10`), followed by the formal verdicts that give no claim: `; not claimed: H1 under PL5 (supported; reworded, into C1), H11 under PL5 (inconclusive; abandoned)`, from v0.44 as amended on 2026-11-17); definitions with their symbol, kind, members, the wholes they are part of, their broader terms, assumptions, identifiers and tables (each with its description and a pipe table, from v0.44 as amended on 2026-11-23); corrections, of a converted source (`converted_from.corrections`) or of the published paper (`published_as.corrections`), each marked under the object it corrects and listed, with what was printed, what is recorded and why, in a section of their own; claims with their name and summary, type, role, novelty (when not `no_prior_found`), support with its pointers and locators, assumptions, `depends_on`, limitations, warrant, strength, verification, verifiability, planning, outcome, scope, relations with their notes and results (relations within the paper as well), assumptions inherited from the terms they rest on (§3.2, *Assumptions of a term*), and test; evidence with its description, design fields, setup, what it is derived from, estimate, observations (results and tables, with their values, units, conditions and where a value was read from) and proof steps; warrants; limitations; open questions; artefact descriptions, figure functions, the observations a figure shows and versions (`[software, version 3.2.0]`; a version that is a content hash, `sha256:…`, is left out; from v0.44 as amended on 2026-11-23); references.
 - **Left out:** `about` (the statement says the same in words; `about` serves search), `provenance`, `field_provenance`, `source_spans`, availability, artefact locations, content hashes and licences, contributors, models, execution records, lab-record identifiers, `schema_version` and the platform's publication fields.
 
+- **Tables and results** (from v0.45; applies to files of every version, §2.6 *Reading*): a table's columns are headed by their variable, then their conditions in words, each key and value separated by a space and the conditions by commas, then their statistic and unit in parentheses: `D11, DGP Normal`, `D14 (mean)`, `D9 (GeV)`. A dimensionless value's unit, `1`, is not written, in a header or after a result. Under a table that names definitions by identifier (in its header, its conditions, its row labels or its cells), and under an evidence object's results that do (in their variables and conditions), a **key**: one line, `key:` followed by each such identifier, in order of first use, with a brief label, the definition's `symbol` if it has one, else its `short` (§3.2), else its term: `key: D7 method; D14 RMSSE; D15 MASE; D17 CES`. A term marker (`[[D4:…]]`) carries its own words and is not keyed.
 - **Order:** the parts come in this order: the header (title, summary, the line of licence, source, contributions and highlights, sections, declarations, collaborations, extensions, exploration), DEFINITIONS (the terms and their mathematics), ASSUMPTIONS, CLAIMS, CLAIMS WITHOUT EVIDENCE, EVIDENCE, WARRANTS, LIMITATIONS, OPEN QUESTIONS, ARTEFACTS, CORRECTIONS, REFERENCES. A part with nothing in it is left out.
 - **Assumptions** (from v0.44 as amended on 2026-11-23): the claims whose support is `assumption` (§3.8) are listed under ASSUMPTIONS, after the definitions and before the claims, one line each: the ID, the name in quotation marks, the category and the check in brackets, and the statement (`C12 "The multiplicative error is i.i.d. with mean one" [statistical; unchecked] The multiplicative error term …`). They are the premises of the claims, each of which names those it rests on (`assumes C12, C13`); they appear in no other part.
 - **Claims without sections:** claims (the assumptions apart) are grouped by role: principal claims, then supporting claims, then secondary claims, each group in file order. Claims that are not principal and whose support is only `argument` or `unstated` follow, under CLAIMS WITHOUT EVIDENCE, so a reader sees at once what the paper asserts or argues without evidence. Principal claims stay with the principal claims whatever their support.
@@ -700,7 +711,7 @@ data/
 
 ### 2.6 Specification versions and compatibility
 
-`schema_version` (required, top level) is the version of this specification the file follows: `"0.43"`.
+`schema_version` (required, top level) is the version of this specification the file follows: `"0.45"`.
 
 - **Baseline.** The baseline is the first version the platform accepts: **v0.39**, set when the platform launched on 2026-11-09. A file following an earlier version is refused (rule 79) and brought to the current version by `claimset migrate`.
 - **Every version from the baseline is accepted, for good.** A file is checked by the rules of the version it follows, never by rules added later. A validator of a later version keeps the rules of every earlier version from the baseline and applies the ones the file's version calls for. A file valid under its version when it was published is valid under it in every later validator.
@@ -898,6 +909,7 @@ Retracted papers are never deleted. All their claims inherit the retraction stat
 | `term` | string | |
 | `definition` | string | One term, one meaning, used rigidly throughout |
 | `symbol` | string | Optional. The symbol the paper writes for the term, as one inline formula: `"$s(y,f)$"`, `"$\\sigma$"` (below; rule 103, warning 53) |
+| `short` | string | Optional (from v0.45). A short label for the term, plain text of at most 30 characters, for where the reading view names the term briefly (below; rule 109, warning 69) |
 | `kind` | enum | Required. What sort of thing the term names (below) |
 | `members` | list | For a term that names a group: the IDs of the definitions of its members, each of the same `kind` as the group (below) |
 | `part_of` | list | The definitions of the wholes this term is a part of: a parameter or component of a method, a subset of a data set, a subgroup of a population, a subscale of an instrument (below) |
@@ -918,6 +930,8 @@ Retracted papers are never deleted. All their claims inherit the retraction stat
 - The order of the list may differ from the order of the IDs: after publication IDs never change (§9), and a new or moved definition takes its place in the list.
 
 **`symbol`** (from v0.44 as amended on 2026-11-17). Where the paper writes a symbol for a term, the definition gives it: one inline formula, written as in statements (§8 rule 6), such as `"$s(y,f)$"` for the term `sMAPE term`. One symbol, one meaning: the paper writes the symbol for this term only and writes the term with this symbol only, in every claim, definition and proof step, and no two definitions give the same symbol (warning 53). A quantity written in two ways in one paper (an upper-case letter in one claim and a lower-case one in another) reads as two quantities. A term the paper writes no symbol for has no `symbol`.
+
+**`short`** (from v0.45). The reading view names a term briefly where a reader needs its meaning at once: in the key under a table or an evidence object's results (§2.3), beside the identifier a column, a row or a condition gives. The label is the term's `symbol` if it has one, else its `short`, else the term itself. A term of more than 30 characters with no symbol makes a long key, and is warned where a table, a result's variable or a condition names it (warning 69): give it a `short` label, plain text of at most 30 characters, that a reader of the paper recognises: an abbreviation the paper uses (`MSIS`), or the term cut to what tells it apart from its neighbours (`"CES and ETS (non-seasonal)"` for "CES and the non-seasonal special cases of ETS", `"DGP 1 series"` for "Simulation experiment 1 synthetic series"). It is a label, not a symbol: no formula, and it does not replace the term anywhere else.
 
 **`tables`** (from v0.44 as amended on 2026-11-23). Where the paper specifies a term by a table, the definition gives that table in `tables`, not as a list of values in its prose. A taxonomy of models whose table gives, for each restriction, the blocks of the measurement, transition and persistence matrices $W$, $F$ and $G$ is such a term; written as sentences, its rows read as a list nobody can follow.
 
@@ -1933,6 +1947,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 106. Tables held in a file (§3.4). A table has `rows` or `rows_file`, not both. `rows_file` is the ID of an artefact of kind `data` whose `uri` is a relative path ending in `.csv` (in a published file, the `https` location the platform stored it at, ending in `.csv`; erratum of 2026-11-20), and comes with `n_rows`, a positive integer; `n_rows` appears only with `rows_file`. Where the file is at hand (in a package, or beside the claimset file), it has a header line and `n_rows` further lines, each with one field per row label and per column, and each field a value or empty. A test's quantity, and an estimand that is not a table estimand, does not bind a cell of a table held in a file (rules 91 and 96). (From v0.44 as amended on 2026-11-20.)
 107. `paper.based_on` (§3.1, §9; from v0.44 as amended on 2026-11-21), when present, is a string `<paper.id>@v<n>`: the file's own `paper.id`, then `@v` and a version number n ≥ 1. It appears only in a correction or revision submission (with `paper.id`), or in a published file, where n is below `paper.version`.
 108. A definition's `tables` (§3.2), when present, is a non-empty list of objects with the fields `description`, `columns` and `rows` and no others. `description` is a string with text; `columns` is a non-empty list of strings with text; `rows` is a non-empty list, each row a list of strings with as many entries as `columns` has. A term mark (`[[D4:…]]`) in a table names a definition of the file, as in a definition's text (rule 1). (From v0.44 as amended on 2026-11-23.)
+109. A definition's `short` (§3.2, from v0.45), when present, is a non-empty string on one line of at most 30 characters, plain text with no formula (no `$`).
 
 ### 10.4 Warnings (file accepted, warning recorded)
 
@@ -2004,6 +2019,7 @@ The file records identifier type and venue facts for cited works only. Trust in 
 66. A citation marker (`[[B12:…]]`, §8 rule 14) names no reference of the file. Checked in the texts of warning 65. (From v0.44 as amended on 2026-11-23.)
 67. A term or citation marker holds a formula, `[[D46:$I_n$]]` (§8 rule 5): its text is plain words; write the formula after the marker, `the [[D46:identity matrix]] $I_n$`. Checked in the texts of warning 65. (From v0.44 as amended on 2026-11-23.)
 68. A text holds a control character other than a line break (§8 rule 6): a tab, form feed, backspace, carriage return or another character below U+0020, or one of U+007F to U+009F. Before letters it is usually a LaTeX command a JSON writer left with one backslash (`\frac` read as a form feed and "rac"): write the backslash twice in JSON. (From v0.44 as amended on 2026-11-27.)
+69. Definitions that a table (its columns, conditions, row labels or cells), a result's variable or a condition names have terms longer than 30 characters and neither a `symbol` nor a `short` label (§3.2, from v0.45), listed in one warning: give each a `short` label, at most 30 characters, so that the key under a table names it briefly.
 
 ## 11. Platform dependencies
 
@@ -2269,6 +2285,23 @@ C4 [descriptive; supporting; assumption (statistical, unchecked)]
 
 ARTEFACTS
 A5 [software, version 3.2.0] The smooth R package, used for every estimate.
+```
+
+An evidence object with results and a table that name definitions by identifier (from v0.45) reads like this, abbreviated:
+
+```text
+E2 [quant; design benchmark; data_origin secondary] Forecast accuracy of CES and the benchmarks on the M1, M3 and tourism data.
+  E2.R1 D16 = 523.034 {D7: D17, series: M1 series 47}
+  key: D16 MSIS; D7 method; D17 CES
+  E2.T1 Accuracy of each method, mean and median over the series.
+  | row | D7 | D14 (mean) | D15 (mean) | D16 (mean) | D14 (median) |
+  | r1 | D17 | 1.959 | 2.272 | 3.465 | 1.17 |
+  | r2 | D9 | 1.97 | 2.263 | 2.258 | 1.181 |
+  key: D7 method; D14 RMSSE; D15 MASE; D16 MSIS; D17 CES; D9 ETS
+  E2.T2 Relative bias of each applied model, by data-generating process.
+  | row | applied_model | D11, DGP Normal | D11, DGP Gamma |
+  | r1 | ETS(M,N,N) | 0.012 | 0.034 |
+  key: D11 relative bias
 ```
 
 ## Appendix E: a qualitative paper (definitions, claims, evidence and warrant of a submission)

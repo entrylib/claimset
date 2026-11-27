@@ -1569,7 +1569,8 @@ class TestRulesV032(Base):
         view = render(self.d)
         self.assertIn("declarations funding: none", view)
         self.assertIn("[members D2, D3, D6]", view)
-        self.assertIn("D8 {horizon: 12}", view)
+        self.assertIn("| D8, horizon 12 |", view)                  # conditions in words (v0.45, §2.3)
+        self.assertIn("  key: D4 UK monthly retail sales; D7 the compared methods; D1 forecast skill; D8 MSIS;", view)
         self.assertIn('"yes" (P1, l. 2)', view)
         self.assertIn("inherits C3", view)
 
